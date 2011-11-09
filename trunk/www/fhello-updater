@@ -1,0 +1,5 @@
+#!/bin/bash -p
+thisUri=$1
+cacheFile=$2
+echo Hello from $thisUri `date` > $cacheFile
+

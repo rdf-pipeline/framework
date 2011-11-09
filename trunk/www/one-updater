@@ -1,0 +1,14 @@
+#! /usr/bin/perl -w
+
+# Node one: add one to each number.
+
+my $thisUri = $ENV{PCACHE_THIS_URI};
+print "thisUri: $thisUri\n\n";
+
+while (<>) {
+	chomp;
+	next if !m/\A[0-9]+\Z/;
+	$_++;
+	print "$_\n";
+	}
+

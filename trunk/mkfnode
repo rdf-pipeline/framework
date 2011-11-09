@@ -1,0 +1,15 @@
+#! /usr/bin/perl -w 
+
+my $docRoot = "/home/dbooth/rdf-pipeline/trunk/www";
+
+# Make a file node.
+foreach my $node (@ARGV)
+	{
+	my $u = "$docRoot/$node-updater";
+	system "cp $docRoot/../noop-updater $u"
+		if !-e $u;
+	# system "chmod a+s $docRoot/../noop-updater $u";
+	my $c = "$docRoot/$node-cache.txt";
+	system "touch $c";
+	}
+

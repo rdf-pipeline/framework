@@ -1,0 +1,7 @@
+#! /usr/bin/perl -w
+# Generate even numbers from 2 to $n.
+my $n = 10;
+for (my $i=2; $i<=$n; $i+=2) {
+	print "$i\n";
+	}
+

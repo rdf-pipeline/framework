@@ -1,0 +1,10 @@
+#! /usr/bin/perl -w 
+# Node e: Output the odd numbers from node c.
+my $thisUri    = $ARGV[0] || die;
+my $cCacheFile = $ARGV[1] || die;
+open(my $cfh, "<$cCacheFile") || die;
+while (defined(my $c = <$cfh>)) {
+	chomp $c;
+	print "$c\n" if $c % 2 != 0;
+	}
+close($cfh);

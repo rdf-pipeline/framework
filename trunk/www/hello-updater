@@ -1,0 +1,3 @@
+#!/bin/bash -p
+echo Hello from $1 on `date` 
+
