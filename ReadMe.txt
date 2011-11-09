@@ -11,6 +11,11 @@ TODO:
  - Need to be able to specify document root dirs for various prefixes.
  - Get RDF parsing working (Trine)
 
+11/8/11: This finally worked for importing the files to code.google's
+svn:
+
+  dbooth@dbooth-laptop:~/rdf-pipeline/trunk$ svn import . https://rdf-pipeline.googlecode.com/svn/trunk/ --username david@dbooth.org -m "Initial import"
+
 10/17/11: Need to add predicates to tell the server where to look
 for caches and updaters for URIs under a particular prefix, like:
 [[
