@@ -1,0 +1,8 @@
+    # BookStore2 pipeline definition
+
+    @prefix p: <http://purl.org/pipeline/ont#> .
+    @prefix : <http://localhost/> .
+    :bookStore a p:JenaNode .
+    :bookStore2 a p:JenaNode ;
+        p:inputs ( :bookStore ) ;
+        p:updater “bookStore2-updater.sparql” .

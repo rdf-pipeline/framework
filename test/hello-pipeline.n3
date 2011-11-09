@@ -1,0 +1,8 @@
+# Example 0: Hello world (one-node pipeline)
+
+@prefix p: <http://purl.org/pipeline/ont#> .
+@prefix : <http://localhost/> .
+
+:hello a p:FileNode .
+:hello 	p:updater "hello-updater" .
+

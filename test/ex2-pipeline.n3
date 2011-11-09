@@ -1,0 +1,29 @@
+# Example 2: Adding parameters that are passed upstream.
+
+@prefix p: <http://purl.org/pipeline/ont#> .
+@prefix : <http://localhost/> .
+
+# If p:updater is not a full path it is treated as being relative 
+# to the server's DOCUMENT_ROOT.
+
+# p:output is *always* relative to the server's DOCUMENT_ROOT -- even
+# if it starts with "/".
+
+:a 	p:updater "a-updater" .
+:a	p:parameters ( :cp ) .
+
+:b 	p:updater "b-updater" .
+:b	p:parameters ( :cp ) .
+
+:c	p:updater "c-updater" .
+:c 	p:inputs ( :a :b ) .
+:c	p:parameters ( :dp :ep ) .
+:cp	p:updater "cp-updater" .
+:cp 	p:inputs ( :dp :ep ) .
+
+:d	p:updater "d-updater" .
+:d 	p:inputs ( :c ) .
+
+:e	p:updater "e-updater" .
+:e 	p:inputs ( :c ) .
+
