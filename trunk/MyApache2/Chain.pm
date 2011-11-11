@@ -15,6 +15,8 @@
 #
 
 package MyApache2::Chain;
+# http://perl.apache.org/docs/2.0/api/Apache2/Reload.html
+use Apache2::Reload;
 use LWP::UserAgent;
 use HTTP::Status;
 
@@ -39,16 +41,43 @@ use Apache2::Const -compile => qw(OK SERVER_ERROR NOT_FOUND);
 my $logFile = "/tmp/rdf-pipeline-log.txt";
 # unlink $logFile || die;
 
-my $configLastModified = 0;
-my $ontLastModified = 0;
-my $internalsLastModified = 0;
+### Package variables:
 my %config = ();		# Maps: "?s ?p" --> "v1 v2 ... vn"
 my %configValues = ();		# Maps: "?s ?p" --> {v1 => 1, v2 => 1, ...}
 my %cachedResponse = ();	# Previous HTTP response to GET or HEAD.
 				# Key: "$thisUri $supplierUri"
+my $configLastModified = 0;
+my $ontLastModified = 0;
+my $internalsLastModified = 0;
 
-&PrintLog("="x60 . "\n");
+&PrintLog("="x30 . " START7 " . "="x30 . "\n");
 &PrintLog(`date`);
+
+if (1)
+{
+  use Apache::Session::File;
+
+  my %session;
+  my $sessionIdFile = "/tmp/rdf-pipeline-sessionID";
+  my $sessionId = &ReadFile($sessionIdFile);
+  $sessionId = undef if !$sessionId;
+  my $isNewSessionId = !$sessionId;
+  #make a fresh session for a first-time visitor
+ tie %session, 'Apache::Session::File', $sessionId, {
+    Directory => '/tmp/rdf-pipeline-sessions',
+    LockDirectory   => '/tmp/rdf-pipeline-locks',
+ };
+$sessionId ||= $session{_session_id};
+
+&WriteFile($sessionIdFile, $sessionId) if $isNewSessionId;
+&PrintLog("sessionId: $sessionId\n");
+
+  #...time passes...
+
+$session{date} ||= `date`;
+my $testShared = $session{date};
+&PrintLog("testShared: $testShared\n");
+}
 
 use Getopt::Long;
 my $debug = 1;
@@ -563,13 +592,15 @@ return %config;
 
 ############ WriteFile ##########
 # Write a file.  Examples:
+#   &WriteFile("/tmp/foo", $all)   # Same as &WriteFile(">/tmp/foo", all);
 #   &WriteFile(">$f", $all)
 #   &WriteFile(">>$f", $all)
 sub WriteFile
 {
 @_ == 2 || die;
 my ($f, $all) = @_;
-open(my $fh, $f) || die;
+my $ff = (($f =~ m/\A\>/) ? $f : ">$f");    # Default to ">$f"
+open(my $fh, $ff) || die;
 print $fh $all;
 close($fh) || die;
 }
