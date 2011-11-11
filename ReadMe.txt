@@ -1,4 +1,4 @@
-RDF Pipeline Framework, David Booth <david@dbooth.org>
+RDF Pipeline Framework, Copyright 2011 David Booth <david@dbooth.org>
 http://code.google.com/p/rdf-pipeline/
 See license info in License.txt
 
@@ -6,101 +6,101 @@ These are my (dbooth) personal notes and "To Do" list from
 before I used code.google.com and had any formal bug tracker
 or issues list. 
 
-TODO:
- - Get recursive invocations working.
- - Need to be able to specify document root dirs for various prefixes.
- - Get RDF parsing working (Trine)
+11/10/11: I tried the following, but then discovered that
+I had been working on a different copy of Chain.pm, and
+thus none of my tests had taken effect.  So I need to
+try them again.  They are:
+[[
+I tried changing %config and a few other variables to
+package variables, but ont.n3 still gets reloaded on every HTTP
+request.  I then tried using threads::shared and marking them
+as shared (both as package and as my variable), but got the 
+same behavior.  Then I tried Apache::Session::File, but I
+could not figure out any way to initialize the session ID.
+The documentation unhelpfully says:
+http://search.cpan.org/~chorny/Apache-Session-1.89/lib/Apache/Session.pm#Sharing_data_between_Apache_processes
+[[
+When you share data between Apache processes, you need to decide on a
+session ID number ahead of time and make sure that an object with that
+ID number is in your object store before starting your Apache. How you
+accomplish that is your own business. I use the session ID "1".
+]]
+AFAICT, I would have to figure out how to use Storable (since
+Apache::Session::File seems to use that) to initialize the
+session ID, which seems like a ridiculous pain.  The alternate
+seems to be to use undef for the session ID when starting,
+let it generate one for me, and then store that somewhere
+where all Apache threads/processes can access it.  (In a
+file?  Trying to put it in $ENV{RDF_PIPELINE_SESSION_ID} 
+did not work, as it was cleared on each HTTP request.)
+]]
+
+11/10/11: Apache2::Reload did not seem to work for me when
+I tried it:
+[[
+package MyApache2::Chain;
+# http://perl.apache.org/docs/2.0/api/Apache2/Reload.html
+use Apache2::Reload;
+]]
+I still seem to have to stop and restart apache2 to get it
+to use my latest Chain.pm.
+
+11/10/11: Based on the example I have added to my slides:
+[[
+Input caching: Foreign environments
+ - “Foreign environment” means different servers or node types
+ - Node inputs are locally cached.  E.g. for node C: 
+   - A-output' is a local copy of A-output
+   - B-output' is a local copy of B-output
+
+Input caching: Local environment
+ - “Local environment” means same server and node type
+ - Node inputs are accessed directly from predecessor node outputs
+   - No separate copy
+ - Node C accesses A-output and B-output directly
+
+Input caching: Mixed foreign and local
+ - Local cache is used for foreign input nodes
+ - Direct access is used for local input nodes
+
+Input caching: Shared local caches
+ - Nodes C and E share the same local cache B-output'
+
+Internals: Freshness and response headers
+ - For each output cache, the server remembers the input response headers on which the current output was based, e.g., Last-Modified, ETag, etc.
+ - E-output is stale
+ - C-output is fresh
+]]
+
+It looks like a special, hidden node could be used for B-output', 
+and then AnyChanged would always do the equivalent of HEAD 
+requests -- never GETs -- though they are internal to server.
+
+11/10/11: A node dependsOn both its inputs and its parameters
+(which could be viewed as a subclass of inputs) and potentially
+other things, such as its updater.  What should these things
+be called collectively?  "Dependency" is ambiguous about its
+direction.  How about "intakes" or even "ins"?  Might be good enough.
+
+Example of ambiguity of "dependency": In "George has an alcohol
+dependency", George dependsOn alcohol.  But in "England has
+India as a dependency", India dependsOn England, which is
+the opposite way around.  I.e., it is not clear whether
+"X hasDependency Y" means "X dependsOn Y" or "Y dependsOn X".
+
+11/9/11: If an RDF Pipeline is going to be used with many rapid requests
+then it will become necessary to make nodes have the usual ACID
+database properties. 
 
 11/8/11: This finally worked for importing the files to code.google's
 svn:
 
   dbooth@dbooth-laptop:~/rdf-pipeline/trunk$ svn import . https://rdf-pipeline.googlecode.com/svn/trunk/ --username david@dbooth.org -m "Initial import"
 
-10/17/11: Need to add predicates to tell the server where to look
-for caches and updaters for URIs under a particular prefix, like:
-[[
- n: p:cacheRoot   ( p:FileNode "/home/dbooth/pcache/www" ) .
- n: p:updaterRoot ( p:FileNode "/home/dbooth/pcache/www" ) .
-]]
-This means that for any FileNode foo in namespace n: , by default the caches 
-for n:foo would be at:
- 	/home/dbooth/pcache/www/foo/output 
- 	/home/dbooth/pcache/www/foo/inputs/...a 
- 	/home/dbooth/pcache/www/foo/inputs/...b 
- 	/home/dbooth/pcache/www/foo/parameters/...x 
- 	/home/dbooth/pcache/www/foo/parameters/...y 
-And the updater for FileNode f:foo would be at:
- 	/home/dbooth/pcache/www/foo/updater 
-I'm not sure whether that syntax or the following would be best:
-[[
- p:FileNode p:cacheRoot   ( n: "/home/dbooth/pcache/www" ) .
- p:FileNode p:updaterRoot ( n: "/home/dbooth/pcache/www" ) .
-]]
-
-For a SPARQL server it might be something like this: 
-[[
- n: p:cacheRoot   ( p:SparqlNode "http://localhost/" ) .
- n: p:cacheRoot   ( p:SparqlNode <http://localhost/> ) .  # Alternate way
- n: p:updaterRoot ( p:SparqlNode "/home/dbooth/pcache/www" ) .
-]]
-
-These facts might be stored in a graph named n: like this:
- {
- p:FileNode p:cacheRoot   "/home/dbooth/pcache/www" .
- p:FileNode p:updaterRoot "/home/dbooth/pcache/www" .
- }
-This may allow easy defaulting by allowing assertions to be copied
-from one named graph to another (if not already asserted).
-Or maybe just use rules like:
-  {
-  ?hostingDomain a p:HostingDomain .	# Node prefix
-  p:GlobalDefaults p:cacheRoot ( ?nodeType ?cacheRoot ) .
-  FILTER NOT EXISTS {
-    ?hostingDomain p:cacheRoot ( ?nodeType ?cacheRootOther ) .
-    } 
-  } 
-  =>
-  {
-  ?hostingDomain p:cacheRoot ( ?nodeType ?cacheRoot ) .
-  }
-
-And:
-  {
-  ?nodeType rdfs:subClassOf p:Node .
-  ?node a ?nodeType ; p:hostingDomain ?hostingDomain .
-  # Or: 
-  #   ?hostingDomain a p:HostingDomain .	# Node prefix
-  #   FILTER( STR(?node) starts-with STR(?hostingDomain) )
-  ?hostingDomain p:cacheRoot ( ?nodeType ?cacheRoot ) .
-  FILTER NOT EXISTS {
-    ?node p:cacheRoot ( ?nodeType ?cacheRootOther ) .
-    } 
-  } 
-  =>
-  {
-  ?node p:cacheRoot ( ?nodeType ?cacheRoot ) .
-  }
-
-Or maybe define a general purpose p:defaultsFrom relation:
-  p:hostingDomain p:defaultsFrom p:globalDefaults .
-  p:HostingDomainMembers p:defaultsFrom p:globalDefaults .
-
-Another issue: how should the SPARQL rules be specified in a way that is easy
+10/17/11: Another issue: how should the SPARQL rules be specified in a way that is easy
 to test in isolation, but also generalizable as a node in a pipeline?
 Temp graphs would have to be unique in order to run multiple nodes
 safely on the same host. 
-
-
-10/14/11: Decided to use the dir/path structure described below
-on 4/28/11.
-[[
- - Decide what dir/path structure to use for nodes, caches, etc.
-   Bear in mind that cache URIs may be arbitrarily different from node URIs,
-   e.g., for a database.
-]]
-
-10/11/11: I changed 000-default back to enable pcache to run.
-PanGenX cytoscape is using Tomcat on a different port now.
 
 9/2/11: Modified /etc/apache2/sites-enabled/000-default
 to make the www directory point to ~/pangenx/www instead
@@ -108,27 +108,6 @@ of ~/pcache/www , so I can run pangenx cytoscape.  It will
 have to be changed back to use pcache again.
 
 6/9/11: I should explain and hype the term "virtual cache".
-
-6/5/11: I've been thinking about mapcar.  When B does a
-conditional GET to A, A should return the concatenation of
-HEAD requests to each Ai in the response body.  Therefore, 
-if the conditional GET
-to A yields Not-Modified, then we know that none of the Ai's
-contents have changed and we don't need to request any
-of them.  But if any have changed, then we'll know which
-Ai changed by parsing the response body, so we can then
-request only the ones that have changed.  The downside of
-this is that it means that, internally, A will do two requests
-to each Ai that changed: first the HEAD request, and then
-later the GET request.  Instead, it would be better to be
-able to do a group conditional request, sending previous
-ETags for all Ai's, and getting back a list of all Ai's
-with their latest ETags, and for those that had changed,
-also their content.  Could this be done with a GET?  Can
-a GET request include a body?  Or would all these ETags
-have to be encoded into the URL?  Or would we have to use
-POST?
-
 
 5/26/11: I got RDF::LinkedData working using Plack, thanks to
 http://www.perlrdf.org/slides/perlrdf-intro.xhtml
@@ -144,11 +123,8 @@ to re-insert it into a new graph anyway.
 5/9/11: PURL domain was approved, so I'm renaming all of
 the p: namespaces to use it.
 
-5/1/11: I did some hacking on CachingRequest to try to make it
-optimize local requests, because I discovered that when an HTTP
-request is done recursively, it seems to create new perl instance
-variables, so %config is reloaded and %cachedResponse is empty.  
-That got me thinking that the RDF should assert cache filenames
+5/1/11: I did some hacking on CachingRequest . . . and that
+got me thinking that the RDF should assert cache filenames
 for a node's:
 	output cache:      :c p:output "c/output" .
 	input caches:      :c p:cache (:a "c/cache/a") .
@@ -167,16 +143,6 @@ I also started writing InferFileNodeCaches but got bogged
 down and realized it would take too long to get it working,
 so I abandoned it for the moment, in order to focus on
 jena and my presentation.
-
-4/28/11:
-I'm thinking of changing the directory structure for FileNodes:
-	.../n			-- Node n
-	.../n/updater		-- Default updater for n
-	.../n/output		-- Default output cache for n
-	.../n/input/		-- Directory for input caches for n
-	.../n/input/...a	-- Input cache for node a (encoded URI)
-	.../n/parameter/	-- Directory for parameters caches for n
-	.../n/parameter/...e	-- Parameter cache for node e (encoded URI)
 
 4/28/11:
 TODO: I think I have the logic of AnyChanged wrong.  I need to think
