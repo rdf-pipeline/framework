@@ -11,12 +11,20 @@
 
 #file:MyApache2/Chain.pm
 #----------------------
-# Refresh a file node and then return its content.
-#
+# Apache2 uses multiple threads and a pool of PerlInterpreters.
+# Code below that is outside of any function will be executed once
+# for each PerlInterpreter instance when it starts.  Since existing
+# PerlInterpreter instances will be used first, a new instance will 
+# only be started when all existing instances are busy.  Also, in
+# spite of being threaded, variables are separate between 
+# instances -- mod_perl does this somehow -- so one instance will not see
+# changes made to another instance's variables unless something
+# special is done to make them shared.  (Maybe threads::shared?
+# Or Apache::Session::File?)  This means that HTTP response headers
+# cannot be cached in memory (without doing something special),
+# because they won't be visible across instances.
 
 package MyApache2::Chain;
-# http://perl.apache.org/docs/2.0/api/Apache2/Reload.html
-use Apache2::Reload;
 use LWP::UserAgent;
 use HTTP::Status;
 
@@ -37,6 +45,11 @@ use Apache2::RequestRec (); # for $r->content_type
 use Apache2::SubRequest (); # for $r->internal_redirect
 use Apache2::RequestIO ();
 use Apache2::Const -compile => qw(OK SERVER_ERROR NOT_FOUND);
+use Apache2::Response ();
+use APR::Finfo ();
+use APR::Const -compile => qw(FINFO_NORM);
+use HTTP::Date;
+use APR::Table ();
 
 my $logFile = "/tmp/rdf-pipeline-log.txt";
 # unlink $logFile || die;
@@ -50,7 +63,7 @@ my $configLastModified = 0;
 my $ontLastModified = 0;
 my $internalsLastModified = 0;
 
-&PrintLog("="x30 . " START7 " . "="x30 . "\n");
+&PrintLog("="x30 . " START8 " . "="x30 . "\n");
 &PrintLog(`date`);
 
 if (1)
@@ -143,7 +156,7 @@ if (0 && $debug) {
 		}
 	&PrintLog("\n");
 	}
-&PrintLog(`date`);
+&PrintLog("RealHandler called: " . `date`);
 
 # Reload config file?
 my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
@@ -325,11 +338,78 @@ else	{
 	}
 
 # Finally, read the file cache:
-# $r->internal_redirect($cache) if (!$test) && !$debug;
-$r->internal_redirect($cache) if !$test;
+if (0) {
+	# $r->internal_redirect($cache) if (!$test) && !$debug;
+	$r->internal_redirect($cache) if !$test;
+	}
+elsif (0) {
+	&PrintLog("HandleFileNode: TRYING FILENAME...\n") if $debug;
+	$r->filename($cache);
+	&PrintLog("HandleFileNode: SET FILENAME\n") if $debug;
+	$r->finfo(APR::Finfo::stat($cacheFullPath, APR::Const::FINFO_NORM, $r->pool));
+	&PrintLog("HandleFileNode: SET FINFO\n") if $debug;
+	my $size = $r->finfo->size;
+	&PrintLog("HandleFileNode: size: $size\n") if $debug;
+	}
+else	{
+	# Manually set the headers, so that the Content-Type can be
+	# set properly.  
+	my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+			      $atime,$mtime,$ctime,$blksize,$blocks)
+				  = stat($cacheFullPath);
+	# Avoid unused var warning:
+	($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+			      $atime,$mtime,$ctime,$blksize,$blocks) =
+	($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+			      $atime,$mtime,$ctime,$blksize,$blocks);
+	my $lm = time2str($mtime);
+	&PrintLog("HandleFileNode: Last-Modified: $lm\n") if $debug;
+	if (1) {
+		&PrintLog("HandleFileNode: Trying sendfile...\n") if $debug;
+		# We must set headers explicitly here.
+		# This works also: $r->content_type('application/rdf+xml');
+		$r->content_type('text/plain');
+		$r->set_content_length($size);
+		$r->set_last_modified($mtime);
+		# TODO: Set proper ETag
+		# "W/" prefix on ETag means that it is weak.
+		# $r->headers_out->set('ETag' => 'W/"640e9-a-4b269027adb7d;4b142a708a8ad"'); 
+		$r->headers_out->set('ETag' => 'W/"fake-etag"'); 
+		# Did not work: $r->sendfile($cache);
+		# sendfile seems to want a full file system path:
+		$r->sendfile($cacheFullPath);
+		}
+	else	{
+		$r->internal_redirect($cache) if !$test;
+		}
+	my $m = $r->method;
+	my $ho = $r->header_only;
+	&PrintLog("HandleFileNode: method: $m header_only: $ho\n") if $debug;
+	if (0 && $r->header_only) { # HEAD
+		# The rflush is needed for correct headers in the special case
+		# of HEAD when Content-Length is 0:
+		# http://perl.apache.org/docs/2.0/user/handlers/http.html#item_The_special_case_of__code_Content_Length__0__code_
+		$r->rflush;
+		}
+	elsif (0) { # GET
+		# Generate and send the body.
+		# Someday this should be changed to be more efficient
+		# for large files.  Some useful info:
+		# http://stackoverflow.com/questions/318789/whats-the-best-way-to-open-and-read-a-file-in-perl
+		open(my $fh, "<$cacheFullPath") || die;
+		while (defined(my $line=<$fh>)) {
+			print $line;
+			}
+		close($fh) || die;
+		}
+	}
+
 # These work:
 # $r->internal_redirect("/fchain.txt") if !$debug;
 # $r->internal_redirect("http://localhost/fchain.txt");
+# Apache2::Const::OK indicates that this handler ran successfully.
+# It is not the HTTP response code being returned.  See:
+# http://perl.apache.org/docs/2.0/user/handlers/intro.html#C_RUN_FIRST_
 return Apache2::Const::OK;
 }
 
