@@ -41,7 +41,6 @@ This is for a lazy update policy.  Rough pseudo-code:
 [[
 sub ForeignNodeHandler
 {
-
 my $r = shift; 		# Apache2::RequestRec passed to handler()
 my $thisUri = shift; 	# URI of node requested (w/o query string)
 my $nodeFunctions = shift; # Hash of node-type-specific functions

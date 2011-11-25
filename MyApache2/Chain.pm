@@ -41,6 +41,7 @@ use APR::Table ();
 use LWP::UserAgent;
 use HTTP::Status;
 use Apache2::URI ();
+use URI::Escape;
 
 my $configFile = "/home/dbooth/rdf-pipeline/trunk/pipeline.n3";
 my $ontFile = "/home/dbooth/rdf-pipeline/trunk/ont.n3";
@@ -370,11 +371,7 @@ else	{
 	# Test of getting query params (and it works):
 	my $args = $r->args() || "";
 	&PrintLog("Query string: $args\n") if $debug;
-	my %args = map { 
-		my ($k,$v) = split(/\=/, $_); 
-		$v = "" if !defined($v); 
-		$k ? ($k, $v) : ()
-		} split(/\&/, $args);
+	my %args = &ParseQueryString($args);
 	foreach my $k (keys %args) {
 		my $v = $args{$k};
 		&PrintLog("	$k = $v\n") if $debug;
@@ -430,6 +427,20 @@ else	{
 return Apache2::Const::OK;
 }
 
+################### ParseQueryString #################
+# Returns a hash of key/value pairs, with the values unescaped.
+# If the same key appears more than once in the query string,
+# the last value given wins.
+sub ParseQueryString
+{
+my $args = shift || "";
+my %args = map { 
+	my ($k,$v) = split(/\=/, $_); 
+	$v = "" if !defined($v); 
+	$k ? ($k, uri_unescape($v)) : ()
+	} split(/\&/, $args);
+return %args;
+}
 
 ################### LocalFilenames #####################
 # For each given input or parameter URI $uri, return a filename 
