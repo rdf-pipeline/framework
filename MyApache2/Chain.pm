@@ -32,10 +32,12 @@ use warnings;
 use Apache2::RequestRec (); # for $r->content_type
 use Apache2::SubRequest (); # for $r->internal_redirect
 use Apache2::RequestIO ();
-use Apache2::Const -compile => qw(OK SERVER_ERROR NOT_FOUND);
+# use Apache2::Const -compile => qw(OK SERVER_ERROR NOT_FOUND);
+use Apache2::Const -compile => qw(:common REDIRECT HTTP_NO_CONTENT DIR_MAGIC_TYPE HTTP_NOT_MODIFIED);
 use Apache2::Response ();
 use APR::Finfo ();
 use APR::Const -compile => qw(FINFO_NORM);
+
 use HTTP::Date;
 use APR::Table ();
 use LWP::UserAgent;
@@ -291,6 +293,15 @@ my $atDependsOn = join(" ", @dependsOn);
 &PrintLog("\@dependsOn: $atDependsOn\n") if $debug;
 &PrintLog("updater: $updater\n") if $debug;
 
+# Test of getting query params (and it works):
+my $args = $r->args() || "";
+&PrintLog("Query string: $args\n") if $debug;
+my %args = &ParseQueryString($args);
+foreach my $k (keys %args) {
+	my $v = $args{$k};
+	&PrintLog("	$k = $v\n") if $debug;
+	}
+
 if ((!-e $cacheFullPath) || &AnyChanged($thisUri, @dependsOn))
 	{
 	# Run updater if there is one:
@@ -340,83 +351,40 @@ else	{
 	&PrintLog("HandleFileNode: No dependsOn changed -- updater not run.\n") if $debug;
 	}
 
-# Finally, read the file cache:
-if (0) {
-	# $r->internal_redirect($cache) if (!$test) && !$debug;
-	$r->internal_redirect($cache) if !$test;
-	}
-elsif (0) {
-	&PrintLog("HandleFileNode: TRYING FILENAME...\n") if $debug;
-	$r->filename($cache);
-	&PrintLog("HandleFileNode: SET FILENAME\n") if $debug;
-	$r->finfo(APR::Finfo::stat($cacheFullPath, APR::Const::FINFO_NORM, $r->pool));
-	&PrintLog("HandleFileNode: SET FINFO\n") if $debug;
-	my $size = $r->finfo->size;
-	&PrintLog("HandleFileNode: size: $size\n") if $debug;
-	}
-else	{
-	# Manually set the headers, so that the Content-Type can be
-	# set properly.  
-	my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
-			      $atime,$mtime,$ctime,$blksize,$blocks)
-				  = stat($cacheFullPath);
-	# Avoid unused var warning:
-	($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
-			      $atime,$mtime,$ctime,$blksize,$blocks) =
-	($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
-			      $atime,$mtime,$ctime,$blksize,$blocks);
-	&PrintLog("HandleFileNode: size: $size\n") if $debug;
-	my $lm = time2str($mtime);
-	&PrintLog("HandleFileNode: Last-Modified: $lm\n") if $debug;
-	# Test of getting query params (and it works):
-	my $args = $r->args() || "";
-	&PrintLog("Query string: $args\n") if $debug;
-	my %args = &ParseQueryString($args);
-	foreach my $k (keys %args) {
-		my $v = $args{$k};
-		&PrintLog("	$k = $v\n") if $debug;
-		}
-	if (1) {
-		&PrintLog("HandleFileNode: Trying sendfile...\n") if $debug;
-		# We must set headers explicitly here.
-		# This works also: $r->content_type('application/rdf+xml');
-		$r->content_type('text/plain');
-		$r->set_content_length($size);
-		$r->set_last_modified($mtime);
-		my $cacheUri = $r->construct_url($cache); 
-		$r->headers_out->set('Content-Location' => $cacheUri); 
-		# TODO: Set proper ETag, perhaps using Time::HiRes mtime.
-		# "W/" prefix on ETag means that it is weak.
-		# $r->headers_out->set('ETag' => 'W/"640e9-a-4b269027adb7d;4b142a708a8ad"'); 
-		$r->headers_out->set('ETag' => 'W/"fake-etag"'); 
-		# Did not work: $r->sendfile($cache);
-		# sendfile seems to want a full file system path:
-		$r->sendfile($cacheFullPath);
-		}
-	else	{
-		$r->internal_redirect($cache) if !$test;
-		}
-	my $m = $r->method;
-	my $ho = $r->header_only;
-	&PrintLog("HandleFileNode: method: $m header_only: $ho\n") if $debug;
-	if (0 && $r->header_only) { # HEAD
-		# The rflush is needed for correct headers in the special case
-		# of HEAD when Content-Length is 0:
-		# http://perl.apache.org/docs/2.0/user/handlers/http.html#item_The_special_case_of__code_Content_Length__0__code_
-		$r->rflush;
-		}
-	elsif (0) { # GET
-		# Generate and send the body.
-		# Someday this should be changed to be more efficient
-		# for large files.  Some useful info:
-		# http://stackoverflow.com/questions/318789/whats-the-best-way-to-open-and-read-a-file-in-perl
-		open(my $fh, "<$cacheFullPath") || die;
-		while (defined(my $line=<$fh>)) {
-			print $line;
-			}
-		close($fh) || die;
-		}
-	}
+# Manually set the headers, so that the Content-Type can be
+# set properly.  
+my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+		      $atime,$mtime,$ctime,$blksize,$blocks)
+			  = stat($cacheFullPath);
+# Avoid unused var warning:
+($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+		      $atime,$mtime,$ctime,$blksize,$blocks) =
+($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+		      $atime,$mtime,$ctime,$blksize,$blocks);
+&PrintLog("HandleFileNode: size: $size\n") if $debug;
+my $lm = time2str($mtime);
+&PrintLog("HandleFileNode: Last-Modified: $lm\n") if $debug;
+
+&PrintLog("HandleFileNode: Trying sendfile...\n") if $debug;
+# We must set headers explicitly here.
+# This works for returning 304:
+# $r->status(Apache2::Const::HTTP_NOT_MODIFIED);
+$r->content_type('text/plain');
+# This works also: $r->content_type('application/rdf+xml');
+$r->set_content_length($size);
+$r->set_last_modified($mtime);
+my $cacheUri = $r->construct_url($cache); 
+$r->headers_out->set('Content-Location' => $cacheUri); 
+# TODO: Set proper ETag, perhaps using Time::HiRes mtime.
+# "W/" prefix on ETag means that it is weak.
+# $r->headers_out->set('ETag' => 'W/"640e9-a-4b269027adb7d;4b142a708a8ad"'); 
+$r->headers_out->set('ETag' => 'W/"fake-etag"'); 
+# Did not work: $r->sendfile($cache);
+# sendfile seems to want a full file system path:
+$r->sendfile($cacheFullPath);
+my $m = $r->method;
+my $ho = $r->header_only;
+&PrintLog("HandleFileNode: method: $m header_only: $ho\n") if $debug;
 
 # These work:
 # $r->internal_redirect("/fchain.txt") if !$debug;
