@@ -25,18 +25,6 @@
 # because they won't be visible across instances.
 
 package MyApache2::Chain;
-use LWP::UserAgent;
-use HTTP::Status;
-
-my $configFile = "/home/dbooth/rdf-pipeline/trunk/pipeline.n3";
-my $ontFile = "/home/dbooth/rdf-pipeline/trunk/ont.n3";
-my $internalsFile = "/home/dbooth/rdf-pipeline/trunk/internals.n3";
-my $prefix = "http://purl.org/pipeline/ont#";	# Pipeline ont prefix
-$ENV{DOCUMENT_ROOT} ||= "/home/dbooth/rdf-pipeline/trunk/www";	# Set if not set
-### TODO: Set $baseUri automatically
-$ENV{SERVER_NAME} ||= "localhost";
-my $baseUri = "http://$ENV{SERVER_NAME}/";
-my $PCACHE = "PCACHE"; # Used in forming env vars
 
 # See http://perl.apache.org/docs/2.0/user/intro/start_fast.html
 use strict;
@@ -50,6 +38,19 @@ use APR::Finfo ();
 use APR::Const -compile => qw(FINFO_NORM);
 use HTTP::Date;
 use APR::Table ();
+use LWP::UserAgent;
+use HTTP::Status;
+use Apache2::URI ();
+
+my $configFile = "/home/dbooth/rdf-pipeline/trunk/pipeline.n3";
+my $ontFile = "/home/dbooth/rdf-pipeline/trunk/ont.n3";
+my $internalsFile = "/home/dbooth/rdf-pipeline/trunk/internals.n3";
+my $prefix = "http://purl.org/pipeline/ont#";	# Pipeline ont prefix
+$ENV{DOCUMENT_ROOT} ||= "/home/dbooth/rdf-pipeline/trunk/www";	# Set if not set
+### TODO: Set $baseUri automatically
+$ENV{SERVER_NAME} ||= "localhost";
+my $baseUri = "http://$ENV{SERVER_NAME}/";
+my $PCACHE = "PCACHE"; # Used in forming env vars
 
 my $logFile = "/tmp/rdf-pipeline-log.txt";
 # unlink $logFile || die;
@@ -210,7 +211,8 @@ if (0 && $debug) {
 	&PrintLog("-" x 60 . "\n") if $debug;
 	}
 my $thisUri = $testUri;
-$thisUri = "http://" . ($r->hostname()) . ($r->uri()) if !$test; 
+# construct_url omits the query params though
+$thisUri = $r->construct_url() if !$test; 
 &PrintLog("thisUri: $thisUri\n") if $debug;
 my @types = split(/\s+/, ($config{"$thisUri a"}||"") );
 &PrintLog("ERROR: $thisUri is not a Node.  types: @types\n") if $debug && !(grep {$_ && $_ eq "Node"} @types);
@@ -362,8 +364,21 @@ else	{
 			      $atime,$mtime,$ctime,$blksize,$blocks) =
 	($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
 			      $atime,$mtime,$ctime,$blksize,$blocks);
+	&PrintLog("HandleFileNode: size: $size\n") if $debug;
 	my $lm = time2str($mtime);
 	&PrintLog("HandleFileNode: Last-Modified: $lm\n") if $debug;
+	# Test of getting query params (and it works):
+	my $args = $r->args() || "";
+	&PrintLog("Query string: $args\n") if $debug;
+	my %args = map { 
+		my ($k,$v) = split(/\=/, $_); 
+		$v = "" if !defined($v); 
+		$k ? ($k, $v) : ()
+		} split(/\&/, $args);
+	foreach my $k (keys %args) {
+		my $v = $args{$k};
+		&PrintLog("	$k = $v\n") if $debug;
+		}
 	if (1) {
 		&PrintLog("HandleFileNode: Trying sendfile...\n") if $debug;
 		# We must set headers explicitly here.
@@ -371,7 +386,9 @@ else	{
 		$r->content_type('text/plain');
 		$r->set_content_length($size);
 		$r->set_last_modified($mtime);
-		# TODO: Set proper ETag
+		my $cacheUri = $r->construct_url($cache); 
+		$r->headers_out->set('Content-Location' => $cacheUri); 
+		# TODO: Set proper ETag, perhaps using Time::HiRes mtime.
 		# "W/" prefix on ETag means that it is weak.
 		# $r->headers_out->set('ETag' => 'W/"640e9-a-4b269027adb7d;4b142a708a8ad"'); 
 		$r->headers_out->set('ETag' => 'W/"fake-etag"'); 
