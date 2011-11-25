@@ -1,8 +1,8 @@
 #! /usr/bin/perl -w
 
-# Run tail -f on the apache2 access log, filtering out some of the noise.
+# Run tail -f on the apache2 error log, filtering out some of the noise.
 
-open(my $fh, "tail -f /var/log/apache2/access.log |") || die;
+open(my $fh, "tail -f /var/log/apache2/error.log |") || die;
 while (<$fh>)
 	{
 	# 127.0.0.1 - - [19/Feb/2011:16:30:11 -0500] "GET /c HTTP/1.1" 200 2182 "-" "Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.9.2.13) Gecko/20101206 Ubuntu/10.04 (lucid) Firefox/3.6.13"

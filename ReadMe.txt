@@ -6,6 +6,20 @@ These are my (dbooth) personal notes and "To Do" list from
 before I used code.google.com and had any formal bug tracker
 or issues list. 
 
+11/25/11: May want to separate out recursive from non-recursive refresh,
+thus handling a conditional GET like this:
+ - Recursively freshen inputs (if recursive)
+ - Check if thisLM is stale wrt inputs
+ - Update thisLM if stale
+ - Check if callerLM is stale
+ - Return updated content if stale
+Local FRESHEN event types might have args: $recursive, $force.
+An external GET corresponds to a recursive freshen.
+
+11/24/11: Info about flock and locking:
+http://perl.apache.org/docs/1.0/guide/debug.html
+http://modperlbook.org/html/6-9-2-2-Safe-resource-locking-and-cleanup-code.html
+
 11/14/11: Typical HTTP response headers:
 [[
 HTTP/1.1 200 OK
@@ -27,6 +41,142 @@ This is for a lazy update policy.  Rough pseudo-code:
 [[
 sub ForeignNodeHandler
 {
+
+my $r = shift; 		# Apache2::RequestRec passed to handler()
+my $thisUri = shift; 	# URI of node requested (w/o query string)
+my $nodeFunctions = shift; # Hash of node-type-specific functions
+
+my $thisMetadata = $nodeMetadata{$thisUri};
+
+#    1. Recursively call LocalNodeHandler on $thisUri/serializer
+#    2. return $error if $error
+#    3. sendfile $thisUri/serializer/state
+my $serializerUri = $thisMetadata->{serializerUri}; 
+my $callerLMH = $r->headers{If-Modified-Since};
+my $callerETagH = $r->headers{If-None-Match};
+my $callerLM = &HeadersToLM($callerLMH, $callerETagH);
+my ($error, undef, undef) = &LocalNodeHandler($serializerUri, $callerLM, $callerETag, $nodeFunctions, $r);
+return $error if $error;
+my $serializerStateUri = $thisMetadata->{serializerStateUri};
+TODO: use sendfile instead:
+$r->internal_redirect($serializerStateUri);
+return "";	# No error
+}
+
+# There three special cases to handle when this node is: (a) a getter;
+# (b) a serializer; or (c) a deserializer.
+# $thisMetadata->{isGetter}, $thisMetadata->{isSerializer} etc.
+# are used in the code below to handle these cases.
+
+sub LocalNodeHandler
+{
+# Called as:
+# my $LM = &LocalNodeHandler($thisUri, $callerLM);
+my $thisUri = shift; 	# URI of node requested (w/o query string)
+my $callerLM = shift;	# Hi-res Last-Modified sent from downstream caller
+my $thisMetadata = $nodeMetadata{$thisUri};
+my ($thisIsStale, $pInLMs) = &CheckIfStale_Lazy($thisUri);
+if ($thisIsStale) {
+  my ($prevLM, %prevInLMs) = &LookupLMs($thisUri);
+  my $updater = $thisMetadata->{updater};
+  my $fRunUpdater = $thisMetadata->{fRunUpdater};
+  my $newLM = &{$fRunUpdater}($updater, $thisUri, $prevLM, $r, $nodeMetadata);
+  # %inLMs are saved even if $newLM did not change, because it will
+  # make the node less likely to be considered stale (wrt inputs) and
+  # thus less likely to run the updater unnecessarily.
+  &SaveInLMs($thisUri, \%inLMs);
+  # These are compared as strings because they are sent in headers as strings:
+  if ($newLM ne $prevLM) {
+    &SaveLM($thisUri, $newLM);
+    # So we don't have to look it up again to return it:
+    $prevLM = $newLM;
+    }
+  }
+return $prevLM;
+}
+
+sub CheckIfStale_Lazy
+{
+# Is this node's state stale, using lazy update policy?
+# New input LMs are returned in $pInLMs parameter.
+# Called as:
+# my $thisIsStale = &CheckIfStale(\%inLMs, $thisUri, $event, $nodeFunctions, $r);
+my ($pInLMs, $thisUri, $event, $nodeFunctions, $r) = @_;
+my $thisMetadata = $nodeMetadata{$thisUri};
+my $fStateExists = $thisMetadata->{fStateExists});
+return 1 if !&{$fStateExists}($thisUri);
+my ($prevThisLM, %prevInLMs) = &LookupLMs($thisUri);
+return 1 if !$prevThisLM;
+my $fRefreshInput = $thisMetadata->{fRefreshInput});
+my $thisIsStale = 0;		# Default (fresh) if no input changed
+# Don't exit the loop early if an input changed, because we still
+# want to ensure that other inputs are fresh.
+foreach my $inUri (@{$thisMetadata->{dependsOn}}) {
+  my $prevInLM = $prevInLMs{$inUri};
+  my $newInLM = &{$fRefreshInput}($thisUri, $inUri, $prevInLM, $nodeFunctions, $r);
+  # String comparison because LMs are also sent in HTTP ETag headers:
+  $thisIsStale = 1 if $newInLM ne $prevInLM;
+  $pInLMs->{$inUri} = $newInLM;
+  }
+return $thisIsStale;
+}
+
+
+sub RefreshLocalInput
+{
+# Ensure that the input is fresh, recursively.
+# Called as:
+# my $newInLM = &RefreshInput($thisUri, $inUri, $prevInLM, $nodeFunctions, $r);
+my ($thisUri, $inUri, $prevInLM, $nodeFunctions, $r) = @_;
+my $thisMetadata = $nodeMetadata{$thisUri};
+my ($prevLM, $prevETag) = &LookupHeaders($thisUri, $inUri);
+my $newInLM = &LocalNodeHandler($inUri, $prevLM, $prevETag, $nodeFunctions, $r);
+return($error, undef) if $error;
+my $inChanged = ($prevLM ne $inLM || $prevETag ne $inETag);
+return("", $inChanged);
+}
+
+
+
+sub ConditionalGet
+{
+my ($inUri, $fileName, $prevLM, $prevETag, $isLocal, $nodeFunctions) = @_;
+my ($prevLMH, $prevETagH) = &HeadersFromLM($prevLM);
+my $req = HTTP::Request->new('GET' => $inUri);
+$req->header('If-Modified-Since' => $prevLMH) if $prevLMH;
+$req->header('If-None-Match' => $prevETagH) if $prevETagH;
+my $ua = LWP::UserAgent->new;
+$ua->agent("$0/RDF-Pipeline/0.01 " . $ua->agent);
+my $res = $ua->request($req);
+$res || die "ConditionalGet: Failed to GET from $inUri ");
+$status = $res->code;
+Save content to $fileName
+my $newLMH = Last-Modified header 
+my $newETagH = ETag header 
+my $newLM = &HeadersToLM($newLMH, $newETagH);
+
+return $newLM;
+}
+
+sub HeadersFromLM
+{
+# Converts hi-res last modified time to Last-Modified and ETag HTTP headers.
+}
+
+sub HeadersToLM
+{
+# Converts hi-res last modified time to Last-Modified and ETag HTTP headers.
+}
+
+sub TimeToLM
+{
+# Converts numeric hi-res last modified time to string LM time suitable
+# for string comparison.
+}
+
+]]
+
+11/12/11:
 # Documentation on handlers:
 # http://perl.apache.org/docs/2.0/user/handlers/http.html#PerlResponseHandler
 # http://perl.apache.org/docs/2.0/api/Apache2/RequestRec.html
@@ -37,180 +187,6 @@ sub ForeignNodeHandler
 # http://perl.apache.org/docs/2.0/api/Apache2/RequestIO.html
 # and Apache2::RequestIO extends Apache2::RequestRec:
 # http://perl.apache.org/docs/2.0/api/Apache2/RequestRec.html
-
-my $r = shift; 		# Apache2::RequestRec passed to handler()
-my $thisUri = shift; 	# URI of node requested (w/o query string)
-my $nodeFunctions = shift; # Hash of node-type-specific functions
-
-my $thisMetadata = $nodeMetadata{$thisUri};
-
-#    1. Recursively call LocalNodeHandler on $thisUri/serializer
-#    2. return $error if $error
-#    3. Internal redirect to $thisUri/serializer/state
-my $serializerUri = $thisMetadata->{serializerUri}; 
-my $callerLM = $r->headers{If-Modified-Since};
-my $callerETag = $r->headers{If-None-Match};
-my ($error, undef, undef) = &LocalNodeHandler($serializerUri, $callerLM, $callerETag, $nodeFunctions, $r);
-return $error if $error;
-my $serializerStateUri = $thisMetadata->{serializerStateUri};
-$r->internal_redirect($serializerStateUri);
-return "";	# No error
-}
-
-sub LocalNodeHandler
-{
-# Called as:
-# my ($error, $LM, $ETag) = &LocalNodeHandler($thisUri, $callerLM, $callerETag, $nodeFunctions, $r);
-my $thisUri = shift; 	# URI of node requested (w/o query string)
-my $callerLM = shift;	# Last-Modified sent from downstream caller
-my $callerETag = shift;	# ETag sent from downstream caller
-my $nodeFunctions = shift; # Hash ref of node-type-specific functions
-my $r = shift; 		# Original Apache2::RequestRec passed to handler()
-
-my $thisMetadata = $nodeMetadata{$thisUri};
-
-# There three special cases to handle when this node is: (a) a getter;
-# (b) a serializer; or (c) a deserializer.
-# $thisMetadata->{isGetter}, $thisMetadata->{isSerializer} etc.
-# are used in the code below to handle these cases.
-
-# 1.  Ensure freshness of inputs (recursively).
-# Note that we cannot do an early exit from this loop when the first
-# updated $inUri is encountered, because
-# even if this node is stale, we still need to
-# give each $inUri the opportunity to update itself before
-# we run this node's updater.
-# This is also where some policy logic would go, if we generalized
-# this to handle any update policy.
-my $thisIsStale = 0;		# Default (fresh) if no input changed
-if ($thisMetadata->{isGetter}) {
-  # Pretend it is stale, because the getter will do a conditional GET anyway.
-  $thisIsStale = 1;
-  }
-else {
-  foreach my $inUri (@{$thisMetadata->{dependsOn}}) {
-    my ($inChanged, $error) = &Changed($thisUri, $inUri, $nodeFunctions, $r);
-    $thisIsStale = 1 if $inChanged;
-    return($error, undef, undef) if $error;
-    }
-  }
-
-# 2. Lookup prev LM & ETag for $thisUri.
-my ($prevLM, $prevETag) = &LookupHeaders($thisUri);
-# TODO: Implement a way to set $forceLmUpdate -- perhaps a query param.
-my $forceLmUpdate = 0; # Force LM & ETag to be updated?
-my $updater = $thisMetadata->{updater};
-if ($forceLmUpdate) {
-  $prevLM = "";
-  $prevETag = "";
-  $updater = "";
-  $thisIsStale = 1;
-  }
-
-# 3. If state is stale (wrt inputs) or state does not exist 
-#         or prev LM & ETag do not exist . . .
-my $fStateExists = $nodeFunctions->{fStateExists};
-$fStateExists = \&SerializedStateExists
-	if $thisMetadata->{isGetter} || $thisMetadata->{isSerializer};
-if ($thisIsStale || !&{$fStateExists}($thisUri)) {
-  #   3.1. new LM & ETag = Run updater, passing prev LM & ETag.
-  #        LM and ETag are passed only to help the updater generate
-  #        the same LM and ETag if nothing has changed.  In particular,
-  #        this allows the updater to return the same LM if the state
-  #        has changed in ways that are not semantically meaningful.
-  #        (In the case of no updater, a no-op updater is used
-  #        that computes LM & ETag).  In the case of a serializer node,
-  #	   LM and ETag are not used here, because there is no local
-  #        consumer of a serializer node, and for the foreign consumers,
-  #        LM and ETag will be generated by Apache in ForeignNodeHandler().
-  # &RunUpdater() must return $newLM and $newETag as "" if they are not used.
-  my $fRunUpdater;
-  if ($nodeMetadata->{isDeserializer}) { $fRunUpdater = \&RunDeserializer; }
-  elsif ($nodeMetadata->{isSerializer}) { $fRunUpdater = \&RunSerializer; }
-  elsif ($nodeMetadata->{isGetter}) { $fRunUpdater = \&RunGetter; }
-  else { $fRunUpdater = $nodeFunctions->{fRunUpdater}; }
-  my ($error, $newLM, $newETag) = 
-	&{$fRunUpdater}($updater, $thisUri, 
-		 $prevLM, $prevETag, $r, $nodeMetadata);
-  return($error, undef, undef) if $error;
-  #   3.2. Save new LM & ETag if they differ from prev LM & ETag
-  if ($newLM != $prevLM || $newETag != $prevETag) {
-    &SaveHeaders($thisUri, $newLM, $newETag) 
-    # So we don't have to look them up again:
-    $prevLM = $newLM;
-    $prevETag = $newETag;
-    }
-  }
-return("", $prevLM, $prevETag);		# no error
-}
-
-sub Changed
-{
-# Called as:
-# my ($inChanged, $error) = &Changed($thisUri, $inUri, $nodeFunctions, $r);
-  # &Changed() should do a conditional LOCAL_GET to a local node, but
-  # for a foreign node it should do a conditional GET, and then (if 200
-  # response) invoke this node type's deserializer to save the content
-  # to this node's native form cache, e.g., a named graph in an RDF store,
-  # a table in a database, or a file.  Finally, it should save the
-  # headers (Last-Modified, ETag) for future conditional GETs.
-my ($thisUri, $inUri, $nodeFunctions, $r) = @_;
-my $thisMetadata = $nodeMetadata{$thisUri};
-my $inMetadata = $nodeMetadata{$thisUri};
-my $thisUriPrefix = $thisMetadata->{uriPrefix};
-my $inUriPrefix = $nodeMetadata->{$inUri}->{uriPrefix};
-my $thisNodeType = $thisMetadata->{nodeType};
-my $inNodeType = $nodeMetadata->{$inUri}->{nodeType};
-my $isLocal = ($inUriPrefix eq $thisUriPrefix) &&
-		$thisNodeType eq $inNodeType;
-my ($prevLM, $prevETag) = &LookupHeaders($thisUri, $inUri);
-my ($error, $newLM, $newETag);
-if ($isLocal) {
-  ($error, $newLM, $newETag) = &LocalNodeHandler($inUri, $prevLM, $prevETag, $nodeFunctions, $r);
-
-my ($status, $error) = &ConditionalGet($inUri, $fileName, $prevLM, $prevETag, $isLocal, $nodeFunctions);
-
-my $fLocalCacheName = $nodeFunctions->{fLocalCacheName};
-my $fLocalFileName = $nodeFunctions->{fLocalFileName};
-my $cacheName = &{$fLocalCacheName}($thisUriPrefix, $inUri);
-my $fileName = ($isLocal ? "" : &{$fLocalFileName}($thisUriPrefix, $inUri);
-if ($status==RC_OK && !$isLocal) {
-  my $fDeserialize = $nodeFunctions->{fDeserialize};
-  ($status, $error) = &{$fDeserializer}($fileName, $cacheName);
-  }
-return($status, $error);
-}
-
-# ConditionalGet is only relevant for a foreign request, because a local
-# request does not return anything, it just (potentially) updates 
-# the node's state.
-sub ConditionalGet
-{
-my ($inUri, $fileName, $prevLM, $prevETag, $isLocal, $nodeFunctions) = @_;
-my $req = HTTP::Request->new('GET' => $inUri);
-$req->header('If-Modified-Since' => $prevLM) if $prevLM;
-$req->header('If-None-Match' => $prevETag) if $prevETag;
-my ($status, $error) = (RC_INTERNAL_SERVER_ERROR, "");
-if ($isLocal) {
-  ($status, $error) = &NodeHandler($req, $inUri, $isLocal, $nodeFunctions);
-  }
-else {
-  my $ua = LWP::UserAgent->new;
-  $ua->agent("$0/RDF-Pipeline/0.1 " . $ua->agent);
-  my $res = $ua->request($req);
-  if ($res) {
-    $status = $res->code;
-    Save content to $fileName
-    Where/when are $newLM and $newETag saved?
-    }
-  else {
-    $status = RC_INTERNAL_SERVER_ERROR;
-    $error = "ConditionalGet: NULL response from $inUri";
-    }
-  }
-return($status, $error);
-}
-]]
 
 11/10/11: It looks like the main body of Chain.pm (outside 
 of any functions) is executed once when a request comes in
