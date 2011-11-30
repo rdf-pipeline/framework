@@ -58,9 +58,9 @@ my $PCACHE = "PCACHE"; # Used in forming env vars
 my $logFile = "/tmp/rdf-pipeline-log.txt";
 # unlink $logFile || die;
 
-### Package variables:
 my %config = ();		# Maps: "?s ?p" --> "v1 v2 ... vn"
 my %configValues = ();		# Maps: "?s ?p" --> {v1 => 1, v2 => 1, ...}
+# my %nm = ();			# Node Metadata maps: node-->predicate-->value
 my %cachedResponse = ();	# Previous HTTP response to GET or HEAD.
 				# Key: "$thisUri $supplierUri"
 my $configLastModified = 0;
@@ -110,6 +110,11 @@ my $test;
 &PrintLog("ARGV: @ARGV\n") if $test || $debug;
 
 my $testUri = shift @ARGV || "http://localhost/chain";
+my $testArgs = "";
+if ($testUri =~ m/\A([^\?]*)\?/) {
+	$testUri = $1;
+	$testArgs = $';
+	}
 if ($test)
 	{
 	my $code = &handler("foo");
@@ -299,7 +304,7 @@ my $atDependsOn = join(" ", @dependsOn);
 &PrintLog("updater: $updater\n") if $debug;
 
 # Test of getting query params (and it works):
-my $args = $r->args() || "";
+my $args = $test ? $testArgs : ($r->args() || "");
 &PrintLog("Query string: $args\n") if $debug;
 my %args = &ParseQueryString($args);
 foreach my $k (keys %args) {
@@ -371,25 +376,30 @@ my $lm = time2str($mtime);
 &PrintLog("HandleFileNode: Last-Modified: $lm\n") if $debug;
 
 &PrintLog("HandleFileNode: Trying sendfile...\n") if $debug;
-# We must set headers explicitly here.
-# This works for returning 304:
-# $r->status(Apache2::Const::HTTP_NOT_MODIFIED);
-$r->content_type('text/plain');
-# This works also: $r->content_type('application/rdf+xml');
-$r->set_content_length($size);
-$r->set_last_modified($mtime);
-my $cacheUri = $r->construct_url($cache); 
-$r->headers_out->set('Content-Location' => $cacheUri); 
-# TODO: Set proper ETag, perhaps using Time::HiRes mtime.
-# "W/" prefix on ETag means that it is weak.
-# $r->headers_out->set('ETag' => 'W/"640e9-a-4b269027adb7d;4b142a708a8ad"'); 
-$r->headers_out->set('ETag' => 'W/"fake-etag"'); 
-# Did not work: $r->sendfile($cache);
-# sendfile seems to want a full file system path:
-$r->sendfile($cacheFullPath);
-my $m = $r->method;
-my $ho = $r->header_only;
-&PrintLog("HandleFileNode: method: $m header_only: $ho\n") if $debug;
+if ($test) {
+	&PrintLog("HandleFileNode: (skipped sending due to -test option)\n");
+	}
+else	{
+	# We must set headers explicitly here.
+	# This works for returning 304:
+	# $r->status(Apache2::Const::HTTP_NOT_MODIFIED);
+	$r->content_type('text/plain');
+	# This works also: $r->content_type('application/rdf+xml');
+	$r->set_content_length($size);
+	$r->set_last_modified($mtime);
+	my $cacheUri = $r->construct_url($cache); 
+	$r->headers_out->set('Content-Location' => $cacheUri); 
+	# TODO: Set proper ETag, perhaps using Time::HiRes mtime.
+	# "W/" prefix on ETag means that it is weak.
+	# $r->headers_out->set('ETag' => 'W/"640e9-a-4b269027adb7d;4b142a708a8ad"'); 
+	$r->headers_out->set('ETag' => 'W/"fake-etag"'); 
+	# Did not work: $r->sendfile($cache);
+	# sendfile seems to want a full file system path:
+	$r->sendfile($cacheFullPath);
+	my $m = $r->method;
+	my $ho = $r->header_only;
+	&PrintLog("HandleFileNode: method: $m header_only: $ho\n") if $debug;
+	}
 
 # These work:
 # $r->internal_redirect("/fchain.txt") if !$debug;
