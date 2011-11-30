@@ -73,6 +73,11 @@ my $internalsLastModified = 0;
 if (1)
 {
   use Apache::Session::File;
+my $sessionsDir = '/tmp/rdf-pipeline-sessions';
+my $locksDir = '/tmp/rdf-pipeline-locks';
+
+-d $sessionsDir || mkdir($sessionsDir) || die;
+-d $locksDir || mkdir($locksDir) || die;
 
   my %session;
   my $sessionIdFile = "/tmp/rdf-pipeline-sessionID";
@@ -81,8 +86,8 @@ if (1)
   my $isNewSessionId = !$sessionId;
   #make a fresh session for a first-time visitor
  tie %session, 'Apache::Session::File', $sessionId, {
-    Directory => '/tmp/rdf-pipeline-sessions',
-    LockDirectory   => '/tmp/rdf-pipeline-locks',
+    Directory => $sessionsDir,
+    LockDirectory   => $locksDir,
  };
 $sessionId ||= $session{_session_id};
 

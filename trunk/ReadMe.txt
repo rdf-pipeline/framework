@@ -6,15 +6,11 @@ These are my (dbooth) personal notes and "To Do" list from
 before I used code.google.com and had any formal bug tracker
 or issues list. 
 
-11/25/11: May want to separate out recursive from non-recursive refresh,
-thus handling a conditional GET like this:
- - Recursively freshen inputs (if recursive)
- - Check if thisLM is stale wrt inputs
- - Update thisLM if stale
- - Check if callerLM is stale
- - Return updated content if stale
-Local FRESHEN event types might have args: $recursive, $force.
-An external GET corresponds to a recursive freshen.
+11/29/11: I've got the algorithms sketched out for handling and sending
+downstream NOTIFY and upstream REQUEST events, as well as upstream
+QGET event, which is only used to retrieve the latest serialized
+state of a node without updating that node.  They're in my draft
+slides 2012/pipeline/.
 
 11/24/11: Info about flock and locking:
 http://perl.apache.org/docs/1.0/guide/debug.html
@@ -35,146 +31,6 @@ Connection: close
 Content-Type: text/html; charset=iso-8859-1
 ]]
 
-11/11/11: Thinking about how to rewrite FileNodeHandler to be
-closer to a generic NodeHandler.
-This is for a lazy update policy.  Rough pseudo-code:
-[[
-sub ForeignNodeHandler
-{
-my $r = shift; 		# Apache2::RequestRec passed to handler()
-my $thisUri = shift; 	# URI of node requested (w/o query string)
-my $nodeFunctions = shift; # Hash of node-type-specific functions
-
-my $thisMetadata = $nodeMetadata{$thisUri};
-
-#    1. Recursively call LocalNodeHandler on $thisUri/serializer
-#    2. return $error if $error
-#    3. sendfile $thisUri/serializer/state
-my $serializerUri = $thisMetadata->{serializerUri}; 
-my $callerLMH = $r->headers{If-Modified-Since};
-my $callerETagH = $r->headers{If-None-Match};
-my $callerLM = &HeadersToLM($callerLMH, $callerETagH);
-my ($error, undef, undef) = &LocalNodeHandler($serializerUri, $callerLM, $callerETag, $nodeFunctions, $r);
-return $error if $error;
-my $serializerStateUri = $thisMetadata->{serializerStateUri};
-TODO: use sendfile instead:
-$r->internal_redirect($serializerStateUri);
-return "";	# No error
-}
-
-# There three special cases to handle when this node is: (a) a getter;
-# (b) a serializer; or (c) a deserializer.
-# $thisMetadata->{isGetter}, $thisMetadata->{isSerializer} etc.
-# are used in the code below to handle these cases.
-
-sub LocalNodeHandler
-{
-# Called as:
-# my $LM = &LocalNodeHandler($thisUri, $callerLM);
-my $thisUri = shift; 	# URI of node requested (w/o query string)
-my $callerLM = shift;	# Hi-res Last-Modified sent from downstream caller
-my $thisMetadata = $nodeMetadata{$thisUri};
-my ($thisIsStale, $pInLMs) = &CheckIfStale_Lazy($thisUri);
-if ($thisIsStale) {
-  my ($prevLM, %prevInLMs) = &LookupLMs($thisUri);
-  my $updater = $thisMetadata->{updater};
-  my $fRunUpdater = $thisMetadata->{fRunUpdater};
-  my $newLM = &{$fRunUpdater}($updater, $thisUri, $prevLM, $r, $nodeMetadata);
-  # %inLMs are saved even if $newLM did not change, because it will
-  # make the node less likely to be considered stale (wrt inputs) and
-  # thus less likely to run the updater unnecessarily.
-  &SaveInLMs($thisUri, \%inLMs);
-  # These are compared as strings because they are sent in headers as strings:
-  if ($newLM ne $prevLM) {
-    &SaveLM($thisUri, $newLM);
-    # So we don't have to look it up again to return it:
-    $prevLM = $newLM;
-    }
-  }
-return $prevLM;
-}
-
-sub CheckIfStale_Lazy
-{
-# Is this node's state stale, using lazy update policy?
-# New input LMs are returned in $pInLMs parameter.
-# Called as:
-# my $thisIsStale = &CheckIfStale(\%inLMs, $thisUri, $event, $nodeFunctions, $r);
-my ($pInLMs, $thisUri, $event, $nodeFunctions, $r) = @_;
-my $thisMetadata = $nodeMetadata{$thisUri};
-my $fStateExists = $thisMetadata->{fStateExists});
-return 1 if !&{$fStateExists}($thisUri);
-my ($prevThisLM, %prevInLMs) = &LookupLMs($thisUri);
-return 1 if !$prevThisLM;
-my $fRefreshInput = $thisMetadata->{fRefreshInput});
-my $thisIsStale = 0;		# Default (fresh) if no input changed
-# Don't exit the loop early if an input changed, because we still
-# want to ensure that other inputs are fresh.
-foreach my $inUri (@{$thisMetadata->{dependsOn}}) {
-  my $prevInLM = $prevInLMs{$inUri};
-  my $newInLM = &{$fRefreshInput}($thisUri, $inUri, $prevInLM, $nodeFunctions, $r);
-  # String comparison because LMs are also sent in HTTP ETag headers:
-  $thisIsStale = 1 if $newInLM ne $prevInLM;
-  $pInLMs->{$inUri} = $newInLM;
-  }
-return $thisIsStale;
-}
-
-
-sub RefreshLocalInput
-{
-# Ensure that the input is fresh, recursively.
-# Called as:
-# my $newInLM = &RefreshInput($thisUri, $inUri, $prevInLM, $nodeFunctions, $r);
-my ($thisUri, $inUri, $prevInLM, $nodeFunctions, $r) = @_;
-my $thisMetadata = $nodeMetadata{$thisUri};
-my ($prevLM, $prevETag) = &LookupHeaders($thisUri, $inUri);
-my $newInLM = &LocalNodeHandler($inUri, $prevLM, $prevETag, $nodeFunctions, $r);
-return($error, undef) if $error;
-my $inChanged = ($prevLM ne $inLM || $prevETag ne $inETag);
-return("", $inChanged);
-}
-
-
-
-sub ConditionalGet
-{
-my ($inUri, $fileName, $prevLM, $prevETag, $isLocal, $nodeFunctions) = @_;
-my ($prevLMH, $prevETagH) = &HeadersFromLM($prevLM);
-my $req = HTTP::Request->new('GET' => $inUri);
-$req->header('If-Modified-Since' => $prevLMH) if $prevLMH;
-$req->header('If-None-Match' => $prevETagH) if $prevETagH;
-my $ua = LWP::UserAgent->new;
-$ua->agent("$0/RDF-Pipeline/0.01 " . $ua->agent);
-my $res = $ua->request($req);
-$res || die "ConditionalGet: Failed to GET from $inUri ");
-$status = $res->code;
-Save content to $fileName
-my $newLMH = Last-Modified header 
-my $newETagH = ETag header 
-my $newLM = &HeadersToLM($newLMH, $newETagH);
-
-return $newLM;
-}
-
-sub HeadersFromLM
-{
-# Converts hi-res last modified time to Last-Modified and ETag HTTP headers.
-}
-
-sub HeadersToLM
-{
-# Converts hi-res last modified time to Last-Modified and ETag HTTP headers.
-}
-
-sub TimeToLM
-{
-# Converts numeric hi-res last modified time to string LM time suitable
-# for string comparison.
-}
-
-]]
-
 11/12/11:
 # Documentation on handlers:
 # http://perl.apache.org/docs/2.0/user/handlers/http.html#PerlResponseHandler
@@ -186,6 +42,9 @@ sub TimeToLM
 # http://perl.apache.org/docs/2.0/api/Apache2/RequestIO.html
 # and Apache2::RequestIO extends Apache2::RequestRec:
 # http://perl.apache.org/docs/2.0/api/Apache2/RequestRec.html
+
+11/11/11: Thinking about how to rewrite FileNodeHandler to be
+closer to a generic NodeHandler.
 
 11/10/11: It looks like the main body of Chain.pm (outside 
 of any functions) is executed once when a request comes in
