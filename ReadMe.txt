@@ -6,6 +6,12 @@ These are my (dbooth) personal notes and "To Do" list from
 before I used code.google.com and had any formal bug tracker
 or issues list. 
 
+12/3/11: Working on switching the code to use %nm (Node Metadata)
+and $tm (This Metadata, aka $nm->{values}->{$thisUri}).  I wrote a
+first version of &LoadNodeMetadata, 
+but still need the specialized logic or inference somewhere
+to properly set things like $tm->{nodeType}, $tm->{envPrefix}, etc.
+
 11/29/11: I've got the algorithms sketched out for handling and sending
 downstream NOTIFY and upstream REQUEST events, as well as upstream
 QGET event, which is only used to retrieve the latest serialized

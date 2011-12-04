@@ -60,7 +60,19 @@ my $logFile = "/tmp/rdf-pipeline-log.txt";
 
 my %config = ();		# Maps: "?s ?p" --> "v1 v2 ... vn"
 my %configValues = ();		# Maps: "?s ?p" --> {v1 => 1, v2 => 1, ...}
-# my %nm = ();			# Node Metadata maps: node-->predicate-->value
+my $nm;				# Node Metadata hash maps.  there are
+				# three hashmaps:
+				#  To values (for single-valued predicates):
+				#    $vh = $nm->{values}->{$thisUri};
+				#    $value = $vh->{$predicate};
+				#  To lists (for ordered multiple values):
+				#    $lh = $nm->{lists}->{$thisUri};
+				#    @listOfValues = @{$lh->{$predicate}};
+				#  To hashes (for unordered multiple values):
+				#    $hh = $nm->{hashes}->{$thisUri};
+				#    %hashOfValues = %{$hh->{$predicate}};
+				#    if ($hashOfValues{"someValue"}} {...}
+
 my %cachedResponse = ();	# Previous HTTP response to GET or HEAD.
 				# Key: "$thisUri $supplierUri"
 my $configLastModified = 0;
@@ -205,12 +217,27 @@ if ($configLastModified != $cmtime
 		} keys %config;
 	&PrintLog("configValues:\n") if $debug;
 	foreach my $sp (sort keys %configValues) {
+		last if !$debug;
 		my $hr = $configValues{$sp};
 		foreach my $v (sort keys %{$hr}) {
-			&PrintLog("  $sp $v\n") if $debug;
+			&PrintLog("  $sp $v\n");
 			}
 		}
-
+	$nm = &LoadNodeMetadata($ontFile, $configFile);
+	&PrintLog("Node Metadata:\n") if $debug;
+	foreach my $s (sort keys %{$nm->{values}}) {
+		last if !$debug;
+		foreach my $p (sort keys %{$nm->{values}->{$s}}) {
+			my $v = $nm->{values}->{$s}->{$p};
+			my @vList = @{$nm->{lists}->{$s}->{$p}};
+			my %vHash = %{$nm->{hashes}->{$s}->{$p}};
+			my $vl = join(" ", @vList);
+			my $vh = join(" ", sort keys %vHash);
+			&PrintLog("  $s -> $p -> $v\n");
+			&PrintLog("  $s -> $p -> ($vl)\n");
+			&PrintLog("  $s -> $p -> {$vh}\n");
+			}
+		}
 	# &PrintLog("Got here!\n"); 
 	# return Apache2::Const::OK;
 	%config || return Apache2::Const::SERVER_ERROR;
@@ -408,6 +435,27 @@ else	{
 # It is not the HTTP response code being returned.  See:
 # http://perl.apache.org/docs/2.0/user/handlers/intro.html#C_RUN_FIRST_
 return Apache2::Const::OK;
+}
+
+################### LoadNodeMetadata #################
+# Returns a ref to a hash of key/value pairs, with each key a node URI.
+sub LoadNodeMetadata
+{
+my %config = &CheatLoadN3($ontFile, $configFile);
+my $nm = {};
+foreach my $k (sort keys %config) {
+	# &PrintLog("  LoadNodeMetadata key: $k\n") if $debug;
+	my ($s, $p) = split(/\s+/, $k) or die;
+	my $v = $config{$k};
+	$v = "" if !defined($v);
+	my @vList = split(/\s+/, $v); 
+	my %vHash = map { ($_, 1) } @vList;
+	$nm->{values}->{$s}->{$p} = $v;
+	$nm->{lists}->{$s}->{$p} = \@vList;
+	$nm->{hashes}->{$s}->{$p} = \%vHash;
+	# &PrintLog("  $s -> $p -> $v\n") if $debug;
+	}
+return $nm;
 }
 
 ################### ParseQueryString #################
