@@ -44,6 +44,7 @@ use LWP::UserAgent;
 use HTTP::Status;
 use Apache2::URI ();
 use URI::Escape;
+use Time::HiRes ();
 
 my $configFile = "/home/dbooth/rdf-pipeline/trunk/pipeline.n3";
 my $ontFile = "/home/dbooth/rdf-pipeline/trunk/ont.n3";
@@ -52,8 +53,9 @@ my $prefix = "http://purl.org/pipeline/ont#";	# Pipeline ont prefix
 $ENV{DOCUMENT_ROOT} ||= "/home/dbooth/rdf-pipeline/trunk/www";	# Set if not set
 ### TODO: Set $baseUri automatically
 $ENV{SERVER_NAME} ||= "localhost";
-my $baseUri = "http://$ENV{SERVER_NAME}/";
+my $baseUri = "http://$ENV{SERVER_NAME}/";  # TODO: Should become "scope"
 my $PCACHE = "PCACHE"; # Used in forming env vars
+my $rdfsPrefix = "http://www.w3.org/2000/01/rdf-schema#";
 
 my $logFile = "/tmp/rdf-pipeline-log.txt";
 # unlink $logFile || die;
@@ -79,8 +81,10 @@ my $configLastModified = 0;
 my $ontLastModified = 0;
 my $internalsLastModified = 0;
 
-&PrintLog("="x30 . " START8 " . "="x30 . "\n");
+&PrintLog("="x30 . " START9 " . "="x30 . "\n");
 &PrintLog(`date`);
+# my $hasHiResTime = &Time::HiRes::d_hires_stat()>0 ? "true" : "false";
+# &PrintLog("Has HiRes time: $hasHiResTime\n");
 
 if (1)
 {
@@ -229,13 +233,18 @@ if ($configLastModified != $cmtime
 		last if !$debug;
 		foreach my $p (sort keys %{$nm->{values}->{$s}}) {
 			my $v = $nm->{values}->{$s}->{$p};
-			my @vList = @{$nm->{lists}->{$s}->{$p}};
-			my %vHash = %{$nm->{hashes}->{$s}->{$p}};
-			my $vl = join(" ", @vList);
-			my $vh = join(" ", sort keys %vHash);
 			&PrintLog("  $s -> $p -> $v\n");
-			&PrintLog("  $s -> $p -> ($vl)\n");
-			&PrintLog("  $s -> $p -> {$vh}\n");
+			if ($nm->{lists} && $nm->{lists}->{$s} && $nm->{lists}->{$s}->{$p}) {
+			  my @vList = @{$nm->{lists}->{$s}->{$p}};
+			  my $vl = join(" ", @vList);
+			  &PrintLog("  $s -> $p -> ($vl)\n");
+			  }
+			if ($nm->{hashes} && $nm->{hashes}->{$s} && $nm->{hashes}->{$s}->{$p}) {
+
+			  my %vHash = %{$nm->{hashes}->{$s}->{$p}};
+			  my $vh = join(" ", sort keys %vHash);
+			  &PrintLog("  $s -> $p -> {$vh}\n");
+			  }
 			}
 		}
 	# &PrintLog("Got here!\n"); 
@@ -297,26 +306,28 @@ my @inputs = ($inputs ? split(/\s+/, $inputs) : ());
 my @parameters = ($parameters ? split(/\s+/, $parameters) : ());
 my @dependsOn = ($dependsOn ? split(/\s+/, $dependsOn) : ());
 
-# Make absolute $cache and $updater:
-$cache = "/$cache" if $cache && $cache !~ m|\A\/|;
+# Make absolute $updater:
 $updater = "$ENV{DOCUMENT_ROOT}/$updater" if $updater && $updater !~ m|\A\/|;
 
 &PrintLog("Initial cache: $cache\n") if $debug;
-my $useStdout = !$cache;
-&PrintLog("useStdout: $useStdout\n") if $debug;
-if ($useStdout) {
+my $useStdout = 0;
+&PrintLog("useStdout: $useStdout updater: {$updater}\n") if $debug;
+if (!$updater) {
+	$cache = &IsLocalFileNode($thisUri);
+	&PrintLog("useStdout: No updater.  Set cache: $cache\n") if $debug;
+	}
+elsif (!$cache) {
+	$useStdout = 1;
 	# Make a cache filename to use.
-	my $t = "$thisUri";
-	my $pBaseUri = quotemeta($baseUri);
-	$t =~ s/\A$pBaseUri//;		# Strip baseUri
-	$t =~ s|\A\/+||;		# Strip leading /
-	#### Quick and dirty POC hack, which for production should
+	my $t = &IsLocalFileNode($thisUri);
+	#### TODO:  This is a quick and dirty POC hack.  
+	#### Production should
 	#### use proper escaping and put the file somewhere else:
 	$t =~ s/[^a-zA-Z0-9\.\-\_]/_/g;	# Change bad chars to _
-	$cache = "/$t-stdout";
+	$cache = "$t-stdout";
 	}
 &PrintLog("cache after useStdout block: $cache\n") if $debug;
-my $cacheFullPath = $ENV{DOCUMENT_ROOT} . $cache;
+my $cacheFullPath = ($cache =~ m|\A\/|) ? $cache : "$ENV{DOCUMENT_ROOT}/$cache";
 &PrintLog("cacheFullPath: $cacheFullPath\n") if $debug;
 
 &PrintLog("inputs: $inputs\n") if $debug;
@@ -353,7 +364,7 @@ if ((!-e $cacheFullPath) || &AnyChanged($thisUri, @dependsOn))
 		my @parameterFilenames = &LocalFilenames($thisUri, @parameters);
 		&PrintLog("inputFilenames: @inputFilenames\n");
 		&PrintLog("parameterFilenames: @parameterFilenames\n");
-		my $tmp = "/tmp/updater-err$$";
+		my $tmp = "/tmp/updater-err$$";  # For capturing stderr
 		# my $cmd = "/home/dbooth/rdf-pipeline/trunk/setuid-wrapper $updater $thisUri $cacheFullPath $inputs $parameters > $tmp 2>&1";
 		# my $cmd = "$updater $thisUri $cacheFullPath $inputs $parameters > $tmp 2>&1";
 		# $cmd = "$updater $thisUri $inputs $parameters > $cacheFullPath 2> $tmp"
@@ -437,6 +448,34 @@ else	{
 return Apache2::Const::OK;
 }
 
+################### SetGenericDefaults #################
+# Set derived $nm defaults.
+sub SetGenericDefaults
+{
+my $nm = shift;
+&PrintLog("SetGenericDefaults:\n");
+foreach my $s (keys %{$nm->{values}}) {
+	# Set nodeType, which should be most specific node type.
+	my $types = $nm->{hashes}->{$s}->{a};
+	if ($types && $types->{Node}) {
+		my @types = keys %{$types};
+		my @nodeTypes = LeafClasses($nm, @types);
+		die if @nodeTypes > 1;
+		die if @nodeTypes < 1;
+		my $t = $nodeTypes[0];
+		$nm->{values}->{$s}->{nodeType} = $t;
+		&PrintLog("  $s nodeType $t\n");
+		}
+	}
+return $nm;
+}
+
+################### SetFileNodeDefaults #################
+# Set derived $nm defaults specific to FileNodes.
+sub SetFileNodeDefaults
+{
+}
+
 ################### LoadNodeMetadata #################
 # Returns a ref to a hash of key/value pairs, with each key a node URI.
 sub LoadNodeMetadata
@@ -455,7 +494,38 @@ foreach my $k (sort keys %config) {
 	$nm->{hashes}->{$s}->{$p} = \%vHash;
 	# &PrintLog("  $s -> $p -> $v\n") if $debug;
 	}
+$nm = &SetGenericDefaults($nm);
 return $nm;
+}
+
+################### LeafClasses #################
+# Given a list of classes (with rdfs:subClassOf relations in $nm), 
+# return the ones that are not a 
+# superclass of any of them.  The list of classes is expected to
+# be complete, e.g., for if you have:
+#	:a :subClassOf :b .
+#	:b :subClassOf :c .
+# then if :a is in the given list of classes then :b (and :c) must be also.
+sub LeafClasses
+{
+my $nm = shift;
+my @classes = @_;
+my @leaves = ();
+my $subClassOf = $rdfsPrefix . "subClassOf";
+# Simple n-squared algorithm should be okay for small numbers of classes:
+foreach my $t (@classes) {
+	my $isSuperclass = 0;
+	foreach my $subType (@classes) {
+		next if $t eq $subType;
+		next if !$nm->{hashes}->{$subType};
+		next if !$nm->{hashes}->{$subType}->{$subClassOf};
+		next if !$nm->{hashes}->{$subType}->{$subClassOf}->{$t};
+		$isSuperclass = 1;
+		last;
+		}
+	push(@leaves, $t) if !$isSuperclass;
+	}
+return @leaves;
 }
 
 ################### ParseQueryString #################
@@ -492,7 +562,11 @@ foreach my $uri (@_) {
 		# Local to this host.  Optimize by using the cacheFile
 		# already created for $uri.
 		##### TODO: Finish this properly:
-		push(@filenames, $ENV{DOCUMENT_ROOT} . "/$f-stdout");
+		my $filename = $ENV{DOCUMENT_ROOT} . "/$f-stdout";
+		$filename = $ENV{DOCUMENT_ROOT} . "/$f"
+			if !$config{"$uri updater"};
+		&PrintLog("LocalFilenames: uri: $uri f: $f filename: $filename\n");
+		push(@filenames, $filename);
 		}
 	else	{
 		&PrintLog("LocalFilenames: Not yet implemented\n");
@@ -755,6 +829,26 @@ open(my $fh, $f) || return undef;
 my $all = join("", <$fh>);
 close($fh) || die;
 return $all;
+}
+
+############# SetLMFile #############
+# Ensure global $nm is set and return current LM filename for $thisUri.
+sub SetLMFile
+{
+my $thisUri = shift;
+# my $lmFile = $nm->{values}->{$thisUri}->{lmFile};
+# if (!$lmFile) {}
+}
+
+
+############# SaveLMs ##############
+# Save Last-Modified times of thisUri and its inputs (actually its dependsOns).
+# Called as: &SaveLMs($thisUri, $thisLM, %inLMs);
+
+sub SaveLMs
+{
+@_ >= 2 || die;
+# my $thisUri = $_[0];
 }
 
 ##### DO NOT DELETE THE FOLLOWING LINE!  #####

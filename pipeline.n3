@@ -1,13 +1,13 @@
-# Test recursive invocation, i.e., one node invoking another within
-# the same web server.
-
 @prefix p: <http://purl.org/pipeline/ont#> .
 @prefix : <http://localhost/> .
 
-:a a p:FileNode .
-:a 	p:updater "a-updater" .
+:max a p:FileNode .  # No updater -- update manually.
 
-:one a p:FileNode .
-:one 	p:inputs ( :a ) .
-:one 	p:updater "one-updater" .
+:odds a p:FileNode ;
+	p:inputs ( :max ) ;
+	p:updater "odds-updater" .
+
+:addone a p:FileNode ;
+	p:inputs ( :odds ) ;
+	p:updater "addone-updater" .
 
