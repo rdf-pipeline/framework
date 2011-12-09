@@ -65,13 +65,13 @@ my %configValues = ();		# Maps: "?s ?p" --> {v1 => 1, v2 => 1, ...}
 my $nm;				# Node Metadata hash maps.  there are
 				# three hashmaps:
 				#  To values (for single-valued predicates):
-				#    $vh = $nm->{values}->{$thisUri};
+				#    $vh = $nm->{value}->{$thisUri};
 				#    $value = $vh->{$predicate};
 				#  To lists (for ordered multiple values):
-				#    $lh = $nm->{lists}->{$thisUri};
+				#    $lh = $nm->{list}->{$thisUri};
 				#    @listOfValues = @{$lh->{$predicate}};
 				#  To hashes (for unordered multiple values):
-				#    $hh = $nm->{hashes}->{$thisUri};
+				#    $hh = $nm->{hash}->{$thisUri};
 				#    %hashOfValues = %{$hh->{$predicate}};
 				#    if ($hashOfValues{"someValue"}} {...}
 
@@ -229,19 +229,19 @@ if ($configLastModified != $cmtime
 		}
 	$nm = &LoadNodeMetadata($ontFile, $configFile);
 	&PrintLog("Node Metadata:\n") if $debug;
-	foreach my $s (sort keys %{$nm->{values}}) {
+	foreach my $s (sort keys %{$nm->{value}}) {
 		last if !$debug;
-		foreach my $p (sort keys %{$nm->{values}->{$s}}) {
-			my $v = $nm->{values}->{$s}->{$p};
+		foreach my $p (sort keys %{$nm->{value}->{$s}}) {
+			my $v = $nm->{value}->{$s}->{$p};
 			&PrintLog("  $s -> $p -> $v\n");
-			if ($nm->{lists} && $nm->{lists}->{$s} && $nm->{lists}->{$s}->{$p}) {
-			  my @vList = @{$nm->{lists}->{$s}->{$p}};
+			if ($nm->{list} && $nm->{list}->{$s} && $nm->{list}->{$s}->{$p}) {
+			  my @vList = @{$nm->{list}->{$s}->{$p}};
 			  my $vl = join(" ", @vList);
 			  &PrintLog("  $s -> $p -> ($vl)\n");
 			  }
-			if ($nm->{hashes} && $nm->{hashes}->{$s} && $nm->{hashes}->{$s}->{$p}) {
+			if ($nm->{hash} && $nm->{hash}->{$s} && $nm->{hash}->{$s}->{$p}) {
 
-			  my %vHash = %{$nm->{hashes}->{$s}->{$p}};
+			  my %vHash = %{$nm->{hash}->{$s}->{$p}};
 			  my $vh = join(" ", sort keys %vHash);
 			  &PrintLog("  $s -> $p -> {$vh}\n");
 			  }
@@ -288,6 +288,82 @@ else {
 	&PrintLog("Unknown Node subtype: $subtype\n") if $debug;
 	return Apache2::Const::SERVER_ERROR; 
 	}
+}
+
+############## QuickName ##############
+# Generate a relative filename based on the given URI.
+#### TODO:  This is a quick and dirty POC hack.  
+#### Production should url-encode the URI into the filename.
+sub QuickName
+{
+my $t = shift;
+$t =~ s|\A.*\/||;	# Chop off all but the last part of the path
+$t =~ s/[^a-zA-Z0-9\.\-\_]/_/g;	# Change any bad chars to _
+return $t;
+}
+
+############## LoadMoreFileNodeMetadata ###############
+# Uses global %config.
+sub LoadMoreFileNodeMetadata
+{
+my $nm = shift;
+my $thisUri = shift || die;
+my $r = shift || die;
+
+my $cache = $config{"$thisUri cache"} || "";
+my $inputs = $config{"$thisUri inputs"} || "";
+my $parameters = $config{"$thisUri parameters"} || "";
+my $dependsOn = $config{"$thisUri dependsOn"} || "";
+my $updater = $config{"$thisUri updater"} || "";
+my @inputs = ($inputs ? split(/\s+/, $inputs) : ());
+my @parameters = ($parameters ? split(/\s+/, $parameters) : ());
+my @dependsOn = ($dependsOn ? split(/\s+/, $dependsOn) : ());
+
+# Make absolute $updater:
+$updater = "$ENV{DOCUMENT_ROOT}/$updater" if $updater && $updater !~ m|\A\/|;
+$nm->{value}->{$thisUri}->{updaterFullPath} = $updater;
+
+my $useStdout = 0;
+if (!$updater) {
+	$cache = &IsLocalFileNode($thisUri);
+	die if @inputs || @parameters;	# Cannot have inputs without an updater
+	}
+elsif (!$cache) {
+	$useStdout = 1;
+	# Make a cache filename to use.
+	#### TODO:  This is a quick and dirty POC hack.  
+	#### Production should
+	#### use proper escaping and put the file somewhere else:
+	$cache = &QuickName($thisUri) . "-stdout";
+	}
+my $cacheFullPath = ($cache =~ m|\A\/|) ? $cache : "$ENV{DOCUMENT_ROOT}/$cache";
+$nm->{value}->{$thisUri}->{cacheFullPath} = $updater;
+if ($updater) {
+	# The FileNode updater args will be local filenames for all
+	# inputs and parameters.
+	# TODO: This is currently only being done correctly for
+	# for local inputs.  For remote inputs, it should be
+	# using the localized copy.
+	my @inputFilenames = &LocalFilenames($thisUri, @inputs);
+	my %inputFilenames = map {($_,1)} @inputFilenames;
+	$nm->{list}->{$thisUri}->{inputFilenames} = \@inputFilenames;
+	$nm->{hash}->{$thisUri}->{inputFilenames} = \%inputFilenames;
+	my @parameterFilenames = &LocalFilenames($thisUri, @parameters);
+	my %parameterFilenames = map {($_,1)} @parameterFilenames;
+	$nm->{list}->{$thisUri}->{parameterFilenames} = \@parameterFilenames;
+	$nm->{hash}->{$thisUri}->{parameterFilenames} = \%parameterFilenames;
+	# For capturing stderr:
+	my $tmp = "/tmp/updater-stderr-" . &QuickName($thisUri) . "-$$.txt";  
+	$nm->{value}->{$thisUri}->{stderr} = $tmp;
+	# TODO: Check for unsafe chars before invoking $cmd
+	my $cmd = "( export $PCACHE\_THIS_URI=\"$thisUri\" ; $updater $cacheFullPath @inputFilenames @parameterFilenames > $tmp 2>&1 )";
+	$cmd = "( export $PCACHE\_THIS_URI=\"$thisUri\" ; $updater @inputFilenames @parameterFilenames > $cacheFullPath 2> $tmp )"
+		if $useStdout;
+	$nm->{value}->{$thisUri}->{command} = $cmd;
+	}
+
+my $cacheUri = $r->construct_url($cache); 
+
 }
 
 
@@ -454,16 +530,16 @@ sub SetGenericDefaults
 {
 my $nm = shift;
 &PrintLog("SetGenericDefaults:\n");
-foreach my $s (keys %{$nm->{values}}) {
+foreach my $s (keys %{$nm->{value}}) {
 	# Set nodeType, which should be most specific node type.
-	my $types = $nm->{hashes}->{$s}->{a};
+	my $types = $nm->{hash}->{$s}->{a};
 	if ($types && $types->{Node}) {
 		my @types = keys %{$types};
 		my @nodeTypes = LeafClasses($nm, @types);
 		die if @nodeTypes > 1;
 		die if @nodeTypes < 1;
 		my $t = $nodeTypes[0];
-		$nm->{values}->{$s}->{nodeType} = $t;
+		$nm->{value}->{$s}->{nodeType} = $t;
 		&PrintLog("  $s nodeType $t\n");
 		}
 	}
@@ -489,9 +565,9 @@ foreach my $k (sort keys %config) {
 	$v = "" if !defined($v);
 	my @vList = split(/\s+/, $v); 
 	my %vHash = map { ($_, 1) } @vList;
-	$nm->{values}->{$s}->{$p} = $v;
-	$nm->{lists}->{$s}->{$p} = \@vList;
-	$nm->{hashes}->{$s}->{$p} = \%vHash;
+	$nm->{value}->{$s}->{$p} = $v;
+	$nm->{list}->{$s}->{$p} = \@vList;
+	$nm->{hash}->{$s}->{$p} = \%vHash;
 	# &PrintLog("  $s -> $p -> $v\n") if $debug;
 	}
 $nm = &SetGenericDefaults($nm);
@@ -517,9 +593,9 @@ foreach my $t (@classes) {
 	my $isSuperclass = 0;
 	foreach my $subType (@classes) {
 		next if $t eq $subType;
-		next if !$nm->{hashes}->{$subType};
-		next if !$nm->{hashes}->{$subType}->{$subClassOf};
-		next if !$nm->{hashes}->{$subType}->{$subClassOf}->{$t};
+		next if !$nm->{hash}->{$subType};
+		next if !$nm->{hash}->{$subType}->{$subClassOf};
+		next if !$nm->{hash}->{$subType}->{$subClassOf}->{$t};
 		$isSuperclass = 1;
 		last;
 		}
@@ -569,6 +645,9 @@ foreach my $uri (@_) {
 		push(@filenames, $filename);
 		}
 	else	{
+		# TODO: This is currently only being done correctly for
+		# for local inputs.  For remote inputs, it should be
+		# using the localized copy.
 		&PrintLog("LocalFilenames: Not yet implemented\n");
 		die;
 		my $res = &CachingRequest("GET", @_) || return undef;
@@ -709,7 +788,7 @@ return $changed;
 # Not proper n3 parsing, but good enough for this purpose.
 # Returns a hash map that maps: "$s $p" --> $o
 # Global $prefix is also stripped off from terms.
-# Example: "http://localhost/a fileCache" --> "c/cp-cache.txt"
+# Example: "http://localhost/a cache" --> "c/cp-cache.txt"
 sub CheatLoadN3
 {
 my $ontFile = shift;
@@ -836,7 +915,7 @@ return $all;
 sub SetLMFile
 {
 my $thisUri = shift;
-# my $lmFile = $nm->{values}->{$thisUri}->{lmFile};
+# my $lmFile = $nm->{value}->{$thisUri}->{lmFile};
 # if (!$lmFile) {}
 }
 
