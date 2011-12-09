@@ -8,11 +8,11 @@ or issues list.
 
 12/8/11: Thinking of using the word "scope" instead of "environment",
 because "environment" is apt to be confused with env vars.
-Also thinking of using the words for the caches:
+Also thinking of using these words for the caches:
   cache 	-- Updater output/result (may be set by user)
-  serCache	-- Serialized output
-  serCopy	-- Remote copy of serCache of input
-  copy		-- Remote copy of cache of input
+  serCache	-- Serialized cache
+  serCopy	-- Remote copy of serCache 
+  copy		-- Remote copy of cache
 
 12/3/11: Working on switching the code to use %nm (Node Metadata)
 and $tm (This Metadata, aka $nm->{values}->{$thisUri}).  I wrote a
