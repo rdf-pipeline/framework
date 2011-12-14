@@ -4,6 +4,7 @@
 #  MyApache2/Chain.pm --test --debug http://localhost/hello
 
 # TODO:
+# 0. Check SERVER_NAME is set in ENV.
 # 1. Put nodes and caches in separate directories: 
 #	/node  		-- for nodes
 #	/cache 		-- for cache files maintained directly by nodes
@@ -45,35 +46,49 @@ use HTTP::Status;
 use Apache2::URI ();
 use URI::Escape;
 use Time::HiRes ();
+use File::Path qw(make_path remove_tree);
 
 my $configFile = "/home/dbooth/rdf-pipeline/trunk/pipeline.n3";
 my $ontFile = "/home/dbooth/rdf-pipeline/trunk/ont.n3";
 my $internalsFile = "/home/dbooth/rdf-pipeline/trunk/internals.n3";
 my $prefix = "http://purl.org/pipeline/ont#";	# Pipeline ont prefix
 $ENV{DOCUMENT_ROOT} ||= "/home/dbooth/rdf-pipeline/trunk/www";	# Set if not set
-### TODO: Set $baseUri automatically
+my $documentRootPattern = quotemeta($ENV{DOCUMENT_ROOT});
+### TODO: Set $baseUri properly.  Needs port?
 $ENV{SERVER_NAME} ||= "localhost";
-my $baseUri = "http://$ENV{SERVER_NAME}/";  # TODO: Should become "scope"
+# $baseUri is the URI prefix that corresponds directly to DOCUMENT_ROOT.
+# It is *not* necessarily the same as a particular scope, because there
+# could be more than one scope hosted within the same Apache server.
+my $baseUri = "http://$ENV{SERVER_NAME}";  # TODO: Should become "scope"?
+my $baseUriPattern = quotemeta($baseUri);
 my $PCACHE = "PCACHE"; # Used in forming env vars
 my $rdfsPrefix = "http://www.w3.org/2000/01/rdf-schema#";
+# my $subClassOf = $rdfsPrefix . "subClassOf";
+my $subClassOf = "rdfs:subClassOf";
 
 my $logFile = "/tmp/rdf-pipeline-log.txt";
 # unlink $logFile || die;
 
 my %config = ();		# Maps: "?s ?p" --> "v1 v2 ... vn"
 my %configValues = ();		# Maps: "?s ?p" --> {v1 => 1, v2 => 1, ...}
-my $nm;				# Node Metadata hash maps.  there are
-				# three hashmaps:
-				#  To values (for single-valued predicates):
-				#    $vh = $nm->{value}->{$thisUri};
-				#    $value = $vh->{$predicate};
-				#  To lists (for ordered multiple values):
-				#    $lh = $nm->{list}->{$thisUri};
-				#    @listOfValues = @{$lh->{$predicate}};
-				#  To hashes (for unordered multiple values):
-				#    $hh = $nm->{hash}->{$thisUri};
-				#    %hashOfValues = %{$hh->{$predicate}};
-				#    if ($hashOfValues{"someValue"}} {...}
+
+# Node Metadata hash maps for mapping from subject
+# to predicate to single value ($nmv), list ($nml) or hashmap ($nmh).  
+#  For single-valued predicates:
+#    my $nmv = $nm->{value};	
+#    my $value = $nmv->{$subject}->{$predicate};
+#  For list-valued predicates:
+#    my $nml = $nm->{list};	
+#    my $listRef = $nml->{$subject}->{$predicate};
+#    my @list = @{$listRef};
+#  For hash or multi-valued predicates:
+#    my $nmh = $nm->{hash};	
+#    my $hashRef = $nmh->{$subject}->{$predicate};
+#    # Multi-valued (maps to 1 if present):
+#    if ($hashRef->{$someValue}) { ... }
+#    # Hash valued (maps a key to a value):
+#    my $value = $hashRef->{$key};
+my $nm = {"value"=>{}, "list"=>{}, "hash"=>{}};
 
 my %cachedResponse = ();	# Previous HTTP response to GET or HEAD.
 				# Key: "$thisUri $supplierUri"
@@ -83,6 +98,8 @@ my $internalsLastModified = 0;
 
 &PrintLog("="x30 . " START9 " . "="x30 . "\n");
 &PrintLog(`date`);
+&PrintLog("SERVER_NAME: $ENV{SERVER_NAME}\n");
+&PrintLog("DOCUMENT_ROOT: $ENV{DOCUMENT_ROOT}\n");
 # my $hasHiResTime = &Time::HiRes::d_hires_stat()>0 ? "true" : "false";
 # &PrintLog("Has HiRes time: $hasHiResTime\n");
 
@@ -125,6 +142,8 @@ my $test;
 	);
 &PrintLog("ARGV: @ARGV\n") if $test || $debug;
 
+&RegisterWrappers($nm);
+
 my $testUri = shift @ARGV || "http://localhost/chain";
 my $testArgs = "";
 if ($testUri =~ m/\A([^\?]*)\?/) {
@@ -141,26 +160,6 @@ if ($test)
 #######################################################################
 ###################### Functions start here ###########################
 #######################################################################
-
-########## IsLocalFileNode ############
-# Returns relative part of $uri if $uri is a local FileNode; otherwise 0.
-sub IsLocalFileNode
-{
-my $uri = shift;
-my $rel = $uri;
-my $baseUriPattern = quotemeta($baseUri);
-return $rel if ( $configValues{"$uri a"}->{FileNode} &&  $rel =~ s/\A$baseUriPattern//);
-return 0;
-}
-
-########## PrintLog ############
-sub PrintLog
-{
-open(my $fh, ">>$logFile") || die;
-print $fh @_;
-close($fh);
-return 1;
-}
 
 ##################### handler #######################
 # handler will be called by apache2 to handle any request that has
@@ -189,25 +188,12 @@ if (0 && $debug) {
 &PrintLog("RealHandler called: " . `date`);
 
 # Reload config file?
-my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
-	      $atime,$mtime,$ctime,$blksize,$blocks)
-		  = stat($configFile);
-# Avoid unused var warning:
-($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
-	      $atime,$mtime,$ctime,$blksize,$blocks)
-	= ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
-	      $atime,$mtime,$ctime,$blksize,$blocks);
-my $cmtime = $mtime;
-($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
-	      $atime,$mtime,$ctime,$blksize,$blocks)
-		  = stat($ontFile);
-my $omtime = $mtime;
-($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
-	      $atime,$mtime,$ctime,$blksize,$blocks)
-		  = stat($internalsFile);
-my $imtime = $mtime;
+my $cmtime = &MTime($configFile);
+my $omtime = &MTime($ontFile);
+my $imtime = &MTime($internalsFile);
 if ($configLastModified != $cmtime
-		|| $ontLastModified != $omtime) {
+		|| $ontLastModified != $omtime
+		|| $internalsLastModified != $imtime) {
 	# Reload config file.
 	&PrintLog("Reloading config file: $configFile\n") if $debug;
 	$configLastModified = $cmtime;
@@ -227,22 +213,33 @@ if ($configLastModified != $cmtime
 			&PrintLog("  $sp $v\n");
 			}
 		}
-	$nm = &LoadNodeMetadata($ontFile, $configFile);
+	&LoadNodeMetadata($nm, $ontFile, $configFile);
+	my $nmv = $nm->{value};
+	my $nml = $nm->{list};
+	my $nmh = $nm->{hash};
 	&PrintLog("Node Metadata:\n") if $debug;
-	foreach my $s (sort keys %{$nm->{value}}) {
+	my %allSubjects = (%{$nmv}, %{$nml}, %{$nmh});
+	foreach my $s (sort keys %allSubjects) {
 		last if !$debug;
-		foreach my $p (sort keys %{$nm->{value}->{$s}}) {
-			my $v = $nm->{value}->{$s}->{$p};
-			&PrintLog("  $s -> $p -> $v\n");
-			if ($nm->{list} && $nm->{list}->{$s} && $nm->{list}->{$s}->{$p}) {
-			  my @vList = @{$nm->{list}->{$s}->{$p}};
+		my %allPredicates = ();
+		%allPredicates = (%allPredicates, %{$nmv->{$s}}) if $nmv->{$s};
+		%allPredicates = (%allPredicates, %{$nml->{$s}}) if $nml->{$s};
+		%allPredicates = (%allPredicates, %{$nmh->{$s}}) if $nmh->{$s};
+		foreach my $p (sort keys %allPredicates) {
+			if ($nmv && $nmv->{$s} && $nmv->{$s}->{$p}) {
+			  my $v = $nmv->{$s}->{$p};
+			  &PrintLog("  $s -> $p -> $v\n");
+			  }
+			if ($nml && $nml->{$s} && $nml->{$s}->{$p}) {
+			  my @vList = @{$nml->{$s}->{$p}};
 			  my $vl = join(" ", @vList);
 			  &PrintLog("  $s -> $p -> ($vl)\n");
 			  }
-			if ($nm->{hash} && $nm->{hash}->{$s} && $nm->{hash}->{$s}->{$p}) {
+			if ($nmh && $nmh->{$s} && $nmh->{$s}->{$p}) {
 
-			  my %vHash = %{$nm->{hash}->{$s}->{$p}};
-			  my $vh = join(" ", sort keys %vHash);
+			  my %vHash = %{$nmh->{$s}->{$p}};
+			  my @vHash = map {($_,$vHash{$_})} sort keys %vHash;
+			  my $vh = join(" ", @vHash);
 			  &PrintLog("  $s -> $p -> {$vh}\n");
 			  }
 			}
@@ -272,14 +269,9 @@ return Apache2::Const::NOT_FOUND if !$subtype;
 
 if ($subtype eq "FileNode") { 
 	&PrintLog("Dispatching to HandleFileNode\n") if $debug;
-	return &HandleFileNode($r, $thisUri);
+	return &HandleFileNode($nm, $r, $thisUri);
 	}
 elsif ($subtype eq "JenaNode") { 
-	# Not yet implemented
-	&PrintLog("Unimplemented: $subtype\n") if $debug;
-	return Apache2::Const::SERVER_ERROR;
-	}
-elsif ($subtype eq "MysqlNode") { 
 	# Not yet implemented
 	&PrintLog("Unimplemented: $subtype\n") if $debug;
 	return Apache2::Const::SERVER_ERROR;
@@ -290,87 +282,12 @@ else {
 	}
 }
 
-############## QuickName ##############
-# Generate a relative filename based on the given URI.
-#### TODO:  This is a quick and dirty POC hack.  
-#### Production should url-encode the URI into the filename.
-sub QuickName
-{
-my $t = shift;
-$t =~ s|\A.*\/||;	# Chop off all but the last part of the path
-$t =~ s/[^a-zA-Z0-9\.\-\_]/_/g;	# Change any bad chars to _
-return $t;
-}
-
-############## LoadMoreFileNodeMetadata ###############
-# Uses global %config.
-sub LoadMoreFileNodeMetadata
-{
-my $nm = shift;
-my $thisUri = shift || die;
-my $r = shift || die;
-
-my $cache = $config{"$thisUri cache"} || "";
-my $inputs = $config{"$thisUri inputs"} || "";
-my $parameters = $config{"$thisUri parameters"} || "";
-my $dependsOn = $config{"$thisUri dependsOn"} || "";
-my $updater = $config{"$thisUri updater"} || "";
-my @inputs = ($inputs ? split(/\s+/, $inputs) : ());
-my @parameters = ($parameters ? split(/\s+/, $parameters) : ());
-my @dependsOn = ($dependsOn ? split(/\s+/, $dependsOn) : ());
-
-# Make absolute $updater:
-$updater = "$ENV{DOCUMENT_ROOT}/$updater" if $updater && $updater !~ m|\A\/|;
-$nm->{value}->{$thisUri}->{updaterFullPath} = $updater;
-
-my $useStdout = 0;
-if (!$updater) {
-	$cache = &IsLocalFileNode($thisUri);
-	die if @inputs || @parameters;	# Cannot have inputs without an updater
-	}
-elsif (!$cache) {
-	$useStdout = 1;
-	# Make a cache filename to use.
-	#### TODO:  This is a quick and dirty POC hack.  
-	#### Production should
-	#### use proper escaping and put the file somewhere else:
-	$cache = &QuickName($thisUri) . "-stdout";
-	}
-my $cacheFullPath = ($cache =~ m|\A\/|) ? $cache : "$ENV{DOCUMENT_ROOT}/$cache";
-$nm->{value}->{$thisUri}->{cacheFullPath} = $updater;
-if ($updater) {
-	# The FileNode updater args will be local filenames for all
-	# inputs and parameters.
-	# TODO: This is currently only being done correctly for
-	# for local inputs.  For remote inputs, it should be
-	# using the localized copy.
-	my @inputFilenames = &LocalFilenames($thisUri, @inputs);
-	my %inputFilenames = map {($_,1)} @inputFilenames;
-	$nm->{list}->{$thisUri}->{inputFilenames} = \@inputFilenames;
-	$nm->{hash}->{$thisUri}->{inputFilenames} = \%inputFilenames;
-	my @parameterFilenames = &LocalFilenames($thisUri, @parameters);
-	my %parameterFilenames = map {($_,1)} @parameterFilenames;
-	$nm->{list}->{$thisUri}->{parameterFilenames} = \@parameterFilenames;
-	$nm->{hash}->{$thisUri}->{parameterFilenames} = \%parameterFilenames;
-	# For capturing stderr:
-	my $tmp = "/tmp/updater-stderr-" . &QuickName($thisUri) . "-$$.txt";  
-	$nm->{value}->{$thisUri}->{stderr} = $tmp;
-	# TODO: Check for unsafe chars before invoking $cmd
-	my $cmd = "( export $PCACHE\_THIS_URI=\"$thisUri\" ; $updater $cacheFullPath @inputFilenames @parameterFilenames > $tmp 2>&1 )";
-	$cmd = "( export $PCACHE\_THIS_URI=\"$thisUri\" ; $updater @inputFilenames @parameterFilenames > $cacheFullPath 2> $tmp )"
-		if $useStdout;
-	$nm->{value}->{$thisUri}->{command} = $cmd;
-	}
-
-my $cacheUri = $r->construct_url($cache); 
-
-}
-
 
 ############## HandleFileNode ###############
 # Uses global %config.
 sub HandleFileNode
 {
+my $nm = shift;
 my $r = shift;
 my $thisUri = shift || die;
 my $cache = $config{"$thisUri cache"} || "";
@@ -403,8 +320,8 @@ elsif (!$cache) {
 	$cache = "$t-stdout";
 	}
 &PrintLog("cache after useStdout block: $cache\n") if $debug;
-my $cacheFullPath = ($cache =~ m|\A\/|) ? $cache : "$ENV{DOCUMENT_ROOT}/$cache";
-&PrintLog("cacheFullPath: $cacheFullPath\n") if $debug;
+my $cachePath = $nm->{value}->{$thisUri}->{cache};
+&PrintLog("cachePath: $cachePath\n") if $debug;
 
 &PrintLog("inputs: $inputs\n") if $debug;
 my $atInputs = join(" ", @inputs);
@@ -426,7 +343,7 @@ foreach my $k (keys %args) {
 	&PrintLog("	$k = $v\n") if $debug;
 	}
 
-if ((!-e $cacheFullPath) || &AnyChanged($thisUri, @dependsOn))
+if ((!-e $cachePath) || &AnyChanged($thisUri, @dependsOn))
 	{
 	# Run updater if there is one:
 	if ($updater) {
@@ -436,18 +353,28 @@ if ((!-e $cacheFullPath) || &AnyChanged($thisUri, @dependsOn))
 			}
 		# The FileNode updater args will be local filenames for all
 		# inputs and parameters.
-		my @inputFilenames = &LocalFilenames($thisUri, @inputs);
-		my @parameterFilenames = &LocalFilenames($thisUri, @parameters);
-		&PrintLog("inputFilenames: @inputFilenames\n");
-		&PrintLog("parameterFilenames: @parameterFilenames\n");
-		my $tmp = "/tmp/updater-err$$";  # For capturing stderr
-		# my $cmd = "/home/dbooth/rdf-pipeline/trunk/setuid-wrapper $updater $thisUri $cacheFullPath $inputs $parameters > $tmp 2>&1";
-		# my $cmd = "$updater $thisUri $cacheFullPath $inputs $parameters > $tmp 2>&1";
-		# $cmd = "$updater $thisUri $inputs $parameters > $cacheFullPath 2> $tmp"
+		my @inputFiles = &LocalFiles($thisUri, @inputs);
+		my @parameterFiles = &LocalFiles($thisUri, @parameters);
+		&PrintLog("inputFiles: @inputFiles\n");
+		&PrintLog("parameterFiles: @parameterFiles\n");
+		# my $tmp = "/tmp/updater-err$$";  # For capturing stderr
+		my $tmp = $nm->{value}->{$thisUri}->{stderr};
+		# Make sure parent dirs exist for $tmp and $cachePath:
+		$tmp =~ m|\A(.+)\/| or die;
+		my $tmpDir = $1 or die;
+		make_path($tmpDir);
+		-d $tmpDir || die;
+		$cachePath =~ m|\A(.+)\/| or die;
+		my $cacheDir = $1 or die;
+		make_path($cacheDir);
+		-d $cacheDir || die;
+		# my $cmd = "/home/dbooth/rdf-pipeline/trunk/setuid-wrapper $updater $thisUri $cachePath $inputs $parameters > $tmp 2>&1";
+		# my $cmd = "$updater $thisUri $cachePath $inputs $parameters > $tmp 2>&1";
+		# $cmd = "$updater $thisUri $inputs $parameters > $cachePath 2> $tmp"
 			# if $useStdout;
 		# TODO: Check for unsafe chars before invoking $cmd
-		my $cmd = "( export $PCACHE\_THIS_URI=\"$thisUri\" ; $updater $cacheFullPath @inputFilenames @parameterFilenames > $tmp 2>&1 )";
-		$cmd = "( export $PCACHE\_THIS_URI=\"$thisUri\" ; $updater @inputFilenames @parameterFilenames > $cacheFullPath 2> $tmp )"
+		my $cmd = "( export $PCACHE\_THIS_URI=\"$thisUri\" ; $updater $cachePath @inputFiles @parameterFiles > $tmp 2>&1 )";
+		$cmd = "( export $PCACHE\_THIS_URI=\"$thisUri\" ; $updater @inputFiles @parameterFiles > $cachePath 2> $tmp )"
 			if $useStdout;
 		&PrintLog("cmd: $cmd\n") if $debug;
 		my $result = (system($cmd) >> 8);
@@ -459,7 +386,7 @@ if ((!-e $cacheFullPath) || &AnyChanged($thisUri, @dependsOn))
 			&PrintLog(&ReadFile("<$tmp")) if $debug;
 			&PrintLog("]]\n") if $debug;
 			}
-		unlink $tmp;
+		# unlink $tmp;
 		if ($result) {
 			&PrintLog("UPDATER ERROR: $saveError\n") if $debug;
 			return Apache2::Const::SERVER_ERROR;
@@ -477,15 +404,9 @@ else	{
 
 # Manually set the headers, so that the Content-Type can be
 # set properly.  
-my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
-		      $atime,$mtime,$ctime,$blksize,$blocks)
-			  = stat($cacheFullPath);
-# Avoid unused var warning:
-($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
-		      $atime,$mtime,$ctime,$blksize,$blocks) =
-($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
-		      $atime,$mtime,$ctime,$blksize,$blocks);
-&PrintLog("HandleFileNode: size: $size\n") if $debug;
+my $mtime = &MTime($cachePath);
+my $size = -s $cachePath;
+&PrintLog("HandleFileNode cachePath: $cachePath size: $size\n") if $debug;
 my $lm = time2str($mtime);
 &PrintLog("HandleFileNode: Last-Modified: $lm\n") if $debug;
 
@@ -501,7 +422,8 @@ else	{
 	# This works also: $r->content_type('application/rdf+xml');
 	$r->set_content_length($size);
 	$r->set_last_modified($mtime);
-	my $cacheUri = $r->construct_url($cache); 
+	# my $cacheUri = $r->construct_url($cache); 
+	my $cacheUri = $nm->{value}->{$thisUri}->{serCacheUri};
 	$r->headers_out->set('Content-Location' => $cacheUri); 
 	# TODO: Set proper ETag, perhaps using Time::HiRes mtime.
 	# "W/" prefix on ETag means that it is weak.
@@ -509,7 +431,7 @@ else	{
 	$r->headers_out->set('ETag' => 'W/"fake-etag"'); 
 	# Did not work: $r->sendfile($cache);
 	# sendfile seems to want a full file system path:
-	$r->sendfile($cacheFullPath);
+	$r->sendfile($cachePath);
 	my $m = $r->method;
 	my $ho = $r->header_only;
 	&PrintLog("HandleFileNode: method: $m header_only: $ho\n") if $debug;
@@ -524,78 +446,221 @@ else	{
 return Apache2::Const::OK;
 }
 
-################### SetGenericDefaults #################
-# Set derived $nm defaults.
-sub SetGenericDefaults
-{
-my $nm = shift;
-&PrintLog("SetGenericDefaults:\n");
-foreach my $s (keys %{$nm->{value}}) {
-	# Set nodeType, which should be most specific node type.
-	my $types = $nm->{hash}->{$s}->{a};
-	if ($types && $types->{Node}) {
-		my @types = keys %{$types};
-		my @nodeTypes = LeafClasses($nm, @types);
-		die if @nodeTypes > 1;
-		die if @nodeTypes < 1;
-		my $t = $nodeTypes[0];
-		$nm->{value}->{$s}->{nodeType} = $t;
-		&PrintLog("  $s nodeType $t\n");
-		}
-	}
-return $nm;
-}
-
-################### SetFileNodeDefaults #################
-# Set derived $nm defaults specific to FileNodes.
-sub SetFileNodeDefaults
-{
-}
-
 ################### LoadNodeMetadata #################
-# Returns a ref to a hash of key/value pairs, with each key a node URI.
 sub LoadNodeMetadata
 {
+@_ == 3 or die;
+my ($nm, $ontFile, $configFile) = @_;
 my %config = &CheatLoadN3($ontFile, $configFile);
-my $nm = {};
+my $nmv = $nm->{value};
+my $nml = $nm->{list};
+my $nmh = $nm->{hash};
 foreach my $k (sort keys %config) {
 	# &PrintLog("  LoadNodeMetadata key: $k\n") if $debug;
 	my ($s, $p) = split(/\s+/, $k) or die;
 	my $v = $config{$k};
-	$v = "" if !defined($v);
+	die if !defined($v);
 	my @vList = split(/\s+/, $v); 
 	my %vHash = map { ($_, 1) } @vList;
-	$nm->{value}->{$s}->{$p} = $v;
-	$nm->{list}->{$s}->{$p} = \@vList;
-	$nm->{hash}->{$s}->{$p} = \%vHash;
+	$nmv->{$s}->{$p} = $v;
+	$nml->{$s}->{$p} = \@vList;
+	$nmh->{$s}->{$p} = \%vHash;
 	# &PrintLog("  $s -> $p -> $v\n") if $debug;
 	}
-$nm = &SetGenericDefaults($nm);
+&PresetGenericDefaults($nm);
+# Run the initialization function to set defaults for each node type 
+# (i.e., wrapper type), starting with leaf nodes and working up the hierarchy.
+my @leaves = &LeafClasses($nm, keys %{$nmh->{Node}->{subClass}});
+my %done = ();
+while(@leaves) {
+	my $nodeType = shift @leaves;
+	next if $done{$nodeType};
+	$done{$nodeType} = 1;
+	my @superClasses = keys %{$nmh->{$nodeType}->{$subClassOf}};
+	push(@leaves, @superClasses);
+	my $fSetNodeDefaults = $nmv->{$nodeType}->{fSetNodeDefaults};
+	next if !$fSetNodeDefaults;
+	&{$fSetNodeDefaults}($nm);
+	}
 return $nm;
 }
 
+################### PresetGenericDefaults #################
+# Preset essential generic $nmv, $nml, $nmh defaults that must be set
+# before nodeType-specific defaults are set.  In particular, the
+# following are set: nodeType, scope, scopePath.
+sub PresetGenericDefaults
+{
+@_ == 1 or die;
+my ($nm) = @_;
+my $nmv = $nm->{value};
+my $nml = $nm->{list};
+my $nmh = $nm->{hash};
+&PrintLog("PresetGenericDefaults:\n");
+# First set defaults that are set directly on each node: 
+# nodeType, scope, scopePath, cache, serCache, serCacheUri, stderr.
+foreach my $thisUri (keys %{$nmh->{Node}->{member}}) 
+  {
+  # Make life easier in this loop:
+  my $thisValue = $nmv->{$thisUri};
+  my $thisList = $nml->{$thisUri};
+  my $thisHash = $nmh->{$thisUri};
+  # Set nodeType, which should be most specific node type.
+  my @types = keys %{$thisHash->{a}};
+  my @nodeTypes = LeafClasses($nm, @types);
+  die if @nodeTypes > 1;
+  die if @nodeTypes < 1;
+  my $thisType = $nodeTypes[0];
+  $thisValue->{nodeType} = $thisType;
+  # Set scope, if not set already.
+  $thisValue->{scope} ||= &DefaultScope($thisUri);
+  my $thisScope = $thisValue->{scope};
+  die if !$thisScope;
+  my $thisScopePath = $thisValue->{scopePath} || &UriToPath($thisScope);
+  &PrintLog("  $thisUri nodeType: $thisType thisScope: $thisScope thisScopePath: $thisScopePath\n");
+  # Nothing more to do if this server does not handle $thisScope:
+  next if !$thisScopePath;
+  $thisValue->{scopePath} = $thisScopePath;
+  # Save original cache before changing it:
+  $thisValue->{cacheOriginal} = $thisValue->{cache};
+  # Set cache, serCache and serCacheUri if not set.  cache is always a 
+  # local name; serCache is always a file path.
+  my $thisFUriToLocalName = $nmv->{$thisType}->{fUriToLocalName} || "";
+  my $defaultCache = "$thisScope/caches/" . &QuickName($thisUri) . "/cache";
+  $defaultCache = &{$thisFUriToLocalName}($defaultCache) 
+	if $thisFUriToLocalName;
+  my $thisName = $thisFUriToLocalName ? &{$thisFUriToLocalName}($thisUri) : $thisUri;
+  $thisValue->{cache} ||= 
+    $thisValue->{updater} ? $defaultCache : $thisName;
+  $thisValue->{serCache} ||= 
+    $nmv->{$thisType}->{fSerializer} ?
+      "$thisScopePath/caches/" . &QuickName($thisUri) . "/serCache"
+      : $thisValue->{cache};
+  $thisValue->{serCacheUri} ||= &PathToUri($thisValue->{serCache});
+  # For capturing stderr:
+  $nmv->{$thisUri}->{stderr} ||= 
+	  "$thisScopePath/caches/" . &QuickName($thisUri) . "/stderr";
+  # Simplify later code:
+  &MakeValuesAbsoluteUris($nmv, $nml, $nmh, $thisUri, "inputs");
+  &MakeValuesAbsoluteUris($nmv, $nml, $nmh, $thisUri, "parameters");
+  &MakeValuesAbsoluteUris($nmv, $nml, $nmh, $thisUri, "dependsOn");
+  die "Cannot have inputs without an updater " 
+	if !$thisValue->{updater} && @{$thisList->{inputs}};
+  }
+
+&PrintLog("SetNodeDefaults:\n");
+# Now go through each node again, setting values related to each
+# node's dependsOns, which may make use of properties that were
+# set in the previous loop.
+foreach my $thisUri (keys %{$nmh->{Node}->{member}}) 
+  {
+  # Nothing to do if $thisUri is not hosted on this server:
+  next if $thisUri !~ m/\A$baseUri\b/;
+  # Make life easier in this loop:
+  my $thisValue = $nmv->{$thisUri};
+  my $thisList = $nml->{$thisUri};
+  my $thisHash = $nmh->{$thisUri};
+  my $thisType = $thisValue->{nodeType};
+  my $thisScope = $thisValue->{scope};
+  my $thisScopePath = $thisValue->{scopePath};
+  # The dependsOnName hash maps from 
+  # dependsOn URIs (or inputs/parameter URIs) to the local names 
+  # that will be used by $thisUri's updater when
+  # it is invoked.  For a local input node, it will be that input's
+  # cache; for a foreign input node, it will be the local
+  # copy.  A non-node dependsOn is treated like a foreign
+  # node with no serializer.  The dependsOnSerName hash similarly maps
+  # from dependsOn URIs to the local serNames (i.e., file names of 
+  # inputs) that will be used to refresh the local copy if the
+  # input is foreign.  The dependsOnSerName is only used (and only
+  # set) for foreign inputs.
+  $thisHash->{dependsOnName} ||= {};
+  $thisHash->{dependsOnSerName} ||= {};
+  foreach my $inUri (keys %{$thisHash->{dependsOn}}) {
+    # my $inUriEncoded = uri_escape($inUri);
+    my $inUriEncoded = &QuickName($inUri);
+    my $inType = $nmv->{$inUri}->{nodeType} || "";
+    my $inScope = $nmv->{$inUri}->{scope} || "";
+    # warn "    inUri: $inUri inScope: $inScope\n";
+    if ($inScope && $inScope eq $thisScope && $inType && $inType eq $thisType) {
+      # Local node input.
+      $thisHash->{dependsOnName}->{$inUri} = $nmv->{$inUri}->{cache} || die;
+      next;
+      }
+    # Else foreign input.
+    # dependsOnSerName file path does not need to contain $thisType, because 
+    # different node types on the same server can share the same serCopy's.
+    my $inSerName = "$thisScopePath/caches/$inUriEncoded/serCopy";
+    $thisHash->{dependsOnSerName}->{$inUri} = $inSerName;
+    # dependsOnName will be the same as dependsOnSerName if the input
+    # has no deserializer (or if it is not a node).
+    my $fDeserializer = $inType ? $nmv->{$inType}->{fDeserializer} : "";
+    if (!$fDeserializer) {
+      $thisHash->{dependsOnName}->{$inUri} = $inSerName;
+      next;
+      }
+    # Else, there is a deserializer, so create a URI and convert it
+    # (if necessary) to an appropriate local name.
+    my $fUriToLocalName = $nmv->{$inType}->{fUriToLocalName};
+    my $copyName = "$thisScope/caches/$thisType/$inUriEncoded/copy";
+    $copyName = &{$fUriToLocalName}($copyName) if $fUriToLocalName;
+    $thisHash->{dependsOnName}->{$inUri} = $copyName;
+    }
+  }
+}
+
+################# MakeValuesAbsoluteUris ####################
+sub MakeValuesAbsoluteUris 
+{
+@_ == 5 or die;
+my ($nmv, $nml, $nmh, $thisUri, $predicate) = @_;
+my $oldV = $nmv->{$thisUri}->{$predicate} || "";
+my $oldL = $nml->{$thisUri}->{$predicate} || [];
+my $oldH = $nmh->{$thisUri}->{$predicate} || {};
+# In the case of a hash, it is the key that is made absolute:
+my %hash = map {(&AbsUri($_), $oldH->{$_})} keys %{$oldH};
+my @list = map {&AbsUri($_)} @{$oldL};
+my $value = join(" ", @list);
+$nmv->{$thisUri}->{$predicate} = $value;
+$nml->{$thisUri}->{$predicate} = \@list;
+$nmh->{$thisUri}->{$predicate} = \%hash;
+return;
+}
+
+################### DefaultScope #################
+# Default scope is the URI before the path but without the trailing slash.
+# E.g., http://example.com/foo?bar --> http://example.com
+# E.g., file:///home/dbooth/foo/bar --> file://
+sub DefaultScope
+{
+my $thisUri = shift;
+die if $thisUri !~ m|\A([a-zA-Z]+\:\/\/[^\/]+)\/|;
+my $scope = $1;
+return $scope;
+}
+
 ################### LeafClasses #################
-# Given a list of classes (with rdfs:subClassOf relations in $nm), 
+# Given a list of classes (with rdfs:subClassOf relations in $nmv, $nml, $nmh), 
 # return the ones that are not a 
 # superclass of any of them.  The list of classes is expected to
 # be complete, e.g., for if you have:
-#	:a :subClassOf :b .
-#	:b :subClassOf :c .
+#	:a rdfs:subClassOf :b .
+#	:b rdfs:subClassOf :c .
 # then if :a is in the given list of classes then :b (and :c) must be also.
 sub LeafClasses
 {
-my $nm = shift;
-my @classes = @_;
+@_ >= 1 or die;
+my ($nm, @classes) = @_;
+my $nmh = $nm->{hash};
 my @leaves = ();
-my $subClassOf = $rdfsPrefix . "subClassOf";
 # Simple n-squared algorithm should be okay for small numbers of classes:
 foreach my $t (@classes) {
 	my $isSuperclass = 0;
 	foreach my $subType (@classes) {
 		next if $t eq $subType;
-		next if !$nm->{hash}->{$subType};
-		next if !$nm->{hash}->{$subType}->{$subClassOf};
-		next if !$nm->{hash}->{$subType}->{$subClassOf}->{$t};
+		next if !$nmh->{$subType};
+		next if !$nmh->{$subType}->{$subClassOf};
+		next if !$nmh->{$subType}->{$subClassOf}->{$t};
 		$isSuperclass = 1;
 		last;
 		}
@@ -619,11 +684,11 @@ my %args = map {
 return %args;
 }
 
-################### LocalFilenames #####################
+################### LocalFiles #####################
 # For each given input or parameter URI $uri, return a filename 
 # that is local to $thisUri and contains the current cached
 # content of $uri.
-sub LocalFilenames
+sub LocalFiles
 {
 my $thisUri = shift;
 my @ipUris = @_;	# Input or parameter URIs
@@ -641,14 +706,14 @@ foreach my $uri (@_) {
 		my $filename = $ENV{DOCUMENT_ROOT} . "/$f-stdout";
 		$filename = $ENV{DOCUMENT_ROOT} . "/$f"
 			if !$config{"$uri updater"};
-		&PrintLog("LocalFilenames: uri: $uri f: $f filename: $filename\n");
+		&PrintLog("LocalFiles: uri: $uri f: $f filename: $filename\n");
 		push(@filenames, $filename);
 		}
 	else	{
 		# TODO: This is currently only being done correctly for
 		# for local inputs.  For remote inputs, it should be
 		# using the localized copy.
-		&PrintLog("LocalFilenames: Not yet implemented\n");
+		&PrintLog("LocalFiles: Not yet implemented\n");
 		die;
 		my $res = &CachingRequest("GET", @_) || return undef;
 		return $res->decoded_content();
@@ -823,10 +888,13 @@ foreach my $t (@triples) {
 	# Strip ont prefix from terms:
 	$t = join(" ", map { s/\A$prefix([a-zA-Z])/$1/;	$_ }
 		split(/\s+/, $t));
+	# Convert rdfs: namespace to "rdfs:" prefix:
+	$t = join(" ", map { s/\A$rdfsPrefix([a-zA-Z])/rdfs:$1/;	$_ }
+		split(/\s+/, $t));
 	my ($s, $p, $o) = split(/\s+/, $t, 3);
 	next if !$o;
 	# $o may actually be a space-separate list of URIs
-	&PrintLog("  s: $s p: $p o: $o\n") if $debug;
+	# &PrintLog("  s: $s p: $p o: $o\n") if $debug;
 	# Append additional values for the same property:
 	$config{"$s $p"} = "" if !exists($config{"$s $p"});
 	$config{"$s $p"} .= " " if $config{"$s $p"};
@@ -911,11 +979,11 @@ return $all;
 }
 
 ############# SetLMFile #############
-# Ensure global $nm is set and return current LM filename for $thisUri.
+# Ensure global $nm* is set and return current LM filename for $thisUri.
 sub SetLMFile
 {
 my $thisUri = shift;
-# my $lmFile = $nm->{value}->{$thisUri}->{lmFile};
+# my $lmFile = $nmv->{$thisUri}->{lmFile};
 # if (!$lmFile) {}
 }
 
@@ -923,11 +991,130 @@ my $thisUri = shift;
 ############# SaveLMs ##############
 # Save Last-Modified times of thisUri and its inputs (actually its dependsOns).
 # Called as: &SaveLMs($thisUri, $thisLM, %inLMs);
-
 sub SaveLMs
 {
 @_ >= 2 || die;
 # my $thisUri = $_[0];
+}
+
+############# RegisterWrappers ##############
+sub RegisterWrappers
+{
+@_ == 1 || die;
+my ($nm) = @_;
+&RegisterFileNode($nm);
+}
+
+############# RegisterFileNode ##############
+sub RegisterFileNode
+{
+@_ == 1 || die;
+my ($nm) = @_;
+$nm->{value}->{FileNode}->{fUriToLocalName} = \&UriToPath;
+}
+
+
+############# MTime ##############
+# Return the $mtime (modification time) of a file.
+sub MTime
+{
+@_ == 1 || die;
+my $f = shift;
+my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+	      $atime,$mtime,$ctime,$blksize,$blocks)
+		  = stat($f);
+# Avoid unused var warning:
+($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+	      $atime,$mtime,$ctime,$blksize,$blocks)
+	= ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+	      $atime,$mtime,$ctime,$blksize,$blocks);
+return $mtime;
+}
+
+############## QuickName ##############
+# Generate a relative filename based on the given URI.
+#### TODO:  This is a quick and dirty POC hack that makes the
+#### filenames easier to read, for debugging purposes.  
+#### Production code should url-encode the URI into the filename.
+sub QuickName
+{
+my $t = shift;
+# $t = uri_escape($t);
+$t =~ s|\A.*\/||;	# Chop off all but the last part of the path
+$t =~ s/[^a-zA-Z0-9\.\-\_]/_/g;	# Change any bad chars to _
+return $t;
+}
+
+########## AbsUri ############
+# Converts (possibly relative) URI to absolute URI, using $baseUri.
+sub AbsUri
+{
+my $uri = shift;
+if ($uri !~ m/\Ahttp(s?)\:/) {
+	# Relative URI
+	$uri =~ s|\A\/||;	# Chop leading / if any
+	$uri = "$baseUri/$uri";
+	}
+return $uri;
+}
+
+########## UriToPath ############
+# Converts (possibly relative) URI to absolute file path (if local) 
+# or returns "".
+sub UriToPath
+{
+my $uri = shift;
+my $path = &AbsUri($uri);
+if ($path =~ s/\A$baseUriPattern\b/$ENV{DOCUMENT_ROOT}/e) {
+	return $path;
+	}
+return "";
+}
+
+########## AbsPath ############
+# Converts (possibly relative) file path to absolute path,
+# using $ENV{DOCUMENT_ROOT}.
+sub AbsPath
+{
+my $path = shift;
+if ($path !~ m|\A\/|) {
+	# Relative path
+	$path = "$ENV{DOCUMENT_ROOT}/$path";
+	}
+return $path;
+}
+
+########## PathToUri ############
+# Converts (possibly relative) file path to absolute URI (if local) 
+# or returns "".
+sub PathToUri
+{
+my $path = shift;
+my $uri = &AbsPath($path);
+if ($uri =~ s/\A$documentRootPattern\b/$baseUri/e) {
+	return $uri;
+	}
+return "";
+}
+
+########## PrintLog ############
+sub PrintLog
+{
+open(my $fh, ">>$logFile") || die;
+print $fh @_;
+close($fh);
+return 1;
+}
+
+########## IsLocalFileNode ############
+# Returns relative part of $uri if $uri is a local FileNode; otherwise 0.
+sub IsLocalFileNode
+{
+my $uri = shift;
+my $rel = $uri;
+my $baseUriPattern = quotemeta($baseUri);
+return $rel if ( $configValues{"$uri a"}->{FileNode} &&  $rel =~ s/\A$baseUriPattern//);
+return 0;
 }
 
 ##### DO NOT DELETE THE FOLLOWING LINE!  #####

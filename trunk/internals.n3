@@ -27,6 +27,12 @@ p:cache		rdfs:domain p:Node .
 # Subclass / subsumption:
 { ?sub rdfs:subClassOf ?super . ?a a ?sub . } => { ?a a ?super . } .
 
+# Inverse subClassOf:
+{ ?sub rdfs:subClassOf ?super . } => { ?super p:subClass ?sub . } .
+
+# Inverse class membership:
+{ ?s a ?class . } => { ?class p:member ?s . } .
+
 ########## Testing ##########
 # This rule facilitates rapid testing, but is not something
 # that would necessarily be wanted in production.

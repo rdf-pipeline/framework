@@ -6,9 +6,25 @@ These are my (dbooth) personal notes and "To Do" list from
 before I used code.google.com and had any formal bug tracker
 or issues list. 
 
+12/14/11: Thinking briefly about how to handle changes to the pipeline
+definition.  Some thoughts:
+ - A deleted node needs its own and downstream caches, LMs, etc. cleaned up.
+ - Nodes that are added need to be fired according to their update policies.
+ - Nodes whose updater changed need to have their caches flushed.
+ - A node whose type changed can be treated as a delete+add.
+ - A node with inputs/dependsOns deleted need caches cleaned up.
+ - A node with inputs/dependsOns added needs caches created.
+
+12/9/11: POST data can be read using Apache2::RequestIO:
+> while($r->read($buffer, 1024)) {}
+See today's email to modperl@perl.apache.org.
+
 12/8/11: Thinking of using the word "scope" instead of "environment",
 because "environment" is apt to be confused with env vars.
-Also thinking of using these words for the caches:
+However, at present the "scope" predicate only provides the URI prefix
+of the environment -- not the node type.  Not sure if I should also
+use a "scopeType" predicate that combines the scope URI prefix with
+the node type.  Also thinking of using these words for the caches:
   cache 	-- Updater output/result (may be set by user)
   serCache	-- Serialized cache
   serCopy	-- Remote copy of serCache 
