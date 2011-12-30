@@ -1,10 +1,33 @@
 RDF Pipeline Framework, Copyright 2011 David Booth <david@dbooth.org>
-http://code.google.com/p/rdf-pipeline/
-See license info in License.txt
+This is part of the project at http://code.google.com/p/rdf-pipeline/ .
+It is licensed for use under the license in License.txt
+----------------------------------------------------------------
 
 These are my (dbooth) personal notes and "To Do" list from
 before I used code.google.com and had any formal bug tracker
-or issues list. 
+or issues list.  It is currently being used as a place for recording
+notes or things to do.
+
+12/25/11: Instead of using "scope", I've shifted to using &IsSameServer
+and &IsSameType, both because these are two separate questions and
+because the URI prefix for a different env must be a different server
+anyway if the type is the same.
+
+12/15/11: When an input is not a node (such as file "max" in simple pipeline),
+this causes "ERROR: http://localhost/max is not a Node" and 404 response.
+Where should such files be placed?  If we put nodes under $baseUri/nodes
+then this would help the Apache config, and files not under that could
+be served as regular files or treated however Apache normally would
+treat them (since they could also be CGI scripts). 
+BTW, I should still test other code paths in initializing $nm.
+
+TODO: Continue transforming code to use $nm.  At present addone is
+reading from the old cache location for odds.
+
+12/15/11: Internal naming: 
+$baseUri: URI prefix for this server.
+$basePath: File path corresponding to $baseUri, i.e., $ENV{DOCUMENT_ROOT}
+Maybe should put pipeline nodes under $baseUri/nodes.
 
 12/14/11: Thinking briefly about how to handle changes to the pipeline
 definition.  Some thoughts:
@@ -322,7 +345,7 @@ The setting was made in /etc/apache2/ports.conf
 
 I changed the Apache user to dbooth in
 /etc/apache2/envvars
-and expect to also have do chown the logs.  Actually, I see that
+and expect to also have to chown the logs.  Actually, I see that
 /var/log/apache2/access.log
 is already owned by root, so I guess I don't have to chown the logs.
 

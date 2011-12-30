@@ -1,7 +1,7 @@
 Node Metadata Properties
 ========================
 Most of these are node properties, though some (noted) are node type properties.
-Perhaps we should standardize internal naming:
+Perhaps we should standardize internal naming, something like:
   fooPath	-- A filename full path.
   fooDir	-- A directory full path.
   fooUri	-- A URI.
@@ -10,26 +10,32 @@ Perhaps we should standardize internal naming:
 a	hash	Inverse is {member}
 cache	value	Local name of node output
 cacheOriginal	value	Value of cache predicate before setting defaults
+cacheUri	value	URI of cache (used as key for LM)
 command
+contentType	value	HTTP Content-Type for this node's serialized output.  Defaults to defaultContentType of the $nodeType if not specified.
 copy
 date
-dependsOn
+defaultContentType	value	Subject is $nodeType.  Default HTTP Content-Type for serialized output.
+dependsOn	list/hash	URIs of inputs, parameters and anything else this node depends on.
 dependsOnName	hash	Maps a dependsOn URI to the local name for that input
-dependsOnSerName	hash	Maps a dependsOn URI to the local name for that serialized input
+dependsOnSerName	hash	Maps a dependsOn URI to the local file name for that serialized input
+dependsOnNameUri	hash	Maps a dependsOn URI to the URI corresponding to dependsOnName. (Used as key for saving LM.)
+dependsOnSerNameUri	hash	Maps a dependsOn URI to the URI corresponding to dependsOnSerName. (Used as key for saving LM.)
 fSetNodeDefaults	value	Subject is $nodeType.
 fSerializer	value	Subject is $nodeType.
 fDeserializer	value	Subject is $nodeType.
 fUriToLocalName	value	Subject is $nodeType.  Converts a URI to a local name.
-inputs
+inputs	list/hash	URIs of this node's inputs.
 lmFile	value	File name of node's last modified timestamps: (output and all inputs)
 member	hash	Inverse of rdf:type (aka "a")
 Node
 nodeType	value	Most specific node type -- a leaf class.
 parameterNames @@@ Is this needed? @@@
-parameters
+parameters	list/hash	URIs of this node's parameters.
 rdfs:subClassOf	hash	Inverse is subClass
-scope	value	URI prefix without trailing "/".  Env = scope + node type
-scopePath	value	File path corresponding to scope (under DOCUMENT_ROOT)
+# Obsolete?
+# scope	value	URI prefix without trailing "/".  Env = scope + node type
+# scopePath	value	File path corresponding to scope (under DOCUMENT_ROOT)
 serCache	value	File name of serialized cache (under DOCUMENT_ROOT)
 serCacheUri	value	URI of serCache
 serCopy	value	File name of copy of serialized cache.
