@@ -8,6 +8,32 @@ before I used code.google.com and had any formal bug tracker
 or issues list.  It is currently being used as a place for recording
 notes or things to do.
 
+12/30/11: I have not thought a whole lot about locking and deadlock,
+but one idea that seems appealing (when we get to addressing it) is
+to use a sort of "snapshot locking" scheme.
+When an updater is run, all ins are "snapshot locked", which causes them to be
+treated as (coherent) snapshots.  Instead of blocking
+concurrent writing, newly written data will be written
+to a new instance, which in turn will be treated as a snapshot
+if another updater "snapshot locks" that instance.  Each
+snapshot will be released when it has no (downstream) updaters
+reading it.  If an instance is large and only a small portion
+is updated, then it can be handled in a mapcar manner, such that
+its constituents are recursively snapshot-locked, and constituents
+that did not change are merely linked from the new instance.
+
+Also, I'm thinking that instead of passing $callerUri and $callerLM,
+we might want to pass a %callers hashref, which would contain all
+callers in the call chain (to detect loops).  A node that is designed
+to handle a call chain loop could be marked as something like:
+
+  :myNode p:allowRecursiveNotify true .
+
+On the other hand, it would be better to check for dependency loops
+during compiletime (when analyzing the pipeline) instead of at runtime.
+In that case a node marked p:allowRecursiveNotify could be treated as 
+a break in the dependency graph.
+
 12/25/11: Instead of using "scope", I've shifted to using &IsSameServer
 and &IsSameType, both because these are two separate questions and
 because the URI prefix for a different env must be a different server

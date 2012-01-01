@@ -21,16 +21,21 @@ dependsOnName	hash	Maps a dependsOn URI to the local name for that input
 dependsOnSerName	hash	Maps a dependsOn URI to the local file name for that serialized input
 dependsOnNameUri	hash	Maps a dependsOn URI to the URI corresponding to dependsOnName. (Used as key for saving LM.)
 dependsOnSerNameUri	hash	Maps a dependsOn URI to the URI corresponding to dependsOnSerName. (Used as key for saving LM.)
-fSetNodeDefaults	value	Subject is $nodeType.
+fCacheExists	value	Subject is $nodeType.  Function that returns 1 iff the given cache exists.
+fSetNodeDefaults	value	Subject is $nodeType.  @@ Is this used? @@
 fSerializer	value	Subject is $nodeType.
 fDeserializer	value	Subject is $nodeType.
+fRunUpdater	value	Subject is $nodeType.
+fUpdatePolicy	value	Update policy function for this node.
 fUriToLocalName	value	Subject is $nodeType.  Converts a URI to a local name.
+inputNames list	Local input names for this node.
 inputs	list/hash	URIs of this node's inputs.
 lmFile	value	File name of node's last modified timestamps: (output and all inputs)
 member	hash	Inverse of rdf:type (aka "a")
 Node
 nodeType	value	Most specific node type -- a leaf class.
-parameterNames @@@ Is this needed? @@@
+outputs	hash	URIs of this node's outputs.
+parameterNames list	Local parameter names for this node.
 parameters	list/hash	URIs of this node's parameters.
 rdfs:subClassOf	hash	Inverse is subClass
 # Obsolete?
