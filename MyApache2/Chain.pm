@@ -31,6 +31,7 @@ package MyApache2::Chain;
 use strict;
 use Carp;
 use warnings;
+# use diagnostics;
 use Apache2::RequestRec (); # for $r->content_type
 use Apache2::SubRequest (); # for $r->internal_redirect
 use Apache2::RequestIO ();
@@ -215,16 +216,19 @@ return $r;
 # been specified in /etc/apache2/sites-enabled/000-default .
 sub handler 
 {
+warn;
 &PrintLog("-"x20 . "handler" . "-"x20 . "\n");
 my $ret = &RealHandler(@_);
 &PrintLog("Handler returning: $ret\n");
+warn;
 return $ret;
 }
 
 ##################### RealHandler #######################
 sub RealHandler 
 {
-my $r = shift;
+warn;
+my $r = shift || die;
 # $debug = ($r && $r->uri =~ m/c\Z/);
 # $r->content_type('text/plain') if $debug && !$test;
 if (0 && $debug) {
@@ -234,7 +238,20 @@ if (0 && $debug) {
 		}
 	&PrintLog("\n");
 	}
-&PrintLog("RealHandler called: " . `date`);
+warn;
+#### TODO: BUG: Backticks here seem to cause a seg fault sometimes,
+#### after a few requests.
+# &PrintLog("RealHandler called: " . `date`);
+# Seg fault if backticks are used:
+# my $date = `date`;
+system("date > /tmp/date");
+my $date = &ReadFile("/tmp/date");
+# No seg fault this way:
+# my $date = time2str(time);
+warn;
+&PrintLog("RealHandler called: " . $date);
+# &PrintLog("RealHandler called. \n");
+warn;
 my $thisUri = $testUri;
 # construct_url omits the query params though
 $thisUri = $r->construct_url() if !$test; 
@@ -292,6 +309,7 @@ else {
 	&PrintLog("Unknown Node subtype: $subtype\n") if $debug;
 	return Apache2::Const::SERVER_ERROR; 
 	}
+warn;
 }
 
 ############## HandleFileNode ###############
@@ -457,6 +475,7 @@ return Apache2::Const::OK;
 # an arbitrary URI source, in which case the $method will be HEAD.
 sub SendHttpRequest
 {
+warn;
 @_ == 5 or die;
 my ($nm, $method, $thisUri, $depUri, $depLM) = @_;
 &PrintLog("SendHttpRequest(nm, $method, $thisUri, $depUri, $depLM) called\n");
@@ -504,12 +523,14 @@ if ($code == RC_OK && $newLM && $newLM ne $oldLM) {
 	$ua->save_content( $inSerName ) if $method ne 'HEAD';
 	&SaveLMs($inSerNameUri, $newLM, $newLMHeader, $newETagHeader);
 	}
+warn;
 return $newLM;
 }
 
 ################### HandleHttpEvent ##################
 sub HandleHttpEvent
 {
+warn;
 @_ == 2 or die;
 my ($nm, $r) = @_;
 # construct_url omits the query params
@@ -570,12 +591,14 @@ if($status != Apache2::Const::OK || $r->header_only) {
   }
 # sendfile seems to want a full file system path:
 $r->sendfile($serCache);
+warn;
 return Apache2::Const::OK;
 }
 
 ################### FreshenAndSerialize ##################
 sub FreshenAndSerialize
 {
+warn;
 @_ == 5 or die;
 my ($nm, $method, $thisUri, $callerUri, $callerLM) = @_;
 &PrintLog("FreshenAndSerialize(nm, $method, $thisUri, $callerUri, $callerLM) called\n");
@@ -604,6 +627,7 @@ if (!$serCacheLM || ($newThisLM && $newThisLM ne $serCacheLM)) {
   $serCacheLM = $newThisLM;
   &SaveLMs($serCacheUri, $serCacheLM);
   }
+warn;
 return $serCacheLM
 }
 
@@ -611,6 +635,7 @@ return $serCacheLM
 # $callerUri and $callerLM are only used if $method is NOTIFY
 sub CheckPolicyAndFreshen
 {
+warn;
 @_ == 5 or die;
 my ($nm, $method, $thisUri, $callerUri, $callerLM) = @_;
 &PrintLog("CheckPolicyAndFreshen(nm, $method, $thisUri, $callerUri, $callerLM) called\n");
@@ -650,12 +675,14 @@ foreach my $outUri (@outputs) {
 	next if $outUri eq $callerUri;
 	&Notify($nm, $outUri, $thisUri, $newThisLM);
 	}
+warn;
 return $newThisLM;
 }
 
 ################### Notify ################### 
 sub Notify
 {
+warn;
 @_ == 4 or die;
 my ($nm, $thisUri, $callerUri, $callerLM) = @_;
 &PrintLog("Notify(nm, $thisUri, $callerUri, $callerLM) called\n");
@@ -663,11 +690,13 @@ my ($nm, $thisUri, $callerUri, $callerLM) = @_;
 ($nm, $thisUri, $callerUri, $callerLM) = 
 ($nm, $thisUri, $callerUri, $callerLM);
 # TODO: Queue a NOTIFY event.
+warn;
 }
 
 ################### RequestLatestDependsOns ################### 
 sub RequestLatestDependsOns
 {
+warn;
 @_ == 5 or die;
 my ($nm, $thisUri, $callerUri, $callerLM, $oldDepLMs) = @_;
 &PrintLog("RequestLatestDependsOn(nm, $thisUri, $callerUri, $callerLM, $oldDepLMs) called\n");
@@ -709,12 +738,14 @@ foreach my $depUri (sort keys %{$thisDependsOn}) {
   $thisIsStale = 1 if !$oldDepLM || ($newInLM && $newInLM ne $oldDepLM);
   $newDepLMs->{$depUri} = $newInLM;
   }
+warn;
 return( $thisIsStale, $newDepLMs )
 }
 
 ################### LoadNodeMetadata #################
 sub LoadNodeMetadata
 {
+warn;
 @_ == 3 or die;
 my ($nm, $ontFile, $configFile) = @_;
 my %config = &CheatLoadN3($ontFile, $configFile);
@@ -748,6 +779,7 @@ while(@leaves) {
 	next if !$fSetNodeDefaults;
 	&{$fSetNodeDefaults}($nm);
 	}
+warn;
 return $nm;
 }
 
@@ -759,6 +791,7 @@ return $nm;
 # cacheOriginal, cache, cacheUri, serCache, serCacheUri, stderr.
 sub PresetGenericDefaults
 {
+warn;
 @_ == 1 or die;
 my ($nm) = @_;
 my $nmv = $nm->{value};
@@ -923,6 +956,7 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
     push(@{$thisList->{parameterNames}}, $pName);
     }
   }
+warn;
 }
 
 ################# MakeValuesAbsoluteUris ####################
@@ -1209,6 +1243,7 @@ return $changed;
 # Example: "http://localhost/a cache" --> "c/cp-cache.txt"
 sub CheatLoadN3
 {
+warn;
 my $ontFile = shift;
 my $configFile = shift;
 $configFile || die;
@@ -1254,6 +1289,7 @@ foreach my $t (@triples) {
 	$config{"$s $p"} .= $o;
 	}
 &PrintLog("-" x 60 . "\n") if $debug;
+warn;
 return %config;
 }
 
@@ -1443,10 +1479,12 @@ sub GenerateNewLM
 # Format time to avoid losing digits when serializing:
 my $newTime = &FormatTime(scalar(Time::HiRes::gettimeofday()));
 my $MAGIC = "# Hi-Res Last Modified (LM) Counter\n";
+&MakeParentDirs($lmCounterFile);
 # Got this flock code pattern from
 # http://www.stonehenge.com/merlyn/UnixReview/col23.html
 # open(my $fh, "+<$lmCounterFile") or croak "Cannot open $lmCounterFile: $!";
-sysopen(my $fh, $lmCounterFile, O_RDWR|O_CREAT) or croak "Cannot open $lmCounterFile: $!";
+sysopen(my $fh, $lmCounterFile, O_RDWR|O_CREAT) 
+	or croak "Cannot open $lmCounterFile: $!";
 flock $fh, 2;
 my ($oldTime, $counter) = ($newTime, 0);
 my $magic = <$fh>;
@@ -1560,8 +1598,10 @@ return "";
 sub PrintLog
 {
 open(my $fh, ">>$logFile") || die;
-print $fh @_;
-close($fh);
+# print($fh, @_) or die;
+print $fh @_ or die;
+# print $fh @_;
+close($fh) || die;
 return 1;
 }
 
@@ -1682,6 +1722,9 @@ return($lmHeader, $eTagHeader);
 
 ########## HeadersToLM ############
 # Turn Last-Modified and ETag headers into LM (high-res last-modified).
+# This is round-trippable if it was generated by LMToHeaders.  
+# It is a a one-way operation (i.e., not round-trippable) if something
+# else generated the ETag.
 sub HeadersToLM
 {
 @_ == 2 or die;
