@@ -5,18 +5,18 @@ my $url = shift || 'http://localhost/addone';
 
 my $errorLogFile = "/var/log/apache2/error.log";
 
+die "You need to truncate the log first: 
+  truncate -s 0 $errorLogFile\n"
+ if `grep Segmentation $errorLogFile`;
+
 chdir "/tmp";
-# my $n = 200;
-# foreach (my $i=1; $i<=20; $i++) {
 my $i = 0;
 while (1) {
 	$i++;
 	warn "Try $i ...\n";
-	`wget -O /dev/null '$url' > /dev/null 2>&1 `;
+	`wget -O /tmp/wgetout.txt '$url' > /dev/null 2>&1 `;
 	# sleep 1;
-	# my $lastLines = join(" ", map {chomp; $_} `tail -1 $errorLogFile`);
-	my $lastLines = join(" ", map {chomp; $_} `grep Segmentation $errorLogFile`);
-	last if $lastLines =~ m/Segmentation/;
+	die "Empty response!\n" if (!-s "/tmp/wgetout.txt");
+	die "Seg fault!\n" if `grep Segmentation $errorLogFile`;
 	}
-warn "Seg faulted after $i tries.\n";
 

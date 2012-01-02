@@ -45,6 +45,9 @@ use Apache2::Const -compile => qw( HTTP_METHOD_NOT_ALLOWED );
 use Test::MockObject;	# For testing from the command line ($test)
 use Fcntl qw(LOCK_EX O_RDWR O_CREAT);
 
+# Trying IPC::System::Simple as a way to fix child seg fault bug:
+use IPC::System::Simple qw(system systemx capture capturex);
+
 use HTTP::Date;
 use APR::Table ();
 use LWP::UserAgent;
@@ -70,7 +73,8 @@ my $baseUriPattern = quotemeta($baseUri);
 my $basePath = $ENV{DOCUMENT_ROOT};	# Synonym, for convenience
 my $basePathPattern = quotemeta($basePath);
 my $lmCounterFile = "$basePath/lmCounter.txt";
-my $PCACHE = "PCACHE"; # Used in forming env vars
+my $RUN_COMMAND_HELPER = "/home/dbooth/rdf-pipeline/trunk/runcommand.perl";
+my $THIS_URI = "THIS_URI"; # Env var name to use
 my $rdfsPrefix = "http://www.w3.org/2000/01/rdf-schema#";
 # my $subClassOf = $rdfsPrefix . "subClassOf";
 my $subClassOf = "rdfs:subClassOf";
@@ -244,8 +248,11 @@ warn;
 # &PrintLog("RealHandler called: " . `date`);
 # Seg fault if backticks are used:
 # my $date = `date`;
-system("date > /tmp/date");
-my $date = &ReadFile("/tmp/date");
+# Seg fault if system() is used:
+# system("echo pid \$\$ > /tmp/date ; date >> /tmp/date");
+# system("/home/dbooth/rdf-pipeline/trunk/pid.perl");
+IPC::System::Simple::system("/home/dbooth/rdf-pipeline/trunk/pid.perl");
+my $date = &ReadFile("/tmp/pid.txt");
 # No seg fault this way:
 # my $date = time2str(time);
 warn;
@@ -390,8 +397,8 @@ if ((!-e $cache) || &AnyChanged($thisUri, @dependsOn))
 		# $cmd = "$updater $thisUri $inputs $parameters > $cache 2> $stderr"
 			# if $useStdout;
 		# TODO: Check for unsafe chars before invoking $cmd
-		my $cmd = "( export $PCACHE\_THIS_URI=\"$thisUri\" ; $updater $cache @inputFiles @parameterFiles > $stderr 2>&1 )";
-		$cmd = "( export $PCACHE\_THIS_URI=\"$thisUri\" ; $updater @inputFiles @parameterFiles > $cache 2> $stderr )"
+		my $cmd = "( export $THIS_URI=\"$thisUri\" ; $updater $cache @inputFiles @parameterFiles > $stderr 2>&1 )";
+		$cmd = "( export $THIS_URI=\"$thisUri\" ; $updater @inputFiles @parameterFiles > $cache 2> $stderr )"
 			if $useStdout;
 		&PrintLog("cmd: $cmd\n") if $debug;
 		my $result = (system($cmd) >> 8);
@@ -815,7 +822,7 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
   $thisValue->{nodeType} = $thisType;
   # Nothing more to do if $thisUri is not hosted on this server:
   next if !&IsSameServer($baseUri, $thisUri);
-  # Save original cache before changing it:
+  # Save original cache before setting it to a default value:
   $thisValue->{cacheOriginal} = $thisValue->{cache};
   # Set cache, cacheUri, serCache and serCacheUri if not set.  
   # cache is a local name; serCache is a file path.
@@ -878,9 +885,13 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
   # Factors that affect these settings:
   #  A. Is $depUri a node?  It may be any other URI data source (http: or file:).
   #  B. Is $depUri on the same server (as $thisUri)?
+  #     If so, its serCopy can be shared with other nodes on this server.
   #  C. Is $depType the same node type $thisType?
+  #     If so (and on same server) then the node's cache can be accessed directly.
   #  D. Does $depType have a deserializer?
+  #     If not, then 'copy' will be the same as serCopy.
   #  E. Does $depType have a fUriToLocalName function?
+  #     If so, then it will be used to generate a local name for 'copy'.
   $thisHash->{dependsOnName} ||= {};
   $thisHash->{dependsOnSerName} ||= {};
   $thisHash->{dependsOnNameUri} ||= {};
@@ -903,8 +914,8 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
       # Different servers, so make up a new file path.
       # dependsOnSerName file path does not need to contain $thisType, because 
       # different node types on the same server can share the same serCopy's.
-      my $inSerName = "$basePath/caches/$depUriEncoded/serCopy";
-      $thisHash->{dependsOnSerName}->{$depUri} = $inSerName;
+      my $depSerName = "$basePath/caches/$depUriEncoded/serCopy";
+      $thisHash->{dependsOnSerName}->{$depUri} = $depSerName;
       }
     $thisHash->{dependsOnSerNameUri}->{$depUri} ||= 
 	      &PathToUri($thisHash->{dependsOnSerName}->{$depUri}) || die;
@@ -1445,8 +1456,8 @@ my $qUpdater = quotemeta($updater);
 my $qStderr = quotemeta($stderr);
 my $useStdout = 0;
 $useStdout = 1 if $updater && !$nm->{value}->{$thisUri}->{cacheOriginal};
-my $cmd = "( export $PCACHE\_THIS_URI=$qThisUri ; $qUpdater $qCache $ipFiles > $qStderr 2>&1 )";
-$cmd =    "( export $PCACHE\_THIS_URI=$qThisUri ; $qUpdater         $ipFiles > $qCache 2> $qStderr )"
+my $cmd = "( export $THIS_URI=$qThisUri ; $qUpdater $qCache $ipFiles > $qStderr 2>&1 )";
+$cmd =    "( export $THIS_URI=$qThisUri ; $qUpdater         $ipFiles > $qCache 2> $qStderr )"
 	if $useStdout;
 &PrintLog("cmd: $cmd\n") if $debug;
 my $result = (system($cmd) >> 8);
