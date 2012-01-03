@@ -214,10 +214,20 @@ $r->headers_out($ho);
 return $r;
 }
 
+##################### TEST handler #######################
+sub handler 
+{
+my $r = shift || die;
+my $f = $ENV{DOCUMENT_ROOT} . "/date.txt";
+system("date >> $f");
+$r->internal_redirect("/date.txt");
+return Apache2::Const::OK;
+}
+
 ##################### handler #######################
 # handler will be called by apache2 to handle any request that has
 # been specified in /etc/apache2/sites-enabled/000-default .
-sub handler 
+sub handlerOLD 
 {
 my $r = shift || die;
 &RunCommand("/home/dbooth/rdf-pipeline/trunk/pid.perl");
