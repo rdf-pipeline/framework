@@ -15,7 +15,7 @@ while (1) {
 	$i++;
 	warn "Try $i ...\n";
 	`wget -O /tmp/wgetout.txt '$url' > /dev/null 2>&1 `;
-	# sleep 1;
+	# sleep 3;
 	die "Empty response!\n" if (!-s "/tmp/wgetout.txt");
 	die "Seg fault!\n" if `grep Segmentation $errorLogFile`;
 	}

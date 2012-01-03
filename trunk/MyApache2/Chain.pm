@@ -45,8 +45,9 @@ use Apache2::Const -compile => qw( HTTP_METHOD_NOT_ALLOWED );
 use Test::MockObject;	# For testing from the command line ($test)
 use Fcntl qw(LOCK_EX O_RDWR O_CREAT);
 
-# Trying IPC::System::Simple as a way to fix child seg fault bug:
-use IPC::System::Simple qw(system systemx capture capturex);
+# Trying this as a way to fix child seg fault bug:
+# http://stackoverflow.com/questions/471681/how-do-i-fork-properly-with-mod-perl2
+use POSIX; # required for setsid
 
 use HTTP::Date;
 use APR::Table ();
@@ -220,18 +221,15 @@ return $r;
 # been specified in /etc/apache2/sites-enabled/000-default .
 sub handler 
 {
-warn;
 &PrintLog("-"x20 . "handler" . "-"x20 . "\n");
 my $ret = &RealHandler(@_);
 &PrintLog("Handler returning: $ret\n");
-warn;
 return $ret;
 }
 
 ##################### RealHandler #######################
 sub RealHandler 
 {
-warn;
 my $r = shift || die;
 # $debug = ($r && $r->uri =~ m/c\Z/);
 # $r->content_type('text/plain') if $debug && !$test;
@@ -242,7 +240,7 @@ if (0 && $debug) {
 		}
 	&PrintLog("\n");
 	}
-warn;
+warn "Before running command ";
 #### TODO: BUG: Backticks here seem to cause a seg fault sometimes,
 #### after a few requests.
 # &PrintLog("RealHandler called: " . `date`);
@@ -251,14 +249,14 @@ warn;
 # Seg fault if system() is used:
 # system("echo pid \$\$ > /tmp/date ; date >> /tmp/date");
 # system("/home/dbooth/rdf-pipeline/trunk/pid.perl");
-IPC::System::Simple::system("/home/dbooth/rdf-pipeline/trunk/pid.perl");
+# system("/home/dbooth/rdf-pipeline/trunk/pid.perl");
+&RunCommand("/home/dbooth/rdf-pipeline/trunk/pid.perl");
 my $date = &ReadFile("/tmp/pid.txt");
 # No seg fault this way:
 # my $date = time2str(time);
-warn;
+warn "After running command ";
 &PrintLog("RealHandler called: " . $date);
 # &PrintLog("RealHandler called. \n");
-warn;
 my $thisUri = $testUri;
 # construct_url omits the query params though
 $thisUri = $r->construct_url() if !$test; 
@@ -316,7 +314,6 @@ else {
 	&PrintLog("Unknown Node subtype: $subtype\n") if $debug;
 	return Apache2::Const::SERVER_ERROR; 
 	}
-warn;
 }
 
 ############## HandleFileNode ###############
@@ -482,7 +479,6 @@ return Apache2::Const::OK;
 # an arbitrary URI source, in which case the $method will be HEAD.
 sub SendHttpRequest
 {
-warn;
 @_ == 5 or die;
 my ($nm, $method, $thisUri, $depUri, $depLM) = @_;
 &PrintLog("SendHttpRequest(nm, $method, $thisUri, $depUri, $depLM) called\n");
@@ -530,14 +526,12 @@ if ($code == RC_OK && $newLM && $newLM ne $oldLM) {
 	$ua->save_content( $inSerName ) if $method ne 'HEAD';
 	&SaveLMs($inSerNameUri, $newLM, $newLMHeader, $newETagHeader);
 	}
-warn;
 return $newLM;
 }
 
 ################### HandleHttpEvent ##################
 sub HandleHttpEvent
 {
-warn;
 @_ == 2 or die;
 my ($nm, $r) = @_;
 # construct_url omits the query params
@@ -598,14 +592,12 @@ if($status != Apache2::Const::OK || $r->header_only) {
   }
 # sendfile seems to want a full file system path:
 $r->sendfile($serCache);
-warn;
 return Apache2::Const::OK;
 }
 
 ################### FreshenAndSerialize ##################
 sub FreshenAndSerialize
 {
-warn;
 @_ == 5 or die;
 my ($nm, $method, $thisUri, $callerUri, $callerLM) = @_;
 &PrintLog("FreshenAndSerialize(nm, $method, $thisUri, $callerUri, $callerLM) called\n");
@@ -634,7 +626,6 @@ if (!$serCacheLM || ($newThisLM && $newThisLM ne $serCacheLM)) {
   $serCacheLM = $newThisLM;
   &SaveLMs($serCacheUri, $serCacheLM);
   }
-warn;
 return $serCacheLM
 }
 
@@ -642,7 +633,6 @@ return $serCacheLM
 # $callerUri and $callerLM are only used if $method is NOTIFY
 sub CheckPolicyAndFreshen
 {
-warn;
 @_ == 5 or die;
 my ($nm, $method, $thisUri, $callerUri, $callerLM) = @_;
 &PrintLog("CheckPolicyAndFreshen(nm, $method, $thisUri, $callerUri, $callerLM) called\n");
@@ -682,14 +672,12 @@ foreach my $outUri (@outputs) {
 	next if $outUri eq $callerUri;
 	&Notify($nm, $outUri, $thisUri, $newThisLM);
 	}
-warn;
 return $newThisLM;
 }
 
 ################### Notify ################### 
 sub Notify
 {
-warn;
 @_ == 4 or die;
 my ($nm, $thisUri, $callerUri, $callerLM) = @_;
 &PrintLog("Notify(nm, $thisUri, $callerUri, $callerLM) called\n");
@@ -697,13 +685,11 @@ my ($nm, $thisUri, $callerUri, $callerLM) = @_;
 ($nm, $thisUri, $callerUri, $callerLM) = 
 ($nm, $thisUri, $callerUri, $callerLM);
 # TODO: Queue a NOTIFY event.
-warn;
 }
 
 ################### RequestLatestDependsOns ################### 
 sub RequestLatestDependsOns
 {
-warn;
 @_ == 5 or die;
 my ($nm, $thisUri, $callerUri, $callerLM, $oldDepLMs) = @_;
 &PrintLog("RequestLatestDependsOn(nm, $thisUri, $callerUri, $callerLM, $oldDepLMs) called\n");
@@ -745,14 +731,12 @@ foreach my $depUri (sort keys %{$thisDependsOn}) {
   $thisIsStale = 1 if !$oldDepLM || ($newInLM && $newInLM ne $oldDepLM);
   $newDepLMs->{$depUri} = $newInLM;
   }
-warn;
 return( $thisIsStale, $newDepLMs )
 }
 
 ################### LoadNodeMetadata #################
 sub LoadNodeMetadata
 {
-warn;
 @_ == 3 or die;
 my ($nm, $ontFile, $configFile) = @_;
 my %config = &CheatLoadN3($ontFile, $configFile);
@@ -786,7 +770,6 @@ while(@leaves) {
 	next if !$fSetNodeDefaults;
 	&{$fSetNodeDefaults}($nm);
 	}
-warn;
 return $nm;
 }
 
@@ -798,7 +781,6 @@ return $nm;
 # cacheOriginal, cache, cacheUri, serCache, serCacheUri, stderr.
 sub PresetGenericDefaults
 {
-warn;
 @_ == 1 or die;
 my ($nm) = @_;
 my $nmv = $nm->{value};
@@ -967,7 +949,6 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
     push(@{$thisList->{parameterNames}}, $pName);
     }
   }
-warn;
 }
 
 ################# MakeValuesAbsoluteUris ####################
@@ -1254,7 +1235,6 @@ return $changed;
 # Example: "http://localhost/a cache" --> "c/cp-cache.txt"
 sub CheatLoadN3
 {
-warn;
 my $ontFile = shift;
 my $configFile = shift;
 $configFile || die;
@@ -1300,7 +1280,6 @@ foreach my $t (@triples) {
 	$config{"$s $p"} .= $o;
 	}
 &PrintLog("-" x 60 . "\n") if $debug;
-warn;
 return %config;
 }
 
@@ -1793,6 +1772,49 @@ foreach my $s (sort keys %allSubjects) {
 	}
 }
 
+################# RunCommand ###################
+sub RunCommand
+{
+    my $pgm = shift;
+    my @execargs = @_;
+
+    $SIG{CHLD} = 'IGNORE';
+    # This should flush stdout.
+    my $ofh = select(STDOUT);$| = 1;select $ofh;
+
+    warn "Before first fork $$";
+    my $kpid = fork;
+    defined($kpid) || die;
+    if ($kpid)
+    {
+        # Parent process
+        my $w = waitpid($kpid, 0);
+        # warn "waitpid returned $w\n";
+    }
+    else
+    {
+        close STDIN;
+        close STDOUT;
+        close STDERR;
+        setsid() >= 0 or die;
+        my $gpid = fork;
+        defined($gpid) or die;
+        if ($gpid) 
+        {
+          my $w = waitpid($gpid, 0);
+          # warn "waitpid returned $w\n";
+        }
+        else 
+        {
+        open(STDIN, "</dev/null") or die;
+        open(STDOUT, ">/dev/null") or die;
+        open(STDERR, ">/dev/null") or die;
+        # Child process
+        exec($pgm, @execargs) or die;
+        }
+        CORE::exit(0);
+    }
+}
 
 ##### DO NOT DELETE THE FOLLOWING LINE!  #####
 1;
