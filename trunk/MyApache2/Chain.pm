@@ -1,14 +1,12 @@
 #! /usr/bin/perl -w 
 
+# RDF Pipeline Framework
+# http://code.google.com/p/rdf-pipeline/
+# Copyright 2011 David Booth <david@dbooth.org>
+# See license in ../License.txt
+
 # Command line test:
 #  MyApache2/Chain.pm --test --debug http://localhost/hello
-
-# TODO:
-# 0. Check SERVER_NAME is set in ENV.
-# 1. Put nodes and caches in separate directories: 
-#	/node  		-- for nodes
-#	/cache 		-- for cache files maintained directly by nodes
-#	/hidden		-- for hidden cache files (framework generated)
 
 #file:MyApache2/Chain.pm
 #----------------------
@@ -23,7 +21,7 @@
 # special is done to make them shared.  (Maybe threads::shared?
 # Or Apache::Session::File?)  This means that HTTP response headers
 # cannot be cached in memory (without doing something special),
-# because they won't be visible across instances.
+# because they won't be visible across thread instances.
 
 package MyApache2::Chain;
 
@@ -221,6 +219,12 @@ return $r;
 # been specified in /etc/apache2/sites-enabled/000-default .
 sub handler 
 {
+my $r = shift || die;
+&RunCommand("/home/dbooth/rdf-pipeline/trunk/pid.perl");
+$r->internal_redirect("/pid.txt");
+return Apache2::Const::OK;
+## NOTREACHED
+
 &PrintLog("-"x20 . "handler" . "-"x20 . "\n");
 my $ret = &RealHandler(@_);
 &PrintLog("Handler returning: $ret\n");
@@ -1775,8 +1779,21 @@ foreach my $s (sort keys %allSubjects) {
 ################# RunCommand ###################
 sub RunCommand
 {
+
     my $pgm = shift;
     my @execargs = @_;
+    # warn "pgm: $pgm ";
+use Linux::Pid;
+use HTTP::Date;
+my $processParent = Linux::Pid::getppid();
+my $threadParent = getppid();
+my $processPid = Linux::Pid::getpid();
+my $threadPid = $$;
+warn "processParent: $processParent threadParent: $threadParent processPid: $processPid threadPid: $threadPid\n";
+
+    system($pgm);
+    warn "system() done.\n";
+    return;
 
     $SIG{CHLD} = 'IGNORE';
     # This should flush stdout.
