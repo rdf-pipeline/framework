@@ -15,9 +15,11 @@ while (1) {
 	$i++;
 	warn "Try $i ...\n";
 	# `wget -O /tmp/wgetout.txt '$url' > /dev/null 2>&1 `;
-	`curl '$url' > /tmp/wgetout.txt`;
+	`curl -s -S '$url' > /tmp/wgetout.txt`;
 	die "Empty response!\n" if (!-s "/tmp/wgetout.txt");
 	die "Seg fault!\n" if `grep Segmentation $errorLogFile`;
-	sleep 10 if $i==4;
+	die "Compilation failed!\n" if `grep 'Compilation failed' $errorLogFile`;
+	die "Error!\n" if `grep 'error' $errorLogFile`;
+	# sleep 10 if $i==4;
 	}
 
