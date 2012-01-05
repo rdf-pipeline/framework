@@ -40,7 +40,9 @@ use APR::Finfo ();
 use APR::Const -compile => qw(FINFO_NORM);
 use Apache2::RequestUtil ();
 use Apache2::Const -compile => qw( HTTP_METHOD_NOT_ALLOWED );
-use Test::MockObject;	# For testing from the command line ($test)
+### TODO: Get rid of Test::MockObject, because it causes a
+### an apache2 child seg fault:
+# use Test::MockObject;	# For testing from the command line ($test)
 use Fcntl qw(LOCK_EX O_RDWR O_CREAT);
 
 # Trying Apache2::SubProcess as a way to avoid the apache 2 child seg fault:
@@ -165,6 +167,7 @@ if ($testUri =~ m/\A([^\?]*)\?/) {
 	}
 if ($test)
 	{
+	die "COMMAND-LINE TESTING IS NO LONGER IMPLEMENTED!\n";
 	# Invoked from the command line, instead of through Apache.
 	# Fake a RequestReq object:
 	my $r = &MakeFakeRequestReq();
@@ -214,27 +217,11 @@ $r->headers_out($ho);
 return $r;
 }
 
-##################### TEST handler #######################
-sub handler 
-{
-my $r = shift || die;
-my $f = $ENV{DOCUMENT_ROOT} . "/date.txt";
-system("date >> $f 2> /dev/null");
-$r->internal_redirect("/date.txt");
-return Apache2::Const::OK;
-}
-
 ##################### handler #######################
 # handler will be called by apache2 to handle any request that has
 # been specified in /etc/apache2/sites-enabled/000-default .
-sub handlerOLD 
+sub handler
 {
-my $r = shift || die;
-&RunCommand("/home/dbooth/rdf-pipeline/trunk/pid.perl");
-$r->internal_redirect("/pid.txt");
-return Apache2::Const::OK;
-## NOTREACHED
-
 &PrintLog("-"x20 . "handler" . "-"x20 . "\n");
 my $ret = &RealHandler(@_);
 &PrintLog("Handler returning: $ret\n");
@@ -254,23 +241,7 @@ if (0 && $debug) {
 		}
 	&PrintLog("\n");
 	}
-warn "Before running command ";
-#### TODO: BUG: Backticks here seem to cause a seg fault sometimes,
-#### after a few requests.
-# &PrintLog("RealHandler called: " . `date`);
-# Seg fault if backticks are used:
-# my $date = `date`;
-# Seg fault if system() is used:
-# system("echo pid \$\$ > /tmp/date ; date >> /tmp/date");
-# system("/home/dbooth/rdf-pipeline/trunk/pid.perl");
-# system("/home/dbooth/rdf-pipeline/trunk/pid.perl");
-&RunCommand("/home/dbooth/rdf-pipeline/trunk/pid.perl");
-my $date = &ReadFile("/tmp/pid.txt");
-# No seg fault this way:
-# my $date = time2str(time);
-warn "After running command ";
-&PrintLog("RealHandler called: " . $date);
-# &PrintLog("RealHandler called. \n");
+&PrintLog("RealHandler called: " . `date`);
 my $thisUri = $testUri;
 # construct_url omits the query params though
 $thisUri = $r->construct_url() if !$test; 
@@ -483,7 +454,7 @@ return Apache2::Const::OK;
 }
 
 ################### SendHttpRequest ##################
-# Send a remote GET, QGET or HEAD to $depUri if $depLM is newer than 
+# Send a remote GET, GRAB or HEAD to $depUri if $depLM is newer than 
 # the stored LM of $thisUri's local serNameUri LM for $depLM.
 # The reason for checking $depLM here instead of checking it in
 # &RequestLatestDependsOns(...) is because the check requires a call to
@@ -496,13 +467,13 @@ sub SendHttpRequest
 @_ == 5 or die;
 my ($nm, $method, $thisUri, $depUri, $depLM) = @_;
 &PrintLog("SendHttpRequest(nm, $method, $thisUri, $depUri, $depLM) called\n");
-# Send conditional GET, QGET or HEAD to depUri with depUri*/serCopyLM
+# Send conditional GET, GRAB or HEAD to depUri with depUri*/serCopyLM
 # my $ua = LWP::UserAgent->new;
 my $ua = WWW::Mechanize->new();
 $ua->agent("$0/0.01 " . $ua->agent);
 my $requestUri = $depUri;
 my $httpMethod = $method;
-if ($method eq "QGET" || $method eq "NOTIFY") {
+if ($method eq "GRAB" || $method eq "NOTIFY") {
 	$httpMethod = "GET";
 	$requestUri .= "?method=$method";
 	}
@@ -568,7 +539,7 @@ my $callerUri = $args{callerUri} || "";
 my $callerLM = $args{callerLM} || "";
 my $method = $args{method} || $r->method;
 return Apache2::Const::HTTP_METHOD_NOT_ALLOWED 
-  if $method ne "HEAD" && $method ne "GET" && $method ne "QGET" 
+  if $method ne "HEAD" && $method ne "GET" && $method ne "GRAB" 
 	&& $method ne "NOTIFY";
 # TODO: If $r has fresh content, then store it.
 &PrintLog("HandleHttpEvent method: $method callerUri: $callerUri callerLM: $callerLM\n") if $debug;
@@ -651,7 +622,7 @@ sub CheckPolicyAndFreshen
 my ($nm, $method, $thisUri, $callerUri, $callerLM) = @_;
 &PrintLog("CheckPolicyAndFreshen(nm, $method, $thisUri, $callerUri, $callerLM) called\n");
 my ($oldThisLM, %oldDepLMs) = &LookupLMs($thisUri);
-return $oldThisLM if $method eq "QGET";
+return $oldThisLM if $method eq "GRAB";
 my $thisValue = $nm->{value}->{$thisUri};
 my $thisList = $nm->{list}->{$thisUri};
 my $thisType = $thisValue->{nodeType} or die;
@@ -726,7 +697,7 @@ foreach my $depUri (sort keys %{$thisDependsOn}) {
   my $depLM = "";
   # TODO: Future optimization: if depUri is in %knownFresh ...
   if ($depUri eq $callerUri) {
-    $method = 'QGET';
+    $method = 'GRAB';
     $depLM = $callerLM;
     }
   if (!$depType || !&IsSameServer($thisUri, $depUri)) {
@@ -985,7 +956,8 @@ return;
 
 ################### LazyUpdatePolicy ################### 
 # Return 1 iff $thisUri should be freshened according to lazy update policy.
-# $method is one of qw(GET HEAD NOTIFY). It is never QGET.
+# $method is one of qw(GET HEAD NOTIFY). It is never GRAB, because there
+# is never any updating involved with GRAB.
 sub LazyUpdatePolicy
 {
 @_ == 5 or die;
@@ -1784,13 +1756,6 @@ foreach my $s (sort keys %allSubjects) {
 		  }
 		}
 	}
-}
-
-################# RunCommand ###################
-sub RunCommand
-{
-    my $command = shift;
-    my @execargs = @_;
 }
 
 ##### DO NOT DELETE THE FOLLOWING LINE!  #####
