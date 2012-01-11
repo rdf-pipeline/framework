@@ -8,10 +8,10 @@ before I used code.google.com and had any formal bug tracker
 or issues list.  It is currently being used as a place for recording
 notes or things to do.
 
-1/4/12: TODO: Rename QGET to GRAB.
-
 1/1/12: Discovered a bug that causes a seg fault after several
-requests if backticks are used.  
+requests if backticks are used.  1/10/12: I have isolated this
+to "use Test::MockObject", even though none of those functions
+are called.
 
 12/30/11: I have not thought a whole lot about locking and deadlock,
 but one idea that seems appealing (when we get to addressing it) is
