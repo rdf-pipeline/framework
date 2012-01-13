@@ -455,7 +455,7 @@ else	{
 return Apache2::Const::OK;
 }
 
-################### SendHttpRequest ##################
+################### ForeignSendHttpRequest ##################
 # Send a remote GET, GRAB or HEAD to $depUri if $depLM is newer than 
 # the stored LM of $thisUri's local serNameUri LM for $depLM.
 # The reason for checking $depLM here instead of checking it in
@@ -464,11 +464,13 @@ return Apache2::Const::OK;
 # in order to look up the old LM headers.
 # Also remember that $thisUri is not necessarily a node: it may be 
 # an arbitrary URI source, in which case the $method will be HEAD.
-sub SendHttpRequest
+# We cannot count on LMs to be monotonic, because they could be
+# checksums or such.
+sub ForeignSendHttpRequest
 {
 @_ == 5 or die;
 my ($nm, $method, $thisUri, $depUri, $depLM) = @_;
-&Warn("SendHttpRequest(nm, $method, $thisUri, $depUri, $depLM) called\n");
+&Warn("ForeignSendHttpRequest(nm, $method, $thisUri, $depUri, $depLM) called\n");
 # Send conditional GET, GRAB or HEAD to depUri with depUri*/serCopyLM
 # my $ua = LWP::UserAgent->new;
 my $ua = WWW::Mechanize->new();
@@ -486,7 +488,7 @@ my ($oldLM, $oldLMHeader, $oldETagHeader) = &LookupLMs($inSerNameUri);
 $oldLM ||= "";
 $oldLMHeader ||= "";
 $oldETagHeader ||= "";
-if ($depLM && $oldLM && $oldLM ge $depLM) {
+if ($depLM && $oldLM && $oldLM eq $depLM) {
 	return $oldLM;
 	}
 my $req = HTTP::Request->new($httpMethod => $requestUri);
@@ -495,17 +497,17 @@ $req->header('If-Modified-Since' => $oldLMHeader) if $oldLMHeader;
 $req->header('If-None-Match' => $oldETagHeader) if $oldETagHeader;
 my $isConditional = $req->header('If-Modified-Since') ? "CONDITIONAL" : "";
 my $reqString = $req->as_string;
-&Warn("SendHttpRequest: Sending remote $isConditional $method Request from $thisUri to $depUri with ETag $oldETagHeader\n");
+&Warn("ForeignSendHttpRequest: Sending remote $isConditional $method Request from $thisUri to $depUri with ETag $oldETagHeader\n");
 &PrintLog("[[\n$reqString\n]]\n");
 my $res = $ua->request($req) or die;
 my $code = $res->code;
 $code == RC_NOT_MODIFIED || $code == RC_OK or die;
-&Warn("SendHttpRequest: $isConditional $method Request from $thisUri to $depUri returned $code\n");
+&Warn("ForeignSendHttpRequest: $isConditional $method Request from $thisUri to $depUri returned $code\n");
 my $newLMHeader = $res->header('Last-Modified') || "";
 my $newETagHeader = $res->header('ETag') || "";
 my $newLM = &HeadersToLM($newLMHeader, $newETagHeader);
 if ($code == RC_OK && $newLM && $newLM ne $oldLM) {
-	### Allow non-monotonic LM:
+	### Allow non-monotonic LM (because they could be checksums):
 	### $newLM gt $oldLM || die; # Verify monotonic LM
 	# Need to save the content to file $inSerName.
 	# TODO: Figure out whether the content should be decoded first.  
@@ -549,7 +551,7 @@ return Apache2::Const::HTTP_METHOD_NOT_ALLOWED
 	&& $method ne "NOTIFY";
 # TODO: If $r has fresh content, then store it.
 &Warn("HandleHttpEvent method: $method callerUri: $callerUri callerLM: $callerLM\n") if $debug;
-my $newThisLM = &FreshenAndSerialize($nm, $method, $thisUri, $callerUri, $callerLM);
+my $newThisLM = &NeighborFreshenAndSerialize($nm, $method, $thisUri, $callerUri, $callerLM);
 ####### Ready to generate the HTTP response. ########
 my $serCache = $thisVHash->{serCache} || die;
 my $serCacheUri = $thisVHash->{serCacheUri} || die;
@@ -586,26 +588,26 @@ $r->sendfile($serCache);
 return Apache2::Const::OK;
 }
 
-################### FreshenAndSerialize ##################
-sub FreshenAndSerialize
+################### NeighborFreshenAndSerialize ##################
+sub NeighborFreshenAndSerialize
 {
 @_ == 5 or die;
 my ($nm, $method, $thisUri, $callerUri, $callerLM) = @_;
-&Warn("FreshenAndSerialize(nm, $method, $thisUri, $callerUri, $callerLM) called\n");
+&Warn("NeighborFreshenAndSerialize(nm, $method, $thisUri, $callerUri, $callerLM) called\n");
 my $thisVHash = $nm->{value}->{$thisUri} || die;
 my $thisType = $thisVHash->{nodeType} || die;
 my $cache = $thisVHash->{cache} || die;
 my $serCache = $thisVHash->{serCache} || die;
 my $cacheUri = $thisVHash->{cacheUri} || die;
 my $serCacheUri = $thisVHash->{serCacheUri} || die;
-my $newThisLM = &CheckPolicyAndFreshen($nm, 'GET', $thisUri, $callerUri, $callerLM);
-if ($method eq 'NOTIFY' || $cacheUri eq $serCacheUri) {
+my $newThisLM = &LocalCheckPolicyAndFreshen($nm, 'GET', $thisUri, $callerUri, $callerLM);
+if ($method eq 'HEAD' || $method eq 'NOTIFY' || $cacheUri eq $serCacheUri) {
   return $newThisLM;
   }
 # Need to update serCache?
 my ($serCacheLM) = &LookupLMs($serCacheUri);
 if (!$serCacheLM || ($newThisLM && $newThisLM ne $serCacheLM)) {
-  ### Allow non-monotonic LM:
+  ### Allow non-monotonic LM (because they could be checksums):
   ### die if $newThisLM && $serCacheLM && $newThisLM lt $serCacheLM;
   # TODO: Set $acceptHeader from $r, and use it to choose $contentType:
   # This could be done by making {fSerialize} a hash from $contentType
@@ -620,13 +622,13 @@ if (!$serCacheLM || ($newThisLM && $newThisLM ne $serCacheLM)) {
 return $serCacheLM
 }
 
-################### CheckPolicyAndFreshen ################### 
+################### LocalCheckPolicyAndFreshen ################### 
 # $callerUri and $callerLM are only used if $method is NOTIFY
-sub CheckPolicyAndFreshen
+sub LocalCheckPolicyAndFreshen
 {
 @_ == 5 or die;
 my ($nm, $method, $thisUri, $callerUri, $callerLM) = @_;
-&Warn("CheckPolicyAndFreshen(nm, $method, $thisUri, $callerUri, $callerLM) called\n");
+&Warn("LocalCheckPolicyAndFreshen(nm, $method, $thisUri, $callerUri, $callerLM) called\n");
 my ($oldThisLM, %oldDepLMs) = &LookupLMs($thisUri);
 return $oldThisLM if $method eq "GRAB";
 my $thisVHash = $nm->{value}->{$thisUri};
@@ -655,7 +657,7 @@ my $newThisLM = &{$fRunUpdater}($nm, $thisUri, $thisUpdater, $cache,
 carp "fRunUpdater on $thisUri $thisUpdater returned false LM" if !$newThisLM;
 &SaveLMs($thisUri, $newThisLM, %{$newDepLMs});
 return $newThisLM if $newThisLM eq $oldThisLM;
-### Allow non-monotonic LM:
+### Allow non-monotonic LM (because they could be checksums):
 ### $newThisLM gt $oldThisLM or die;
 # Notify outputs of change:
 my @outputs = sort keys %{$thisVHash->{outputs}};
@@ -695,33 +697,51 @@ my $thisDependsOn = $nm->{hash}->{$thisUri}->{dependsOn};
 my $newDepLMs = {};
 foreach my $depUri (sort keys %{$thisDependsOn}) {
   # Bear in mind that a node may dependsOn a non-node arbitrary http 
-  # or file:// source, so $depValue may be undef.
-  my $depValue = $nm->{value}->{$depUri};
-  my $depType = $depValue ? $depValue->{nodeType} : "";
-  my $newInLM;
-  my $method = $depType ? 'GET' : 'HEAD' ;	# Non-node?
+  # or file:// source, so $depVHash may be undef.
+  my $depVHash = $nm->{value}->{$depUri};
+  my $depHHash = $nm->{hash}->{$depUri};
+  my $depType = $depVHash ? ($depVHash->{nodeType}||"") : "";
+  my $newDepLM;
+  my $method = 'GET';
   my $depLM = "";
   # TODO: Future optimization: if depUri is in %knownFresh ...
   if ($depUri eq $callerUri) {
     $method = 'GRAB';
     $depLM = $callerLM;
     }
-  if (!$depType || !&IsSameServer($thisUri, $depUri)) {
-    $newInLM = &SendHttpRequest($nm, $method, $thisUri, $depUri, $depLM);
+  elsif ($depType && (!$depHHash->{inputs} && !$depHHash->{parameters})) {
+    $method = 'HEAD';
     }
-  elsif (!&IsSameType($thisType, $depType)) {
+  my $isSameServer = &IsSameServer($thisUri, $depUri);
+  my $isSameType   = &IsSameType($thisType, $depType);
+  if (1 && $thisUri eq "http://localhost/odds" && $depUri eq "http://localhost/max") {
+	&Warn("REMOVE AFTER TESTING!!!\n");
+	$isSameType = 1;
+	}
+  &Warn("  depUri: $depUri depType: $depType method: $method depLM: $depLM isSameServer: $isSameServer isSameType: $isSameType\n") if $debug;
+  if (!$depType || !$isSameServer) {
+    # Foreign node or non-node.
+    $newDepLM = &ForeignSendHttpRequest($nm, $method, $thisUri, $depUri, $depLM);
+    }
+  elsif (!$isSameType) {
     # Neighbor: Same server but different type.
-    $newInLM = &FreshenAndSerialize($nm, $method, $thisUri);
+    $newDepLM = &NeighborFreshenAndSerialize($nm, $method, $thisUri, $callerUri, $callerLM);
+    }
+  elsif ($depUri eq $callerUri && $callerLM) {
+    # Caller is already known fresh.
+    $newDepLM = $callerLM;
+    &Warn("  Caller known fresh.\n");
     }
   else {
     # Local: Same server and type.
-    $newInLM = ($depUri eq $callerUri) ? $callerLM
-	: &CheckPolicyAndFreshen($nm, 'GET', $depUri, "", "");
+    # &Warn("  Same server and type.\n");
+    $newDepLM = &LocalCheckPolicyAndFreshen($nm, 'GET', $depUri, "", "");
     }
   my $oldDepLM = $oldDepLMs->{$depUri} || "";
-  $thisIsStale = 1 if !$oldDepLM || ($newInLM && $newInLM ne $oldDepLM);
-  $newDepLMs->{$depUri} = $newInLM;
+  $thisIsStale = 1 if !$oldDepLM || ($newDepLM && $newDepLM ne $oldDepLM);
+  $newDepLMs->{$depUri} = $newDepLM;
   }
+&Warn("RequestLatestDependsOn(nm, $thisUri, $callerUri, $callerLM, $oldDepLMs) returning\n");
 return( $thisIsStale, $newDepLMs )
 }
 
@@ -1633,7 +1653,14 @@ sub IsSameServer
 {
 @_ == 2 or die;
 my ($baseUri, $thisUri) = @_;
-return ($thisUri =~ m/\A$baseUri\b/);
+return 0 if !$baseUri or !$thisUri;
+$baseUri =~ m/\A[^\/]*/;
+my $baseServer = $& || "";
+$thisUri =~ m/\A[^\/]*/;
+my $thisServer = $& || "";
+my $isSame = ($baseServer eq $thisServer);
+# &Warn("IsSameServer($baseUri , $thisUri): $isSame\n");
+return $isSame;
 }
 
 ########## IsSameType ############
@@ -1642,7 +1669,8 @@ sub IsSameType
 {
 @_ == 2 or die;
 my ($thisType, $depType) = @_;
-return $thisType && $depType && $thisType eq $depType;
+my $isSame = $thisType && $depType && ($thisType eq $depType) ? 1 : 0;
+return $isSame;
 }
 
 ########## FormatTime ############
@@ -1684,6 +1712,10 @@ return $sCounter;
 # The string is padded with leading zeros for easy string comparison,
 # ensuring that $a lt $b iff $a < $b.
 # An empty string "" will be returned if the time is 0.
+# As generated, these are monotonic.  But in general the system does
+# not require LMs to be monotonic, because they could be checksums.
+# The only guarantee that the system requires is that they change
+# if a node output has changed.
 sub TimeToLM
 {
 @_ == 1 || @_ == 2 or die;
@@ -1695,6 +1727,8 @@ return &FormatTime($time) . &FormatCounter($counter);
 
 ########## LMToHeaders ############
 # Turn LM (high-res last-modified) into Last-Modified and ETag headers.
+# The ETag header that is generated is formatted assuming that it is
+# a strong ETag, i.e., it will not have a preceding "W/".
 sub LMToHeaders
 {
 @_ == 1 or die;
@@ -1731,7 +1765,7 @@ if ($eTagHeader) {
     $lm = $2;
     }
   else {
-    warn "WARNING: Bad ETag header: $eTagHeader ";
+    warn "WARNING: Bad ETag header received: $eTagHeader ";
     }
   }
 return $lm;
