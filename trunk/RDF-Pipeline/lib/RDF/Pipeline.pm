@@ -543,6 +543,7 @@ if ($code == RC_OK && $newLM && $newLM ne $oldLM) {
 	# to save the content to file $inSerName, such as using 
 	# $ua->get($url, ':content_file'=>$filename) ?  See
 	# http://search.cpan.org/~gaas/libwww-perl-6.03/lib/LWP/UserAgent.pm
+	&MakeParentDirs( $inSerName );
 	$ua->save_content( $inSerName ) if $method ne 'HEAD';
 	&SaveLMs($inSerNameUri, $newLM, $newLMHeader, $newETagHeader);
 	}
