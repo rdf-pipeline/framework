@@ -1,5 +1,5 @@
 @prefix p: <http://purl.org/pipeline/ont#> .
-@prefix : <http://localhost/> .
+@prefix : <http://localhost/node/> .
 
 :max a p:FileNode .  # No updater -- update manually.
 
