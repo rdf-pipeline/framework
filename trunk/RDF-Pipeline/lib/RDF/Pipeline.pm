@@ -96,12 +96,14 @@ $ENV{DOCUMENT_ROOT} ||= "/home/dbooth/rdf-pipeline/trunk/www";	# Set if not set
 ### TODO: Set $baseUri properly.  Needs port?
 $ENV{SERVER_NAME} ||= "localhost";
 # $baseUri is the URI prefix that corresponds directly to DOCUMENT_ROOT.
-# It is *not* necessarily the same as a particular scope, because there
-# could be more than one scope hosted within the same Apache server.
 my $baseUri = "http://$ENV{SERVER_NAME}";  # TODO: Should become "scope"?
 my $baseUriPattern = quotemeta($baseUri);
 my $basePath = $ENV{DOCUMENT_ROOT};	# Synonym, for convenience
 my $basePathPattern = quotemeta($basePath);
+my $nodeBaseUri = "$baseUri/node";	# Base for nodes
+my $nodeBaseUriPattern = quotemeta($nodeBaseUri);
+my $nodeBasePath = "$basePath/node";
+my $nodeBasePathPattern = quotemeta($nodeBasePath);
 my $lmCounterFile = "$basePath/lmCounter.txt";
 my $RUN_COMMAND_HELPER = "/home/dbooth/rdf-pipeline/trunk/runcommand.perl";
 my $THIS_URI = "THIS_URI"; # Env var name to use
@@ -313,11 +315,12 @@ if ($configLastModified != $cmtime
 	}
 
 my @types = split(/\s+/, ($config{"$thisUri a"}||"") );
-&Warn("ERROR: $thisUri is not a Node.  types: @types\n") if $debug && !(grep {$_ && $_ eq "Node"} @types);
+&Warn("WARNING: $thisUri is not a Node.  types: @types\n") if $debug && !(grep {$_ && $_ eq "Node"} @types);
 my $subtype = (grep {$_ && $_ ne "Node"} @types)[0] || "";
 &Warn("thisUri: $thisUri subtype: $subtype\n") if $debug;
-# return Apache2::Const::DECLINED if !$subtype;
-return Apache2::Const::NOT_FOUND if !$subtype;
+# Allow non-node files in the www/node/ dir to be served normally:
+return Apache2::Const::DECLINED if !$subtype;
+# return Apache2::Const::NOT_FOUND if !$subtype;
 return &HandleHttpEvent($nm, $r);
 # Old dead code:
 if ($subtype eq "FileNode") { 
@@ -490,7 +493,7 @@ return Apache2::Const::OK;
 # &LookupLMs($inSerNameUri), which needs to be done here anyway
 # in order to look up the old LM headers.
 # Also remember that $thisUri is not necessarily a node: it may be 
-# an arbitrary URI source, in which case the $method will be HEAD.
+# an arbitrary URI source.
 # We cannot count on LMs to be monotonic, because they could be
 # checksums or such.
 sub ForeignSendHttpRequest
@@ -504,8 +507,12 @@ my $ua = WWW::Mechanize->new();
 $ua->agent("$0/0.01 " . $ua->agent);
 my $requestUri = $depUri;
 my $httpMethod = $method;
-if ($method eq "GRAB" || $method eq "NOTIFY") {
+if ($method eq "GRAB") {
 	$httpMethod = "GET";
+	$requestUri .= "?method=$method";
+	}
+elsif ($method eq "NOTIFY") {
+	$httpMethod = "HEAD";
 	$requestUri .= "?method=$method";
 	}
 # Set If-Modified-Since and If-None-Match headers in request, if available.
@@ -709,6 +716,24 @@ my ($nm, $thisUri, $callerUri, $callerLM) = @_;
 }
 
 ################### RequestLatestDependsOns ################### 
+# Logic table for each $depUri:
+#       is      known   is      same    same
+#       Input   Fresh   Node    Server  Type    Action
+#       0       0       0       x       x       Foreign HEAD
+#       0       0       1       0       x       Foreign HEAD
+#       0       0       1       1       0       Neighbor HEAD
+#       0       0       1       1       1       Local HEAD/GET*
+#       0       1       x       x       x       Nothing to do
+#       1       0       0       x       x       Foreign GET
+#       1       0       1       0       x       Foreign GET
+#       1       0       1       1       0       Neighbor GET
+#       1       0       1       1       1       Local GET
+#       1       1       0       x       x       Foreign GET/GRAB**
+#       1       1       1       0       x       Foreign GRAB
+#       1       1       1       1       0       Neighbor GRAB
+#       1       1       1       1       1       Nothing to do
+#  * No difference between HEAD and GET for local node.
+#  ** No difference between GET and GRAB for non-node.
 sub RequestLatestDependsOns
 {
 @_ == 5 or die;
@@ -719,35 +744,44 @@ my ($nm, $thisUri, $callerUri, $callerLM, $oldDepLMs) = @_;
 # it was the one that notified thisUri.
 # Thus, they are not used when this was called because of a GET.
 my $thisVHash = $nm->{value}->{$thisUri};
+my $thisHHash = $nm->{hash}->{$thisUri};
 my $thisType = $thisVHash->{nodeType};
 my $thisIsStale = 0;
-my $thisDependsOn = $nm->{hash}->{$thisUri}->{dependsOn};
+my $thisDependsOn = $thisHHash->{dependsOn};
 my $newDepLMs = {};
 foreach my $depUri (sort keys %{$thisDependsOn}) {
   # Bear in mind that a node may dependsOn a non-node arbitrary http 
   # or file:// source, so $depVHash may be undef.
-  my $depVHash = $nm->{value}->{$depUri};
-  my $depHHash = $nm->{hash}->{$depUri};
-  my $depType = $depVHash ? ($depVHash->{nodeType}||"") : "";
+  my $depVHash = $nm->{value}->{$depUri} || {};
+  my $depType = $depVHash->{nodeType} || "";
   my $newDepLM;
   my $method = 'GET';
   my $depLM = "";
+  my $isInput = $thisHHash->{inputs}->{$depUri} 
+	|| $thisHHash->{parameters}->{$depUri} || 0;
   # TODO: Future optimization: if depUri is in %knownFresh ...
-  if ($depUri eq $callerUri) {
+  my $knownFresh = ($depUri eq $callerUri) && $callerLM && 1;
+  $knownFresh ||= 0;	# Nicer for logs if false.
+  if ($knownFresh) {
     $method = 'GRAB';
     $depLM = $callerLM;
     }
-  elsif ($depType && (!$depHHash->{inputs} && !$depHHash->{parameters})) {
+  elsif (!$isInput) {
     $method = 'HEAD';
     }
-  my $isSameServer = &IsSameServer($thisUri, $depUri);
-  my $isSameType   = &IsSameType($thisType, $depType);
-  if (1 && $thisUri eq "http://localhost/odds" && $depUri eq "http://localhost/max") {
+  my $isSameServer = &IsSameServer($thisUri, $depUri) || 0;
+  my $isSameType   = &IsSameType($thisType, $depType) || 0;
+  if (0 && $thisUri eq "http://localhost/odds" && $depUri eq "http://localhost/max") {
 	&Warn("REMOVE AFTER TESTING!!!\n");
 	$isSameType = 1;
 	}
-  &Warn("  depUri: $depUri depType: $depType method: $method depLM: $depLM isSameServer: $isSameServer isSameType: $isSameType\n") if $debug;
-  if (!$depType || !$isSameServer) {
+  &Warn("  depUri: $depUri depType: $depType method: $method depLM: $depLM\n    isSameServer: $isSameServer isSameType: $isSameType knownFresh: $knownFresh isInput: $isInput\n") if $debug;
+  if ($knownFresh && !$isInput) {
+    # Nothing to do, because we don't need $depUri's content.
+    $newDepLM = $callerLM;
+    &Warn("  Nothing to do: Caller known fresh and not an input/parameter.\n");
+    }
+  elsif (!$depType || !$isSameServer) {
     # Foreign node or non-node.
     $newDepLM = &ForeignSendHttpRequest($nm, $method, $thisUri, $depUri, $depLM);
     }
@@ -755,13 +789,13 @@ foreach my $depUri (sort keys %{$thisDependsOn}) {
     # Neighbor: Same server but different type.
     $newDepLM = &NeighborFreshenAndSerialize($nm, $method, $thisUri, $callerUri, $callerLM);
     }
-  elsif ($depUri eq $callerUri && $callerLM) {
-    # Caller is already known fresh.
+  elsif ($knownFresh) {
+    # Nothing to do, because it's local and already known fresh.
     $newDepLM = $callerLM;
-    &Warn("  Caller known fresh.\n");
+    &Warn("  Nothing to do: Caller known fresh and local.\n");
     }
   else {
-    # Local: Same server and type.
+    # Local: Same server and type, but not known fresh.  When local, GET==HEAD.
     # &Warn("  Same server and type.\n");
     $newDepLM = &LocalCheckPolicyAndFreshen($nm, 'GET', $depUri, "", "");
     }
@@ -999,8 +1033,8 @@ my $oldV = $nmv->{$thisUri}->{$predicate} || "";
 my $oldL = $nml->{$thisUri}->{$predicate} || [];
 my $oldH = $nmh->{$thisUri}->{$predicate} || {};
 # In the case of a hash, it is the key that is made absolute:
-my %hash = map {(&AbsUri($_), $oldH->{$_})} keys %{$oldH};
-my @list = map {&AbsUri($_)} @{$oldL};
+my %hash = map {(&NodeAbsUri($_), $oldH->{$_})} keys %{$oldH};
+my @list = map {&NodeAbsUri($_)} @{$oldL};
 my $value = join(" ", @list);
 $nmv->{$thisUri}->{$predicate} = $value;
 $nml->{$thisUri}->{$predicate} = \@list;
@@ -1449,7 +1483,7 @@ my ($nm, $thisUri, $thisUpdater, $cache, $thisInputs, $thisParameters,
 ($nm, $thisUri, $thisUpdater, $cache, $thisInputs, $thisParameters, 
 	$oldThisLM, $callerUri, $callerLM) = @_;
 my $updater = $nm->{value}->{$thisUri}->{updater} || "";
-$updater = &AbsPath($updater) if $updater;
+$updater = &NodeAbsPath($updater) if $updater;
 return &TimeToLM(&MTime($cache)) if !$updater;
 # TODO: Move this warning to when the metadata is loaded?
 if (!-x $updater) {
@@ -1572,11 +1606,26 @@ $t =~ s/[^a-zA-Z0-9\.\-\_]/_/g;	# Change any bad chars to _
 return $t;
 }
 
+########## NodeAbsUri ############
+# Converts (possibly relative) URI to absolute URI, using $nodeBaseUri.
+sub NodeAbsUri
+{
+my $uri = shift;
+##### TODO: Should this pattern be more general than just http:?
+if ($uri !~ m/\Ahttp(s?)\:/) {
+	# Relative URI
+	$uri =~ s|\A\/||;	# Chop leading / if any
+	$uri = "$nodeBaseUri/$uri";
+	}
+return $uri;
+}
+
 ########## AbsUri ############
 # Converts (possibly relative) URI to absolute URI, using $baseUri.
 sub AbsUri
 {
 my $uri = shift;
+##### TODO: Should this pattern be more general than just http:?
 if ($uri !~ m/\Ahttp(s?)\:/) {
 	# Relative URI
 	$uri =~ s|\A\/||;	# Chop leading / if any
@@ -1596,6 +1645,19 @@ if ($path =~ s/\A$baseUriPattern\b/$basePath/e) {
 	return $path;
 	}
 return "";
+}
+
+########## NodeAbsPath ############
+# Converts (possibly relative) file path to absolute path,
+# using $nodeBasePath.
+sub NodeAbsPath
+{
+my $path = shift;
+if ($path !~ m|\A\/|) {
+	# Relative path
+	$path = "$nodeBasePath/$path";
+	}
+return $path;
 }
 
 ########## AbsPath ############
