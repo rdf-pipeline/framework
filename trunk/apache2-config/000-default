@@ -4,21 +4,23 @@
 # Per guidance in http://perl.apache.org/docs/2.0/user/intro/start_fast.html
 # added by dbooth 2/12/11:
 PerlRequire /home/dbooth/rdf-pipeline/trunk/startup.pl
+# 1/3/12: If the above fails, then try "a2enmod perl" as suggested at:
+# http://list.georgialibraries.org/pipermail/open-ils-general/2009-May/001581.html
 
 ### Test:
 # <Location /rocks>
       # SetHandler perl-script
-      # PerlResponseHandler  MyApache2::Rocks
+      # PerlResponseHandler  RDF::Rocks
 # </Location>
 # 
 # <Location /chain>
       # SetHandler perl-script
-      # PerlResponseHandler  MyApache2::Chain
+      # PerlResponseHandler  RDF::Pipeline
 # </Location>
 
 # <Location /hello>
       # SetHandler perl-script
-      # PerlResponseHandler  MyApache2::Chain
+      # PerlResponseHandler  RDF::Pipeline
 # </Location>
 
 # This is to match single-word locations composed only of letters.
@@ -31,10 +33,15 @@ PerlRequire /home/dbooth/rdf-pipeline/trunk/startup.pl
 #
 # For some unknown reason, "f" does not work as the first character:
 #### 9/2/11: Disabled this in order to run pangenx cytoscope:
-<LocationMatch "/[a-eg-zA-Z][a-zA-Z]*$">
+# <LocationMatch "/[a-eg-zA-Z][a-zA-Z]*$">
+      # SetHandler perl-script
+      # PerlResponseHandler  RDF::Pipeline
+# </LocationMatch>
+#### 1/14/12: Trying this:
+<Location /node/>
       SetHandler perl-script
-      PerlResponseHandler  MyApache2::Chain
-</LocationMatch>
+      PerlResponseHandler  RDF::Pipeline
+</Location>
 
 # ----------------------------------
 
