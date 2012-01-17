@@ -142,43 +142,43 @@ my $ontLastModified = 0;
 my $internalsLastModified = 0;
 
 &Warn("="x30 . " START9 " . "="x30 . "\n");
-&Warn(`date`);
-&Warn("SERVER_NAME: $ENV{SERVER_NAME}\n");
-&Warn("DOCUMENT_ROOT: $ENV{DOCUMENT_ROOT}\n");
+&Warn("  " . `date`);
+&Warn("  SERVER_NAME: $ENV{SERVER_NAME}\n");
+&Warn("  DOCUMENT_ROOT: $ENV{DOCUMENT_ROOT}\n");
 # my $hasHiResTime = &Time::HiRes::d_hires_stat()>0 ? "true" : "false";
 # &Warn("Has HiRes time: $hasHiResTime\n");
 
 if (0)
-{
-# Code for testing shared session data:
-  use Apache::Session::File;
-my $sessionsDir = '/tmp/rdf-pipeline-sessions';
-my $locksDir = '/tmp/rdf-pipeline-locks';
+	{
+	# Code for testing shared session data:
+	  use Apache::Session::File;
+	my $sessionsDir = '/tmp/rdf-pipeline-sessions';
+	my $locksDir = '/tmp/rdf-pipeline-locks';
 
--d $sessionsDir || mkdir($sessionsDir) || die;
--d $locksDir || mkdir($locksDir) || die;
+	-d $sessionsDir || mkdir($sessionsDir) || die;
+	-d $locksDir || mkdir($locksDir) || die;
 
-  my %session;
-  my $sessionIdFile = "/tmp/rdf-pipeline-sessionID";
-  my $sessionId = &ReadFile($sessionIdFile);
-  $sessionId = undef if !$sessionId;
-  my $isNewSessionId = !$sessionId;
-  #make a fresh session for a first-time visitor
- tie %session, 'Apache::Session::File', $sessionId, {
-    Directory => $sessionsDir,
-    LockDirectory   => $locksDir,
- };
-$sessionId ||= $session{_session_id};
+	  my %session;
+	  my $sessionIdFile = "/tmp/rdf-pipeline-sessionID";
+	  my $sessionId = &ReadFile($sessionIdFile);
+	  $sessionId = undef if !$sessionId;
+	  my $isNewSessionId = !$sessionId;
+	  #make a fresh session for a first-time visitor
+	 tie %session, 'Apache::Session::File', $sessionId, {
+	    Directory => $sessionsDir,
+	    LockDirectory   => $locksDir,
+	 };
+	$sessionId ||= $session{_session_id};
 
-&WriteFile($sessionIdFile, $sessionId) if $isNewSessionId;
-&Warn("sessionId: $sessionId\n");
+	&WriteFile($sessionIdFile, $sessionId) if $isNewSessionId;
+	&Warn("sessionId: $sessionId\n");
 
-  #...time passes...
+	  #...time passes...
 
-$session{date} ||= `date`;
-my $testShared = $session{date};
-&Warn("testShared: $testShared\n");
-}
+	$session{date} ||= `date`;
+	my $testShared = $session{date};
+	&Warn("testShared: $testShared\n");
+	}
 
 use Getopt::Long;
 my $debug = 1;
@@ -186,7 +186,7 @@ my $test;
 &GetOptions("test" => \$test,
 	"debug" => \$debug,
 	);
-&Warn("ARGV: @ARGV\n") if $test || $debug;
+&Warn("  ARGV: @ARGV\n") if $test || $debug;
 
 &RegisterWrappers($nm);
 
@@ -214,7 +214,7 @@ if ($test)
 	my $path = "/" . $';
 	$r->uri($path);
 	my $code = &handler($r);
-	&Warn("\nReturn code: $code\n");
+	&Warn("\nHandler returned code: $code\n");
 	exit 0;
 	}
 
@@ -253,9 +253,9 @@ return $r;
 # been specified in /etc/apache2/sites-enabled/000-default .
 sub handler
 {
-&Warn("-"x20 . "handler" . "-"x20 . "\n");
+# &Warn("-"x20 . "handler" . "-"x20 . "\n");
 my $ret = &RealHandler(@_);
-&Warn("Handler returning: $ret\n");
+&Warn("RealHandler returned: $ret\n");
 return $ret;
 }
 
@@ -265,18 +265,18 @@ sub RealHandler
 my $r = shift || die;
 # $debug = ($r && $r->uri =~ m/c\Z/);
 # $r->content_type('text/plain') if $debug && !$test;
+&Warn("RealHandler called: " . `date`);
 if (0 && $debug) {
-	&Warn("Environment variables:\n");
+	&Warn("  Environment variables:\n");
 	foreach my $k (sort keys %ENV) {
-		&Warn("$k = " . $ENV{$k} . "\n");
+		&Warn("    $k = " . $ENV{$k} . "\n");
 		}
 	&Warn("\n");
 	}
-&Warn("RealHandler called: " . `date`);
 my $thisUri = $testUri;
 # construct_url omits the query params though
 $thisUri = $r->construct_url() if !$test; 
-&Warn("thisUri: $thisUri\n") if $debug;
+&Warn("  thisUri: $thisUri\n") if $debug;
 
 # Reload config file?
 my $cmtime = &MTime($configFile);
@@ -286,7 +286,7 @@ if ($configLastModified != $cmtime
 		|| $ontLastModified != $omtime
 		|| $internalsLastModified != $imtime) {
 	# Reload config file.
-	&Warn("Reloading config file: $configFile\n") if $debug;
+	&Warn("  Reloading config file: $configFile\n") if $debug;
 	$configLastModified = $cmtime;
 	$ontLastModified = $omtime;
 	$internalsLastModified = $imtime;
@@ -297,192 +297,32 @@ if ($configLastModified != $cmtime
 			map { $hr->{$_}=1; } split(/\s+/, ($config{$_}||"")); 
 			($_, $hr)
 			} keys %config;
-		# &Warn("configValues:\n") if $debug;
+		# &Warn("  configValues:\n") if $debug;
 		foreach my $sp (sort keys %configValues) {
 			last if !$debug;
 			my $hr = $configValues{$sp};
 			foreach my $v (sort keys %{$hr}) {
-				# &Warn("  $sp $v\n");
+				# &Warn("    $sp $v\n");
 				}
 			}
 		}
 	&LoadNodeMetadata($nm, $ontFile, $configFile);
 	&PrintNodeMetadata($nm) if $debug;
 
-	# &Warn("Got here!\n"); 
+	# &Warn("  Got here!\n"); 
 	# return Apache2::Const::OK;
 	# %config || return Apache2::Const::SERVER_ERROR;
 	}
 
+##### TODO: Change this to use $nm->{value}->{$thisUri}->{nodeType}
 my @types = split(/\s+/, ($config{"$thisUri a"}||"") );
-&Warn("WARNING: $thisUri is not a Node.  types: @types\n") if $debug && !(grep {$_ && $_ eq "Node"} @types);
+&Warn("  WARNING: $thisUri is not a Node.  types: @types\n") if $debug && !(grep {$_ && $_ eq "Node"} @types);
 my $subtype = (grep {$_ && $_ ne "Node"} @types)[0] || "";
-&Warn("thisUri: $thisUri subtype: $subtype\n") if $debug;
+&Warn("  thisUri: $thisUri subtype: $subtype\n") if $debug;
 # Allow non-node files in the www/node/ dir to be served normally:
 return Apache2::Const::DECLINED if !$subtype;
 # return Apache2::Const::NOT_FOUND if !$subtype;
 return &HandleHttpEvent($nm, $r);
-# Old dead code:
-if ($subtype eq "FileNode") { 
-	&Warn("Dispatching to HandleFileNode\n") if $debug;
-	return &HandleFileNode($nm, $r, $thisUri);
-	}
-else { 
-	&Warn("Unknown Node subtype: $subtype\n") if $debug;
-	return Apache2::Const::SERVER_ERROR; 
-	}
-}
-
-############## HandleFileNode ###############
-# Uses global %config.
-sub HandleFileNode
-{
-die;
-my $nm = shift;
-my $r = shift;
-my $thisUri = shift || die;
-my $nmv = $nm->{value};
-my $nml = $nm->{list};
-my $nmh = $nm->{hash};
-my $thisVHash = $nmv->{$thisUri};
-my $thisLHash = $nml->{$thisUri};
-my $thisHHash = $nmh->{$thisUri};
-my $cache = $thisVHash->{cache} || die;
-my $cacheUri = $thisVHash->{cacheUri} || die;
-my $updater = $thisVHash->{updater};
-$updater = &AbsPath($updater) if $updater;
-$thisVHash->{updater} = $updater;
-
-my $inputs = $config{"$thisUri inputs"} || "";
-my $parameters = $config{"$thisUri parameters"} || "";
-my $dependsOn = $config{"$thisUri dependsOn"} || "";
-my @inputs = ($inputs ? split(/\s+/, $inputs) : ());
-my @parameters = ($parameters ? split(/\s+/, $parameters) : ());
-my @dependsOn = ($dependsOn ? split(/\s+/, $dependsOn) : ());
-
-&Warn("Initial cache: $cache\n") if $debug;
-my $useStdout = 0;
-if ($updater && !$thisVHash->{cacheOriginal}) {
-	$useStdout = 1;
-	}
-&Warn("useStdout: $useStdout updater: {$updater}\n") if $debug;
-&Warn("cache after useStdout block: $cache\n") if $debug;
-&Warn("cache: $cache\n") if $debug;
-
-&Warn("inputs: $inputs\n") if $debug;
-my $atInputs = join(" ", @inputs);
-&Warn("\@inputs: $atInputs\n") if $debug;
-&Warn("parameters: $parameters\n") if $debug;
-my $atParameters = join(" ", @parameters);
-&Warn("\@parameters: $atParameters\n") if $debug;
-&Warn("dependsOn: $dependsOn\n") if $debug;
-my $atDependsOn = join(" ", @dependsOn);
-&Warn("\@dependsOn: $atDependsOn\n") if $debug;
-&Warn("updater: $updater\n") if $debug;
-
-# Test of getting query params (and it works):
-my $args = $test ? $testArgs : ($r->args() || "");
-&Warn("Query string: $args\n") if $debug;
-my %args = &ParseQueryString($args);
-foreach my $k (keys %args) {
-	my $v = $args{$k};
-	&Warn("	$k = $v\n") if $debug;
-	}
-
-if ((!-e $cache) || &AnyChanged($thisUri, @dependsOn))
-	{
-	# Run updater if there is one:
-	if ($updater) {
-		if (!-x $updater) {
-			&Warn("ERROR: updater is not executable by web server\n") if $debug;
-			# &Warn("Perhaps you need to setuid:  chmod a+s $updater\n";
-			}
-		# The FileNode updater args will be local filenames for all
-		# inputs and parameters.
-		my @inputFiles = &LocalFiles($thisUri, @inputs);
-		my @parameterFiles = &LocalFiles($thisUri, @parameters);
-		&Warn("inputFiles: @inputFiles\n");
-		&Warn("parameterFiles: @parameterFiles\n");
-		my $stderr = $nm->{value}->{$thisUri}->{stderr};
-		# Make sure parent dirs exist for $stderr and $cache:
-		&MakeParentDirs($stderr, $cache);
-		# my $cmd = "/home/dbooth/rdf-pipeline/trunk/setuid-wrapper $updater $thisUri $cache $inputs $parameters > $stderr 2>&1";
-		# my $cmd = "$updater $thisUri $cache $inputs $parameters > $stderr 2>&1";
-		# $cmd = "$updater $thisUri $inputs $parameters > $cache 2> $stderr"
-			# if $useStdout;
-		# TODO: Check for unsafe chars before invoking $cmd
-		my $cmd = "( export $THIS_URI=\"$thisUri\" ; $updater $cache @inputFiles @parameterFiles > $stderr 2>&1 )";
-		$cmd = "( export $THIS_URI=\"$thisUri\" ; $updater @inputFiles @parameterFiles > $cache 2> $stderr )"
-			if $useStdout;
-		&Warn("cmd: $cmd\n") if $debug;
-		my $result = (system($cmd) >> 8);
-		my $saveError = $?;
-		&Warn("Updater returned " . ($result ? "error code:" : "success:") . " $result.\n");
-		if (-s $stderr) {
-			&Warn("Updater stderr" . ($useStdout ? "" : " and stdout") . ":\n[[\n") if $debug;
-			# system("cat $stderr >> $logFile") if $debug;
-			&Warn(&ReadFile("<$stderr")) if $debug;
-			&Warn("]]\n") if $debug;
-			}
-		# unlink $stderr;
-		if ($result) {
-			&Warn("UPDATER ERROR: $saveError\n") if $debug;
-			return Apache2::Const::SERVER_ERROR;
-			}
-		}
-	elsif (@inputs || @parameters) {
-		&Warn("ERROR: inputs or parameters without an updater.\n") if $debug;
-		return Apache2::Const::SERVER_ERROR;
-		}
-	}
-else	{
-
-	&Warn("HandleFileNode: No dependsOn changed -- updater not run.\n") if $debug;
-	}
-
-# Manually set the headers, so that the Content-Type can be
-# set properly.  
-my $serCache = $thisVHash->{serCache};
-my $mtime = &MTime($serCache);
-my $size = -s $serCache;
-&Warn("HandleFileNode serCache: $serCache size: $size\n") if $debug;
-my $lm = time2str($mtime);
-&Warn("HandleFileNode: Last-Modified: $lm\n") if $debug;
-
-&Warn("HandleFileNode: Trying sendfile...\n") if $debug;
-if ($test) {
-	&Warn("HandleFileNode: (skipped sending due to -test option)\n");
-	}
-else	{
-	# We must set headers explicitly here.
-	# This works for returning 304:
-	# $r->status(Apache2::Const::HTTP_NOT_MODIFIED);
-	$r->content_type('text/plain');
-	# This works also: $r->content_type('application/rdf+xml');
-	$r->set_content_length($size);
-	$r->set_last_modified($mtime);
-	# my $cacheUri = $r->construct_url($cache); 
-	my $cacheUri = $nm->{value}->{$thisUri}->{serCacheUri};
-	$r->headers_out->set('Content-Location' => $cacheUri); 
-	# TODO: Set proper ETag, perhaps using Time::HiRes mtime.
-	# "W/" prefix on ETag means that it is weak.
-	# $r->headers_out->set('ETag' => 'W/"640e9-a-4b269027adb7d;4b142a708a8ad"'); 
-	$r->headers_out->set('ETag' => 'W/"fake-etag"'); 
-	# Did not work: $r->sendfile($cache);
-	# sendfile seems to want a full file system path:
-	$r->sendfile($serCache);
-	my $m = $r->method;
-	my $ho = $r->header_only;
-	&Warn("HandleFileNode: method: $m header_only: $ho\n") if $debug;
-	}
-
-# These work:
-# $r->internal_redirect("/fchain.txt") if !$debug;
-# $r->internal_redirect("http://localhost/fchain.txt");
-# Apache2::Const::OK indicates that this handler ran successfully.
-# It is not the HTTP response code being returned.  See:
-# http://perl.apache.org/docs/2.0/user/handlers/intro.html#C_RUN_FIRST_
-return Apache2::Const::OK;
 }
 
 ################### ForeignSendHttpRequest ##################
@@ -531,12 +371,12 @@ $req->header('If-Modified-Since' => $oldLMHeader) if $oldLMHeader;
 $req->header('If-None-Match' => $oldETagHeader) if $oldETagHeader;
 my $isConditional = $req->header('If-Modified-Since') ? "CONDITIONAL" : "";
 my $reqString = $req->as_string;
-&Warn("ForeignSendHttpRequest: Sending remote $isConditional $method Request from $thisUri to $depUri with ETag $oldETagHeader\n");
+&Warn("  ForeignSendHttpRequest: Sending remote $isConditional $method Request from $thisUri to $depUri with ETag $oldETagHeader\n");
 &PrintLog("[[\n$reqString\n]]\n");
 my $res = $ua->request($req) or die;
 my $code = $res->code;
 $code == RC_NOT_MODIFIED || $code == RC_OK or die;
-&Warn("ForeignSendHttpRequest: $isConditional $method Request from $thisUri to $depUri returned $code\n");
+&Warn("  ForeignSendHttpRequest: $isConditional $method Request from $thisUri to $depUri returned $code\n");
 my $newLMHeader = $res->header('Last-Modified') || "";
 my $newETagHeader = $res->header('ETag') || "";
 my $newLM = &HeadersToLM($newLMHeader, $newETagHeader);
@@ -565,18 +405,14 @@ my ($nm, $r) = @_;
 # construct_url omits the query params
 my $thisUri = $r->construct_url(); 
 &Warn("HandleHttpEvent called: thisUri: $thisUri\n") if $debug;
-my $thisVHash = $nm->{value}->{$thisUri};
-if (!$thisVHash) {
-	&Warn("INTERNAL ERROR: $thisUri is not a Node.\n");
-	return Apache2::Const::SERVER_ERROR;
-	}
+my $thisVHash = $nm->{value}->{$thisUri} || {};
 my $thisType = $thisVHash->{nodeType} || "";
 if (!$thisType) {
-	&Warn("INTERNAL ERROR: $thisUri has no nodeType.\n");
+	&Warn("INTERNAL ERROR: HandleHttpEvent called, but $thisUri has no nodeType.\n");
 	return Apache2::Const::SERVER_ERROR;
 	}
 my $args = $r->args() || "";
-&Warn("Query string: $args\n") if $debug;
+&Warn("  Query string: $args\n") if $debug;
 my %args = &ParseQueryString($args);
 my $callerUri = $args{callerUri} || "";
 my $callerLM = $args{callerLM} || "";
@@ -585,7 +421,7 @@ return Apache2::Const::HTTP_METHOD_NOT_ALLOWED
   if $method ne "HEAD" && $method ne "GET" && $method ne "GRAB" 
 	&& $method ne "NOTIFY";
 # TODO: If $r has fresh content, then store it.
-&Warn("HandleHttpEvent method: $method callerUri: $callerUri callerLM: $callerLM\n") if $debug;
+&Warn("  HandleHttpEvent method: $method callerUri: $callerUri callerLM: $callerLM\n") if $debug;
 my $newThisLM = &NeighborFreshenAndSerialize($nm, $method, $thisUri, $callerUri, $callerLM);
 ####### Ready to generate the HTTP response. ########
 my $serCache = $thisVHash->{serCache} || die;
@@ -636,12 +472,14 @@ my $serCache = $thisVHash->{serCache} || die;
 my $cacheUri = $thisVHash->{cacheUri} || die;
 my $serCacheUri = $thisVHash->{serCacheUri} || die;
 my $newThisLM = &LocalCheckPolicyAndFreshen($nm, 'GET', $thisUri, $callerUri, $callerLM);
+&Warn("  LocalCheckPolicyAndFreshen $thisUri returned newThisLM: $newThisLM\n");
 if ($method eq 'HEAD' || $method eq 'NOTIFY' || $cacheUri eq $serCacheUri) {
+  &Warn("  NeighborFreshenAndSerialize: No serialization needed. Returning newThisLM: $newThisLM\n");
   return $newThisLM;
   }
 # Need to update serCache?
 my ($serCacheLM) = &LookupLMs($serCacheUri);
-if (!$serCacheLM || ($newThisLM && $newThisLM ne $serCacheLM)) {
+if (!$serCacheLM || !-e $serCache || ($newThisLM && $newThisLM ne $serCacheLM)) {
   ### Allow non-monotonic LM (because they could be checksums):
   ### die if $newThisLM && $serCacheLM && $newThisLM lt $serCacheLM;
   # TODO: Set $acceptHeader from $r, and use it to choose $contentType:
@@ -654,6 +492,7 @@ if (!$serCacheLM || ($newThisLM && $newThisLM ne $serCacheLM)) {
   $serCacheLM = $newThisLM;
   &SaveLMs($serCacheUri, $serCacheLM);
   }
+&Warn("  NeighborFreshenAndSerialize: Returning serCacheLM: $serCacheLM\n");
 return $serCacheLM
 }
 
@@ -674,16 +513,22 @@ my $fUpdatePolicy = $thisVHash->{fUpdatePolicy} or die;
 my $policySaysFreshen = 
 	&{$fUpdatePolicy}($nm, $method, $thisUri, $callerUri, $callerLM);
 return $oldThisLM if !$policySaysFreshen;
-my ($dependsOnChanged, $newDepLMs) = 
+my ($thisIsStale, $newDepLMs) = 
 	&RequestLatestDependsOns($nm, $thisUri, $callerUri, $callerLM, \%oldDepLMs);
+# *** stopped here ***  Need to figure out what to do if there is no updater.
+# How is $oldThisLM determined to be stale?
 my $cache = $thisVHash->{cache} or die;
 my $fCacheExists = $nm->{value}->{$thisType}->{fCacheExists} or die;
 $oldThisLM = "" if !&{$fCacheExists}($cache);
-$dependsOnChanged = 1 if !$oldThisLM;
-return $oldThisLM if !$dependsOnChanged;
+$thisIsStale = 1 if !$oldThisLM;
 my $thisUpdater = $thisVHash->{updater} || "";
+return $oldThisLM if $thisUpdater && !$thisIsStale;
 my $thisInputs = $thisLHash->{inputNames} || [];
 my $thisParameters = $thisLHash->{inputParameters} || [];
+# TODO: Figure out what to do if a node is STUCK, i.e., inputs
+# have changed but there is no updater.
+die "ERROR: Node $thisUri is STUCK: Inputs but no updater. " 
+	if @{$thisInputs} && !$thisUpdater;
 my $fRunUpdater = $nm->{value}->{$thisType}->{fRunUpdater} or die;
 # If there is no updater then it is up to $fRunUpdater to generate
 # an LM for the static cache.
@@ -798,12 +643,13 @@ foreach my $depUri (sort keys %{$thisDependsOn}) {
     # Local: Same server and type, but not known fresh.  When local, GET==HEAD.
     # &Warn("  Same server and type.\n");
     $newDepLM = &LocalCheckPolicyAndFreshen($nm, 'GET', $depUri, "", "");
+    &Warn("  LocalCheckPolicyAndFreshen $thisUri returned newDepLM: $newDepLM\n");
     }
   my $oldDepLM = $oldDepLMs->{$depUri} || "";
   $thisIsStale = 1 if !$oldDepLM || ($newDepLM && $newDepLM ne $oldDepLM);
   $newDepLMs->{$depUri} = $newDepLM;
   }
-&Warn("RequestLatestDependsOn(nm, $thisUri, $callerUri, $callerLM, $oldDepLMs) returning\n");
+&Warn("RequestLatestDependsOn(nm, $thisUri, $callerUri, $callerLM, $oldDepLMs) returning: $thisIsStale\n");
 return( $thisIsStale, $newDepLMs )
 }
 
@@ -904,7 +750,7 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
   &MakeValuesAbsoluteUris($nmv, $nml, $nmh, $thisUri, "inputs");
   &MakeValuesAbsoluteUris($nmv, $nml, $nmh, $thisUri, "parameters");
   &MakeValuesAbsoluteUris($nmv, $nml, $nmh, $thisUri, "dependsOn");
-  die "Cannot have inputs without an updater " 
+  &Warn("WARNING: Node $thisUri has inputs but no updater ")
 	if !$thisVHash->{updater} && @{$thisLHash->{inputs}};
   # Initialize the list of outputs (actually inverse dependsOn) for each node:
   $nmh->{$thisUri}->{outputs} = {};
@@ -1059,19 +905,6 @@ return 0 if $method eq "NOTIFY";
 die;
 }
 
-################### DefaultScope #################
-# Default scope is the URI before the path but without the trailing slash.
-# E.g., http://example.com/foo?bar --> http://example.com
-# E.g., file:///home/dbooth/foo/bar --> file://
-sub DefaultScope
-{
-die;
-my $thisUri = shift;
-die if $thisUri !~ m|\A([a-zA-Z]+\:\/\/[^\/]+)\/|;
-my $scope = $1;
-return $scope;
-}
-
 ################### LeafClasses #################
 # Given a list of classes (with rdfs:subClassOf relations in $nmv, $nml, $nmh), 
 # return the ones that are not a 
@@ -1130,176 +963,6 @@ my %args = map {
 	$k ? (uri_unescaped($k), uri_unescape($v)) : ()
 	} split(/\&/, $args);
 return %args;
-}
-
-################### LocalFiles #####################
-# For each given input or parameter URI $uri, return a filename 
-# that is local to $thisUri and contains the current cached
-# content of $uri.
-sub LocalFiles
-{
-die;
-my $thisUri = shift;
-my @ipUris = @_;	# Input or parameter URIs
-&Warn("Localfilenames($thisUri, @ipUris) called\n");
-my @filenames = ();
-foreach my $uri (@_) {
-	my $f = &IsLocalFileNode($uri);
-	if ($f) {
-		# Local FileNode.  Optimize by returning its existing
-		# cache filename.
-		&Warn("Localfilenames: FileNode local to this host: $uri\n");
-		# Local to this host.  Optimize by using the cacheFile
-		# already created for $uri.
-		##### TODO: Finish this properly:
-		my $filename = $ENV{DOCUMENT_ROOT} . "/$f-stdout";
-		$filename = $ENV{DOCUMENT_ROOT} . "/$f"
-			if !$config{"$uri updater"};
-		&Warn("LocalFiles: uri: $uri f: $f filename: $filename\n");
-		push(@filenames, $filename);
-		}
-	else	{
-		# TODO: This is currently only being done correctly for
-		# for local inputs.  For remote inputs, it should be
-		# using the localized copy.
-		&Warn("LocalFiles: Not yet implemented\n");
-		die;
-		my $res = &CachingRequest("GET", @_) || return undef;
-		return $res->decoded_content();
-		}
-	}
-return @filenames;
-}
-
-################### CachingGet #####################
-sub CachingGet
-{
-die;
-my $res = &CachingRequest("GET", @_) || return undef;
-return $res->decoded_content();
-}
-
-################### CachingRequest #####################
-# Issue HTTP "HEAD" or "GET" request from $thisUri to $supplierUri,
-# caching the response in global %cachedResponse.
-# The %cachedResponse is used both to make the request conditional
-# and to return the previously cached content if 304 Not Modified is returned.
-# TODO: Change to use files to cache the content, so that the filenames
-# can be passed directly to updaters as arguments.
-sub CachingRequest
-{
-die;
-my $method = shift @_;
-my $thisUri = shift @_;
-my $relativeUri = shift @_;	# Possibly relative supplier URI
-my $supplierUri = $relativeUri;	# Absolute supplier URI
-$supplierUri = $baseUri . $relativeUri if $relativeUri !~ m/\A[a-z]+\:/;
-my $ncr = scalar(keys %cachedResponse);
-&Warn("CachingRequest: Called with $method $thisUri $relativeUri absolute: $supplierUri cachedResponse size: $ncr\n");
-my $key = "$thisUri $supplierUri";
-my $ua = LWP::UserAgent->new;
-$ua->agent("$0/0.1 " . $ua->agent);
-my $req = HTTP::Request->new($method => $supplierUri);
-if (!$req) {
-	&Warn("ERROR: CachingRequest failed to create new $method HTTP:Request from $thisUri to $supplierUri\n");
-	die;
-	}
-# Set If-Modified-Since and If-None-Match headers in request, if available.
-# If the current request is GET then we have to make sure that the 
-# old response ($oldRes) contains content before we can send a conditional 
-# request, otherwise the result may come back as "not modified" and we
-# would not have the content to return.  If the current request is HEAD
-# then we don't need content anyway, so it doesn't matter if the old 
-# response has content.
-my $oldRes = $cachedResponse{$key} || "";
-&Warn("CachingRequest: oldRes: $oldRes\n");
-my $isConditional = "";
-if ($oldRes && ($oldRes->code == RC_OK)
-    && ($method eq "HEAD" || $oldRes->content) ) {
-	my $oldLM = $oldRes->header('Last-Modified') || "";
-	my $oldETag = $oldRes->header('ETag') || "";
-	&Warn("CachingRequest: $method Request from $thisUri to $supplierUri settting oldLM: $oldLM oldETag $oldETag\n");
-	$req->header('If-Modified-Since' => $oldLM) if $oldLM;
-	$req->header('If-None-Match' => $oldETag) if $oldETag;
-	$isConditional = "conditional" if $req->header('If-Modified-Since');
-	}
-# Send the request, recursively if it's a local FileNode.
-my $reqString = $req->as_string;
-my $isLocal = &IsLocalFileNode($supplierUri);
-my $local = ($isLocal ? "local" : "NON-local");
-&Warn("CachingRequest: Sending $local $isConditional $method Request from $thisUri to $supplierUri :\n[[\n$reqString\n]]\n");
-# TODO: This optimization for a local node is not right/done yet, 
-# because HandleFileNode currently does
-# an internal_redirect, whereas that should only be done for the
-# original request -- not for recursive requests.
-# my $res = ($isLocal ? &HandleFileNode($req, $supplierUri) : $ua->request($req));
-my $res = $ua->request($req);
-if (!$res) {
-	&Warn("CachingRequest: $isConditional $method Request from $thisUri to $supplierUri returned null response!\n");
-	delete $cachedResponse{$key};
-	return undef;
-	}
-my $code = $res->code;
-if (($code != RC_NOT_MODIFIED) && !$res->is_success) {
-	&Warn("CachingRequest: $isConditional $method Request from $thisUri to $supplierUri failed: "
-		. $res->status_line . "\n");
-	delete $cachedResponse{$key};
-	return undef;
-	}
-&Warn("CachingRequest: $isConditional $method Request from $thisUri to $supplierUri returned $code\n");
-# Return the cached content if the response was 304 Not Modified.
-# I'm not sure here exactly which fields I should set from $oldRes, but from
-# http://www.w3.org/Protocols/rfc2616/rfc2616-sec13.html#sec13.5 
-# http://www.w3.org/Protocols/rfc2616/rfc2616-sec9.html#sec9.4
-# http://search.cpan.org/~gaas/HTTP-Message-6.01/lib/HTTP/Message.pm
-# it looks like I should only set the "content" field.
-$res->content($oldRes->content) 
-	if ($code == RC_NOT_MODIFIED) && !($res->content);
-# Only update $cachedResponse if it changed:
-$cachedResponse{$key} = $res if ($code != RC_NOT_MODIFIED);
-return $res;
-}
-
-################### Changed #####################
-# Issue HTTP "GET" request from $thisUri to $supplierUri to
-# see if it changed since the last GET between these URIs.
-# Uses global %cachedResponse.
-sub Changed
-{
-die;
-my $thisUri = shift @_;
-my $supplierUri = shift @_;
-&Warn("  Changed: Called with $thisUri $supplierUri\n");
-my $res = &CachingRequest("GET", $thisUri, $supplierUri) || return undef;
-my $code = $res->code;
-&Warn("  Changed: GET Request from $thisUri to $supplierUri returned $code\n");
-return 0 if $code == RC_NOT_MODIFIED;
-return 1;
-}
-
-
-################### AnyChanged #####################
-# Update the caches of all of the given @supplierUris, and return 1
-# if any of them had changed since $thisUri's output was last updated.
-sub AnyChanged
-{
-die;
-my $thisUri = shift @_;
-my @supplierUris = @_;
-&Warn("AnyChanged called with thisUri: $thisUri supplierUris: @supplierUris\n");
-my %seen = ();
-my $changed = 0;
-foreach my $supplierUri (@supplierUris)
-        {
-	# &Warn("  AnyChanged checking $thisUri $supplierUri\n");
-	next if $seen{$supplierUri};
-        if (&Changed($thisUri, $supplierUri)) {
-		$changed = 1;
-		}
-	$seen{$supplierUri} = 1;
-        }
-&Warn("AnyChanged($thisUri @supplierUris) returning: $changed\n");
-return $changed;
 }
 
 ################### CheatLoadN3 #####################
@@ -1421,7 +1084,7 @@ sub SaveLMs
 my ($thisUri, $thisLM, @depLMs) = @_;
 my $f = &UriToLmFile($thisUri);
 my $s = join("\n", "# $thisUri", $thisLM, @depLMs) . "\n";
-&Warn("SaveLMs($thisUri, $s) to file: $f\n");
+&Warn("  SaveLMs($thisUri, $s) to file: $f\n");
 &WriteFile($f, $s);
 }
 
@@ -1475,29 +1138,28 @@ $nm->{value}->{FileNode}->{fCacheExists} = \&FileExists;
 sub FileNodeRunUpdater
 {
 @_ == 9 || die;
-my ($nm, $thisUri, $thisUpdater, $cache, $thisInputs, $thisParameters, 
+my ($nm, $thisUri, $updater, $cache, $thisInputs, $thisParameters, 
 	$oldThisLM, $callerUri, $callerLM) = @_;
 # Avoid unused var warning:
-($nm, $thisUri, $thisUpdater, $cache, $thisInputs, $thisParameters, 
+($nm, $thisUri, $updater, $cache, $thisInputs, $thisParameters, 
 	$oldThisLM, $callerUri, $callerLM) = @_;
-($nm, $thisUri, $thisUpdater, $cache, $thisInputs, $thisParameters, 
+($nm, $thisUri, $updater, $cache, $thisInputs, $thisParameters, 
 	$oldThisLM, $callerUri, $callerLM) = @_;
-my $updater = $nm->{value}->{$thisUri}->{updater} || "";
+&Warn("  FileNodeRunUpdater(nm, $thisUri, $updater, $cache, ...) called.\n");
 $updater = &NodeAbsPath($updater) if $updater;
 return &TimeToLM(&MTime($cache)) if !$updater;
 # TODO: Move this warning to when the metadata is loaded?
 if (!-x $updater) {
-	carp "ERROR: $thisUri updater $updater is not executable by web server!";
-	return &TimeToLM(&MTime($cache));
+	die "ERROR: $thisUri updater $updater is not executable by web server!";
 	}
-# The FileNode updater args are all local filenames for all
+# The FileNode updater args are local filenames for all
 # inputs and parameters.
 my $inputFiles = join(" ", map {quotemeta($_)} 
 	@{$nm->{list}->{$thisUri}->{inputNames}});
-&Warn("inputFiles: $inputFiles\n");
+&Warn("    inputFiles: $inputFiles\n");
 my $parameterFiles = join(" ", map {quotemeta($_)} 
 	@{$nm->{list}->{$thisUri}->{parameterNames}});
-&Warn("parameterFiles: $parameterFiles\n");
+&Warn("    parameterFiles: $parameterFiles\n");
 my $ipFiles = "$inputFiles $parameterFiles";
 my $stderr = $nm->{value}->{$thisUri}->{stderr};
 # Make sure parent dirs exist for $stderr and $cache:
@@ -1512,10 +1174,10 @@ $useStdout = 1 if $updater && !$nm->{value}->{$thisUri}->{cacheOriginal};
 my $cmd = "( export $THIS_URI=$qThisUri ; $qUpdater $qCache $ipFiles > $qStderr 2>&1 )";
 $cmd =    "( export $THIS_URI=$qThisUri ; $qUpdater         $ipFiles > $qCache 2> $qStderr )"
 	if $useStdout;
-&Warn("cmd: $cmd\n") if $debug;
+&Warn("    cmd: $cmd\n") if $debug;
 my $result = (system($cmd) >> 8);
 my $saveError = $?;
-&Warn("FileNodeRunUpdater: Updater returned " . ($result ? "error code:" : "success:") . " $result.\n");
+&Warn("    FileNodeRunUpdater: Updater returned " . ($result ? "error code:" : "success:") . " $result.\n");
 if (-s $stderr) {
 	&Warn("FileNodeRunUpdater: Updater stderr" . ($useStdout ? "" : " and stdout") . ":\n[[\n") if $debug;
 	&Warn(&ReadFile("<$stderr")) if $debug;
@@ -1526,7 +1188,9 @@ if ($result) {
 	&Warn("FileNodeRunUpdater: UPDATER ERROR: $saveError\n") if $debug;
 	return "";
 	}
-return &GenerateNewLM();
+my $newLM = &GenerateNewLM();
+&Warn("  FileNodeRunUpdater returning newLM: $newLM\n") if $debug;
+return $newLM;
 }
 
 ############# GenerateNewLM ##############
@@ -1573,7 +1237,6 @@ close $fh;	# Release flock
 carp $warning if $warning;
 return &TimeToLM($newTime, $counter);
 }
-
 
 ############# MTime ##############
 # Return the $mtime (modification time) of a file.
@@ -1704,17 +1367,6 @@ sub Warn
 &PrintLog(@_);
 print STDERR @_;
 return 1;
-}
-
-########## IsLocalFileNode ############
-# Returns relative part of $uri if $uri is a local FileNode; otherwise 0.
-sub IsLocalFileNode
-{
-my $uri = shift;
-my $rel = $uri;
-my $baseUriPattern = quotemeta($baseUri);
-return $rel if ( $configValues{"$uri a"}->{FileNode} &&  $rel =~ s/\A$baseUriPattern//);
-return 0;
 }
 
 ########## MakeParentDirs ############
