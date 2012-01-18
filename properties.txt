@@ -17,8 +17,8 @@ copy
 date
 defaultContentType	value	Subject is $nodeType.  Default HTTP Content-Type for serialized output.
 dependsOn	list/hash	URIs of inputs, parameters and anything else this node depends on.
-dependsOnName	hash	Maps a dependsOn URI to the local name for that input
-dependsOnSerName	hash	Maps a dependsOn URI to the local file name for that serialized input
+dependsOnName	hash	Maps a dependsOn URI to the local name for that input.  I.e., points to local "copy".
+dependsOnSerName	hash	Maps a dependsOn URI to the local file name for that serialized input.  I.e., points to local "serCopy".
 dependsOnNameUri	hash	Maps a dependsOn URI to the URI corresponding to dependsOnName. (Used as key for saving LM.)
 dependsOnSerNameUri	hash	Maps a dependsOn URI to the URI corresponding to dependsOnSerName. (Used as key for saving LM.)
 fCacheExists	value	Subject is $nodeType.  Function that returns 1 iff the given cache exists.
