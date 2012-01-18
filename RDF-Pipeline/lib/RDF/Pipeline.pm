@@ -88,6 +88,13 @@ use Time::HiRes ();
 use File::Path qw(make_path remove_tree);
 use WWW::Mechanize;
 
+# $debug levels:
+#	0	No debugging.  Warnings/errors only.
+#	1	Show what was updated.  This level should be good for testing.
+#	2	Show more detail of what happened.
+my $debug = 1;
+my $test;
+
 my $configFile = "/home/dbooth/rdf-pipeline/trunk/pipeline.n3";
 my $ontFile = "/home/dbooth/rdf-pipeline/trunk/ont.n3";
 my $internalsFile = "/home/dbooth/rdf-pipeline/trunk/internals.n3";
@@ -181,12 +188,7 @@ if (0)
 	}
 
 use Getopt::Long;
-# $debug levels:
-#	0	No debugging.  Warnings/errors only.
-#	1	Show what was updated.  This level should be good for testing.
-#	2	Show more detail of what happened.
-my $debug = 1;
-my $test;
+
 &GetOptions("test" => \$test,
 	"debug" => \$debug,
 	);
@@ -227,6 +229,10 @@ if ($test)
 #######################################################################
 
 ############### MakeFakeRequestRec ###############
+# I started writing this, but abandoned it because I'm not sure it is needed.
+# Its only purpose was to allow simple testing from the command line, but
+# I think it may be easier to set up a test harness and to all testing
+# through Apache.
 sub MakeFakeRequestReq
 {
 # Fake a RequestRec object.
@@ -396,7 +402,7 @@ if ($code == RC_OK && $newLM && $newLM ne $oldLM) {
 	# $ua->get($url, ':content_file'=>$filename) ?  See
 	# http://search.cpan.org/~gaas/libwww-perl-6.03/lib/LWP/UserAgent.pm
 	&MakeParentDirs( $inSerName );
-	&Warn("UPDATING inSerName: $inSerName", 1); 
+	&Warn("UPDATING inSerName: $inSerName\n", 1); 
 	$ua->save_content( $inSerName ) if $method ne 'HEAD';
 	&SaveLMs($inSerNameUri, $newLM, $newLMHeader, $newETagHeader);
 	}
@@ -427,7 +433,7 @@ my ($oldCopyLM) = &LookupLMs($depNameUri);
 my $fExists = $depTypeVHash->{fExists} or die;
 $oldCopyLM = "" if !&{$fExists}($depName);
 return if (!$depLM || $depLM eq $oldCopyLM);
-&Warn("UPDATING local copy: $depName", 1); 
+&Warn("UPDATING local copy: $depName\n", 1); 
 &{$fDeserializer}($depSerName, $depName);
 &SaveLMs($depNameUri, $depLM);
 }
@@ -523,7 +529,7 @@ if (!$serCacheLM || !-e $serCache || ($newThisLM && $newThisLM ne $serCacheLM)) 
   # my $acceptHeader = $r->headers_in->get('Accept') || "";
   # warn "acceptHeader: $acceptHeader\n";
   my $fSerialize = $thisVHash->{fSerialize} || die;
-  &Warn("UPDATING serCache: $serCache", 1); 
+  &Warn("UPDATING serCache: $serCache\n", 1); 
   &{$fSerialize}($cache, $serCache) or die;
   $serCacheLM = $newThisLM;
   &SaveLMs($serCacheUri, $serCacheLM);
@@ -566,7 +572,7 @@ die "ERROR: Node $thisUri is STUCK: Inputs but no updater. "
 my $fRunUpdater = $nm->{value}->{$thisType}->{fRunUpdater} or die;
 # If there is no updater then it is up to $fRunUpdater to generate
 # an LM for the static cache.
-&Warn("UPDATING $thisUri {$thisUpdater} cache: $cache", 1); 
+&Warn("UPDATING $thisUri {$thisUpdater} cache: $cache\n", 1); 
 my $newThisLM = &{$fRunUpdater}($nm, $thisUri, $thisUpdater, $cache, 
 	$thisInputs, $thisParameters, $oldThisLM, $callerUri, $callerLM);
 &Warn("WARNING: fRunUpdater on $thisUri $thisUpdater returned false LM") if !$newThisLM;
@@ -1407,7 +1413,7 @@ my ($msg, $level) = @_;
 &PrintLog($msg);
 warn "debug not defined!\n" if !defined($debug);
 warn "configLastModified not defined!\n" if !defined($configLastModified);
-print STDERR $msg if !defined($level) || $level >= $debug;
+print STDERR $msg if !defined($level) || $debug >= $level;
 return 1;
 }
 
