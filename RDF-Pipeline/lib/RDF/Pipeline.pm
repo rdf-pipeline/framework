@@ -2,7 +2,7 @@
 package RDF::Pipeline;
 
 # RDF Pipeline Framework
-# Copyright 2011 David Booth <david@dbooth.org>
+# Copyright 2011 & 2012 David Booth <david@dbooth.org>
 # Code home: http://code.google.com/p/rdf-pipeline/
 # See license information at http://code.google.com/p/rdf-pipeline/ 
 
@@ -351,7 +351,7 @@ sub ForeignSendHttpRequest
 @_ == 5 or die;
 my ($nm, $method, $thisUri, $depUri, $depLM) = @_;
 &Warn("ForeignSendHttpRequest(nm, $method, $thisUri, $depUri, $depLM) called\n", 2);
-# Send conditional GET, GRAB or HEAD to depUri with depUri*/serCopyLM
+# Send conditional GET, GRAB or HEAD to depUri with depUri*/serCacheLM
 # my $ua = LWP::UserAgent->new;
 my $ua = WWW::Mechanize->new();
 $ua->agent("$0/0.01 " . $ua->agent);
@@ -409,14 +409,14 @@ if ($code == RC_OK && $newLM && $newLM ne $oldLM) {
 return $newLM;
 }
 
-################### DeserializeToLocalCopy ##################
-# Update $thisUri's local copy of $depUri's cache, by deserializing
-# (if necessary) from $thisUri's local serCopy of $depUri.
-sub DeserializeToLocalCopy
+################### DeserializeToLocalCache ##################
+# Update $thisUri's local cache of $depUri's out, by deserializing
+# (if necessary) from $thisUri's local serCache of $depUri.
+sub DeserializeToLocalCache
 {
 @_ == 4 or die;
 my ($nm, $thisUri, $depUri, $depLM) = @_;
-&Warn("DeserializeToLocalCopy(nm, $thisUri, $depUri, $depLM) called\n", 2);
+&Warn("DeserializeToLocalCache(nm, $thisUri, $depUri, $depLM) called\n", 2);
 my $thisHHash = $nm->{hash}->{$thisUri} || {};
 my $thisDepSerNameHash = $thisHHash->{dependsOnSerName} || {};
 my $depSerName = $thisDepSerNameHash->{$depUri};
@@ -429,11 +429,11 @@ my $depType = $depVHash->{nodeType} || "";
 my $depTypeVHash = $nm->{value}->{$depType} || {};
 my $fDeserializer = $depTypeVHash->{fDeserializer} || "";
 return if !$fDeserializer;
-my ($oldCopyLM) = &LookupLMs($depNameUri);
+my ($oldCacheLM) = &LookupLMs($depNameUri);
 my $fExists = $depTypeVHash->{fExists} or die;
-$oldCopyLM = "" if !&{$fExists}($depName);
-return if (!$depLM || $depLM eq $oldCopyLM);
-&Warn("UPDATING local copy: $depName\n", 1); 
+$oldCacheLM = "" if !&{$fExists}($depName);
+return if (!$depLM || $depLM eq $oldCacheLM);
+&Warn("UPDATING local cache: $depName\n", 1); 
 &{$fDeserializer}($depSerName, $depName);
 &SaveLMs($depNameUri, $depLM);
 }
@@ -463,11 +463,11 @@ return Apache2::Const::HTTP_METHOD_NOT_ALLOWED
 	&& $method ne "NOTIFY";
 # TODO: If $r has fresh content, then store it.
 &Warn("  HandleHttpEvent method: $method callerUri: $callerUri callerLM: $callerLM\n", 2);
-my $newThisLM = &FreshenSerCache($nm, $method, $thisUri, $callerUri, $callerLM);
+my $newThisLM = &FreshenSerOut($nm, $method, $thisUri, $callerUri, $callerLM);
 ####### Ready to generate the HTTP response. ########
-my $serCache = $thisVHash->{serCache} || die;
-my $serCacheUri = $thisVHash->{serCacheUri} || die;
-my $size = -s $serCache || 0;
+my $serOut = $thisVHash->{serOut} || die;
+my $serOutUri = $thisVHash->{serOutUri} || die;
+my $size = -s $serOut || 0;
 $r->set_content_length($size);
 # TODO: Should use Accept header in choosing contentType.
 my $contentType = $thisVHash->{contentType}
@@ -477,7 +477,7 @@ my $contentType = $thisVHash->{contentType}
 # $r->content_type('text/plain');
 # $r->content_type('application/rdf+xml');
 $r->content_type($contentType);
-$r->headers_out->set('Content-Location' => $serCacheUri); 
+$r->headers_out->set('Content-Location' => $serOutUri); 
 my ($lmHeader, $eTagHeader) = &LMToHeaders($newThisLM);
 # These work:
 # "W/" prefix on ETag means that it is weak.
@@ -496,55 +496,55 @@ if($status != Apache2::Const::OK || $r->header_only) {
   return $status;
   }
 # sendfile seems to want a full file system path:
-$r->sendfile($serCache);
+$r->sendfile($serOut);
 return Apache2::Const::OK;
 }
 
-################### FreshenSerCache ##################
-sub FreshenSerCache
+################### FreshenSerOut ##################
+sub FreshenSerOut
 {
 @_ == 5 or die;
 my ($nm, $method, $thisUri, $callerUri, $callerLM) = @_;
-&Warn("FreshenSerCache(nm, $method, $thisUri, $callerUri, $callerLM) called\n", 2);
+&Warn("FreshenSerOut(nm, $method, $thisUri, $callerUri, $callerLM) called\n", 2);
 my $thisVHash = $nm->{value}->{$thisUri} || die;
 my $thisType = $thisVHash->{nodeType} || die;
-my $cache = $thisVHash->{cache} || die;
-my $serCache = $thisVHash->{serCache} || die;
-my $cacheUri = $thisVHash->{cacheUri} || die;
-my $serCacheUri = $thisVHash->{serCacheUri} || die;
-my $newThisLM = &FreshenCache($nm, 'GET', $thisUri, $callerUri, $callerLM);
-&Warn("  FreshenCache $thisUri returned newThisLM: $newThisLM\n", 2);
-if ($method eq 'HEAD' || $method eq 'NOTIFY' || $cacheUri eq $serCacheUri) {
-  &Warn("  FreshenSerCache: No serialization needed. Returning newThisLM: $newThisLM\n", 2);
+my $out = $thisVHash->{out} || die;
+my $serOut = $thisVHash->{serOut} || die;
+my $outUri = $thisVHash->{outUri} || die;
+my $serOutUri = $thisVHash->{serOutUri} || die;
+my $newThisLM = &FreshenOut($nm, 'GET', $thisUri, $callerUri, $callerLM);
+&Warn("  FreshenOut $thisUri returned newThisLM: $newThisLM\n", 2);
+if ($method eq 'HEAD' || $method eq 'NOTIFY' || $outUri eq $serOutUri) {
+  &Warn("  FreshenSerOut: No serialization needed. Returning newThisLM: $newThisLM\n", 2);
   return $newThisLM;
   }
-# Need to update serCache?
-my ($serCacheLM) = &LookupLMs($serCacheUri);
-if (!$serCacheLM || !-e $serCache || ($newThisLM && $newThisLM ne $serCacheLM)) {
+# Need to update serOut?
+my ($serOutLM) = &LookupLMs($serOutUri);
+if (!$serOutLM || !-e $serOut || ($newThisLM && $newThisLM ne $serOutLM)) {
   ### Allow non-monotonic LM (because they could be checksums):
-  ### die if $newThisLM && $serCacheLM && $newThisLM lt $serCacheLM;
+  ### die if $newThisLM && $serOutLM && $newThisLM lt $serOutLM;
   # TODO: Set $acceptHeader from $r, and use it to choose $contentType:
   # This could be done by making {fSerialize} a hash from $contentType
   # to the serialization function.
   # my $acceptHeader = $r->headers_in->get('Accept') || "";
   # warn "acceptHeader: $acceptHeader\n";
   my $fSerialize = $thisVHash->{fSerialize} || die;
-  &Warn("UPDATING serCache: $serCache\n", 1); 
-  &{$fSerialize}($cache, $serCache) or die;
-  $serCacheLM = $newThisLM;
-  &SaveLMs($serCacheUri, $serCacheLM);
+  &Warn("UPDATING serOut: $serOut\n", 1); 
+  &{$fSerialize}($out, $serOut) or die;
+  $serOutLM = $newThisLM;
+  &SaveLMs($serOutUri, $serOutLM);
   }
-&Warn("  FreshenSerCache: Returning serCacheLM: $serCacheLM\n", 2);
-return $serCacheLM
+&Warn("  FreshenSerOut: Returning serOutLM: $serOutLM\n", 2);
+return $serOutLM
 }
 
-################### FreshenCache ################### 
+################### FreshenOut ################### 
 # $callerUri and $callerLM are only used if $method is NOTIFY
-sub FreshenCache
+sub FreshenOut
 {
 @_ == 5 or die;
 my ($nm, $method, $thisUri, $callerUri, $callerLM) = @_;
-&Warn("FreshenCache(nm, $method, $thisUri, $callerUri, $callerLM) called\n", 2);
+&Warn("FreshenOut(nm, $method, $thisUri, $callerUri, $callerLM) called\n", 2);
 my ($oldThisLM, %oldDepLMs) = &LookupLMs($thisUri);
 return $oldThisLM if $method eq "GRAB";
 my $thisVHash = $nm->{value}->{$thisUri};
@@ -557,9 +557,9 @@ my $policySaysFreshen =
 return $oldThisLM if !$policySaysFreshen;
 my ($thisIsStale, $newDepLMs) = 
 	&RequestLatestDependsOns($nm, $thisUri, $callerUri, $callerLM, \%oldDepLMs);
-my $cache = $thisVHash->{cache} or die;
-my $fCacheExists = $nm->{value}->{$thisType}->{fCacheExists} or die;
-$oldThisLM = "" if !&{$fCacheExists}($cache);
+my $out = $thisVHash->{out} or die;
+my $fOutExists = $nm->{value}->{$thisType}->{fOutExists} or die;
+$oldThisLM = "" if !&{$fOutExists}($out);
 $thisIsStale = 1 if !$oldThisLM;
 my $thisUpdater = $thisVHash->{updater} || "";
 return $oldThisLM if $thisUpdater && !$thisIsStale;
@@ -571,9 +571,9 @@ die "ERROR: Node $thisUri is STUCK: Inputs but no updater. "
 	if @{$thisInputs} && !$thisUpdater;
 my $fRunUpdater = $nm->{value}->{$thisType}->{fRunUpdater} or die;
 # If there is no updater then it is up to $fRunUpdater to generate
-# an LM for the static cache.
-&Warn("UPDATING $thisUri {$thisUpdater} cache: $cache\n", 1); 
-my $newThisLM = &{$fRunUpdater}($nm, $thisUri, $thisUpdater, $cache, 
+# an LM for the static out.
+&Warn("UPDATING $thisUri {$thisUpdater} out: $out\n", 1); 
+my $newThisLM = &{$fRunUpdater}($nm, $thisUri, $thisUpdater, $out, 
 	$thisInputs, $thisParameters, $oldThisLM, $callerUri, $callerLM);
 &Warn("WARNING: fRunUpdater on $thisUri $thisUpdater returned false LM") if !$newThisLM;
 &SaveLMs($thisUri, $newThisLM, %{$newDepLMs});
@@ -670,12 +670,12 @@ foreach my $depUri (sort keys %{$thisDependsOn}) {
   elsif (!$depType || !$isSameServer) {
     # Foreign node or non-node.
     $newDepLM = &ForeignSendHttpRequest($nm, $method, $thisUri, $depUri, $depLM);
-    &DeserializeToLocalCopy($nm, $thisUri, $depUri, $newDepLM);
+    &DeserializeToLocalCache($nm, $thisUri, $depUri, $newDepLM);
     }
   elsif (!$isSameType) {
     # Neighbor: Same server but different type.
-    $newDepLM = &FreshenSerCache($nm, $method, $thisUri, $callerUri, $callerLM);
-    &DeserializeToLocalCopy($nm, $thisUri, $depUri, $newDepLM);
+    $newDepLM = &FreshenSerOut($nm, $method, $thisUri, $callerUri, $callerLM);
+    &DeserializeToLocalCache($nm, $thisUri, $depUri, $newDepLM);
     }
   elsif ($knownFresh) {
     # Nothing to do, because it's local and already known fresh.
@@ -685,8 +685,8 @@ foreach my $depUri (sort keys %{$thisDependsOn}) {
   else {
     # Local: Same server and type, but not known fresh.  When local, GET==HEAD.
     # &Warn("  Same server and type.\n", 2);
-    $newDepLM = &FreshenCache($nm, 'GET', $depUri, "", "");
-    &Warn("  FreshenCache $thisUri returned newDepLM: $newDepLM\n", 2);
+    $newDepLM = &FreshenOut($nm, 'GET', $depUri, "", "");
+    &Warn("  FreshenOut $thisUri returned newDepLM: $newDepLM\n", 2);
     }
   my $oldDepLM = $oldDepLMs->{$depUri} || "";
   $thisIsStale = 1 if !$oldDepLM || ($newDepLM && $newDepLM ne $oldDepLM);
@@ -740,7 +740,7 @@ return $nm;
 # before nodeType-specific defaults are set.  In particular, the
 # following are set for every node: nodeType.  Plus the following
 # are set for every node on this server:
-# cacheOriginal, cache, cacheUri, serCache, serCacheUri, stderr.
+# outOriginal, out, outUri, serOut, serOutUri, stderr.
 sub PresetGenericDefaults
 {
 @_ == 1 or die;
@@ -750,7 +750,7 @@ my $nml = $nm->{list};
 my $nmh = $nm->{hash};
 # &Warn("PresetGenericDefaults:\n");
 # First set defaults that are set directly on each node: 
-# nodeType, cache, cacheUri, serCache, serCacheUri, stderr, fUpdatePolicy.
+# nodeType, out, outUri, serOut, serOutUri, stderr, fUpdatePolicy.
 foreach my $thisUri (keys %{$nmh->{Node}->{member}}) 
   {
   # Make life easier in this loop:
@@ -766,25 +766,25 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
   $thisVHash->{nodeType} = $thisType;
   # Nothing more to do if $thisUri is not hosted on this server:
   next if !&IsSameServer($baseUri, $thisUri);
-  # Save original cache before setting it to a default value:
-  $thisVHash->{cacheOriginal} = $thisVHash->{cache};
-  # Set cache, cacheUri, serCache and serCacheUri if not set.  
-  # cache is a local name; serCache is a file path.
+  # Save original out before setting it to a default value:
+  $thisVHash->{outOriginal} = $thisVHash->{out};
+  # Set out, outUri, serOut and serOutUri if not set.  
+  # out is a local name; serOut is a file path.
   my $thisFUriToLocalName = $nmv->{$thisType}->{fUriToLocalName} || "";
-  my $defaultCacheUri = "$baseUri/cache/" . &QuickName($thisUri) . "/cache";
-  my $defaultCache = $defaultCacheUri;
-  $defaultCache = &{$thisFUriToLocalName}($defaultCache) 
+  my $defaultOutUri = "$baseUri/cache/" . &QuickName($thisUri) . "/out";
+  my $defaultOut = $defaultOutUri;
+  $defaultOut = &{$thisFUriToLocalName}($defaultOut) 
 	if $thisFUriToLocalName;
   my $thisName = $thisFUriToLocalName ? &{$thisFUriToLocalName}($thisUri) : $thisUri;
-  $thisVHash->{cache} ||= 
-    $thisVHash->{updater} ? $defaultCache : $thisName;
-  $thisVHash->{cacheUri} ||= 
-    $thisVHash->{updater} ? $defaultCacheUri : $thisUri;
-  $thisVHash->{serCache} ||= 
+  $thisVHash->{out} ||= 
+    $thisVHash->{updater} ? $defaultOut : $thisName;
+  $thisVHash->{outUri} ||= 
+    $thisVHash->{updater} ? $defaultOutUri : $thisUri;
+  $thisVHash->{serOut} ||= 
     $nmv->{$thisType}->{fSerializer} ?
-      "$basePath/cache/" . &QuickName($thisUri) . "/serCache"
-      : $thisVHash->{cache};
-  $thisVHash->{serCacheUri} ||= &PathToUri($thisVHash->{serCache});
+      "$basePath/cache/" . &QuickName($thisUri) . "/serOut"
+      : $thisVHash->{out};
+  $thisVHash->{serOutUri} ||= &PathToUri($thisVHash->{serOut});
   # For capturing stderr:
   $nmv->{$thisUri}->{stderr} ||= 
 	  "$basePath/cache/" . &QuickName($thisUri) . "/stderr";
@@ -815,27 +815,27 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
   # and maps from dependsOn URIs (or inputs/parameter URIs) to the local names 
   # that will be used by $thisUri's updater when
   # it is invoked.  It will either use a new name (if the input is from
-  # a different environment) or the input's cache directly (if in the 
+  # a different environment) or the input's out directly (if in the 
   # same env).  A non-node dependsOn is treated like a foreign
   # node with no serializer.  
   # The dependsOnSerName hash similarly maps
   # from dependsOn URIs to the local serNames (i.e., file names of 
-  # inputs) that will be used to refresh the local copy if the
+  # inputs) that will be used to refresh the local cache if the
   # input is foreign.  However, since different node types within
   # the same server can share the serialized inputs, then 
-  # the dependsOnSerName may be set using the input's serCache.
+  # the dependsOnSerName may be set using the input's serOut.
   # The dependsOnNameUri and dependsOnSerNameUri hashes are URIs corresponding
   # to dependsOnName and dependsOnSerName, and are used as keys for LMs.
   # Factors that affect these settings:
   #  A. Is $depUri a node?  It may be any other URI data source (http: or file:).
   #  B. Is $depUri on the same server (as $thisUri)?
-  #     If so, its serCopy can be shared with other nodes on this server.
+  #     If so, its serCache can be shared with other nodes on this server.
   #  C. Is $depType the same node type $thisType?
-  #     If so (and on same server) then the node's cache can be accessed directly.
+  #     If so (and on same server) then the node's out can be accessed directly.
   #  D. Does $depType have a deserializer?
-  #     If not, then 'copy' will be the same as serCopy.
+  #     If not, then 'cache' will be the same as serCache.
   #  E. Does $depType have a fUriToLocalName function?
-  #     If so, then it will be used to generate a local name for 'copy'.
+  #     If so, then it will be used to generate a local name for 'cache'.
   $thisHHash->{dependsOnName} ||= {};
   $thisHHash->{dependsOnSerName} ||= {};
   $thisHHash->{dependsOnNameUri} ||= {};
@@ -851,14 +851,14 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
     my $depType = $nmv->{$depUri}->{nodeType} || "";
     # First set dependsOnSerName and dependsOnSerNameUri.
     if ($depType && &IsSameServer($baseUri, $depUri)) {
-      # Same server, so re-use the input's serCache.
-      $thisHHash->{dependsOnSerName}->{$depUri} = $nmv->{$depUri}->{serCache};
+      # Same server, so re-use the input's serOut.
+      $thisHHash->{dependsOnSerName}->{$depUri} = $nmv->{$depUri}->{serOut};
       }
     else {
       # Different servers, so make up a new file path.
       # dependsOnSerName file path does not need to contain $thisType, because 
-      # different node types on the same server can share the same serCopy's.
-      my $depSerName = "$basePath/cache/$depUriEncoded/serCopy";
+      # different node types on the same server can share the same serCache's.
+      my $depSerName = "$basePath/cache/$depUriEncoded/serCache";
       $thisHHash->{dependsOnSerName}->{$depUri} = $depSerName;
       }
     $thisHHash->{dependsOnSerNameUri}->{$depUri} ||= 
@@ -866,20 +866,20 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
     # Now set dependsOnName and dependsOnNameUri.
     my $fDeserializer = $depType ? $nmv->{$depType}->{fDeserializer} : "";
     if (&IsSameServer($baseUri, $depUri) && &IsSameType($thisType, $depType)) {
-      # Same env.  Reuse the input's cache.
-      $thisHHash->{dependsOnName}->{$depUri} = $nmv->{$depUri}->{cache};
-      $thisHHash->{dependsOnNameUri}->{$depUri} = $nmv->{$depUri}->{cacheUri};
+      # Same env.  Reuse the input's out.
+      $thisHHash->{dependsOnName}->{$depUri} = $nmv->{$depUri}->{out};
+      $thisHHash->{dependsOnNameUri}->{$depUri} = $nmv->{$depUri}->{outUri};
       # warn "thisUri: $thisUri depUri: $depUri Path 1\n";
       }
     elsif ($fDeserializer) {
-      # There is a deserializer, so we must create a new {copy} name.
+      # There is a deserializer, so we must create a new {cache} name.
       # Create a URI and convert it
       # (if necessary) to an appropriate local name.
       my $fUriToLocalName = $nmv->{$depType}->{fUriToLocalName};
-      my $copyName = "$baseUri/cache/$thisType/$depUriEncoded/copy";
-      $thisHHash->{dependsOnNameUri}->{$depUri} = $copyName;
-      $copyName = &{$fUriToLocalName}($copyName) if $fUriToLocalName;
-      $thisHHash->{dependsOnName}->{$depUri} = $copyName;
+      my $cacheName = "$baseUri/cache/$thisType/$depUriEncoded/cache";
+      $thisHHash->{dependsOnNameUri}->{$depUri} = $cacheName;
+      $cacheName = &{$fUriToLocalName}($cacheName) if $fUriToLocalName;
+      $thisHHash->{dependsOnName}->{$depUri} = $cacheName;
       # warn "thisUri: $thisUri depUri: $depUri Path 2\n";
       }
     else {
@@ -1012,7 +1012,7 @@ return %args;
 # Not proper n3 parsing, but good enough for this purpose.
 # Returns a hash map that maps: "$s $p" --> $o
 # Global $prefix is also stripped off from terms.
-# Example: "http://localhost/a cache" --> "c/cp-cache.txt"
+# Example: "http://localhost/a out" --> "c/cp-out.txt"
 sub CheatLoadN3
 {
 my $ontFile = shift;
@@ -1106,7 +1106,7 @@ if (!$lmFile) {
 	$lmFile = &UriToPath($thisUri);
 	### Commented out the true branch of this "if", to
 	### put them all in $basePath/lm/
-	if (0 && $lmFile && $lmFile =~ m|\A$basePathPattern\/caches\/|) {
+	if (0 && $lmFile && $lmFile =~ m|\A$basePathPattern\/cache\/|) {
 		$lmFile .= "LM";
 		}
 	else	{
@@ -1171,26 +1171,26 @@ $nm->{value}->{FileNode}->{fSerializer} = "";
 $nm->{value}->{FileNode}->{fDeserializer} = "";
 $nm->{value}->{FileNode}->{fUriToLocalName} = \&UriToPath;
 $nm->{value}->{FileNode}->{fRunUpdater} = \&FileNodeRunUpdater;
-$nm->{value}->{FileNode}->{fCacheExists} = \&FileExists;
+$nm->{value}->{FileNode}->{fOutExists} = \&FileExists;
 }
 
 ############# FileNodeRunUpdater ##############
 # Run the updater.
-# If there is no updater (i.e., static cache) then we must generate
-# an LM from the cache.
+# If there is no updater (i.e., static out) then we must generate
+# an LM from the out.
 sub FileNodeRunUpdater
 {
 @_ == 9 || die;
-my ($nm, $thisUri, $updater, $cache, $thisInputs, $thisParameters, 
+my ($nm, $thisUri, $updater, $out, $thisInputs, $thisParameters, 
 	$oldThisLM, $callerUri, $callerLM) = @_;
 # Avoid unused var warning:
-($nm, $thisUri, $updater, $cache, $thisInputs, $thisParameters, 
+($nm, $thisUri, $updater, $out, $thisInputs, $thisParameters, 
 	$oldThisLM, $callerUri, $callerLM) = @_;
-($nm, $thisUri, $updater, $cache, $thisInputs, $thisParameters, 
+($nm, $thisUri, $updater, $out, $thisInputs, $thisParameters, 
 	$oldThisLM, $callerUri, $callerLM) = @_;
-&Warn("  FileNodeRunUpdater(nm, $thisUri, $updater, $cache, ...) called.\n", 2);
+&Warn("  FileNodeRunUpdater(nm, $thisUri, $updater, $out, ...) called.\n", 2);
 $updater = &NodeAbsPath($updater) if $updater;
-return &TimeToLM(&MTime($cache)) if !$updater;
+return &TimeToLM(&MTime($out)) if !$updater;
 # TODO: Move this warning to when the metadata is loaded?
 if (!-x $updater) {
 	die "ERROR: $thisUri updater $updater is not executable by web server!";
@@ -1205,17 +1205,17 @@ my $parameterFiles = join(" ", map {quotemeta($_)}
 &Warn("    parameterFiles: $parameterFiles\n", 2);
 my $ipFiles = "$inputFiles $parameterFiles";
 my $stderr = $nm->{value}->{$thisUri}->{stderr};
-# Make sure parent dirs exist for $stderr and $cache:
-&MakeParentDirs($stderr, $cache);
+# Make sure parent dirs exist for $stderr and $out:
+&MakeParentDirs($stderr, $out);
 # Ensure no unsafe chars before invoking $cmd:
 my $qThisUri = quotemeta($thisUri);
-my $qCache = quotemeta($cache);
+my $qOut = quotemeta($out);
 my $qUpdater = quotemeta($updater);
 my $qStderr = quotemeta($stderr);
 my $useStdout = 0;
-$useStdout = 1 if $updater && !$nm->{value}->{$thisUri}->{cacheOriginal};
-my $cmd = "( export $THIS_URI=$qThisUri ; $qUpdater $qCache $ipFiles > $qStderr 2>&1 )";
-$cmd =    "( export $THIS_URI=$qThisUri ; $qUpdater         $ipFiles > $qCache 2> $qStderr )"
+$useStdout = 1 if $updater && !$nm->{value}->{$thisUri}->{outOriginal};
+my $cmd = "( export $THIS_URI=$qThisUri ; $qUpdater $qOut $ipFiles > $qStderr 2>&1 )";
+$cmd =    "( export $THIS_URI=$qThisUri ; $qUpdater         $ipFiles > $qOut 2> $qStderr )"
 	if $useStdout;
 &Warn("    cmd: $cmd\n", 2);
 my $result = (system($cmd) >> 8);
