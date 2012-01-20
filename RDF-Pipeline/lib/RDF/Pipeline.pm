@@ -1600,3 +1600,48 @@ foreach my $s (sort keys %allSubjects) {
 ##### DO NOT DELETE THE FOLLOWING TWO LINES!  #####
 1;
 __END__
+
+=head1 NAME
+
+RDF::Pipeline - Perl extension for blah blah blah
+
+=head1 SYNOPSIS
+
+  use RDF::Pipeline;
+  blah blah blah
+
+=head1 DESCRIPTION
+
+Stub documentation for RDF::Pipeline, created by h2xs. It looks like the
+author of the extension was negligent enough to leave the stub
+unedited.
+
+Blah blah blah.
+
+=head2 EXPORT
+
+None by default.
+
+
+=head1 SEE ALSO
+
+Mention other useful documentation such as the documentation of
+related modules or operating system documentation (such as man pages
+in UNIX), or any relevant external documentation such as RFCs or
+standards.
+
+If you have a mailing list set up for your module, mention it here.
+
+If you have a web site set up for your module, mention it here.
+
+=head1 AUTHOR
+
+David Booth, E<lt>dbooth@E<gt>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2011 & 2012 David Booth <david@dbooth.org>
+See license information at http://code.google.com/p/rdf-pipeline/ 
+
+=cut
+
