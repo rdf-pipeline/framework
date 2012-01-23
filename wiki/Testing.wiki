@@ -9,8 +9,8 @@ make test
 
 = Test suite conventions =
 The test suite depends on two directories, specified in the following environment variables, which are normally set by set_env.sh:
-  * *RDF_PIPELINE_WWW_DIR* -- The Apache DOCUMENT_ROOT for the RDF Pipeline.
-  * *RDF_PIPELINE_MODULE_DIR* -- The RDF::Pipeline module directory, "RDF-Pipeline".
+  * *$RDF_PIPELINE_WWW_DIR* -- The Apache DOCUMENT_ROOT for the RDF Pipeline.
+  * *$RDF_PIPELINE_MODULE_DIR* -- The RDF::Pipeline module directory, "RDF-Pipeline".
 
 Each test is in a numbered directory RDF-Pipeline/t/0`*` and contains the following subdirectories or files.  All are optional unless noted:
   * *setup-files* -- This directory contains a snapshot of the $RDF_PIPELINE_WWW_DIR contents that should be used when running the test.  If it does not exist, the current $RDF_PIPELINE_WWW_DIR contents will be used.
