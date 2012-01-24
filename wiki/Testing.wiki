@@ -46,7 +46,7 @@ However, at this point the new test directory has no expected-files, so the test
     {{{
     run-one-test.perl [nnnn]
     }}}
-where _nnnn_ is the directory for your new test.  (It defaults to the highest numbered test directory.)
+where _nnnn_ is the directory for your new test.  (It defaults to the highest numbered test directory.)  Bear in mind that the result-files are replaced each time the test is run.
 </li>
 <li>After you have verified that the result-files are correct, run
     {{{
