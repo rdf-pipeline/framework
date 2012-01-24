@@ -1,0 +1,5 @@
+#summary Getting Started
+
+= Introduction =
+
+I (David Booth) have not yet written any installation and configuration documentation, so contact me if you wish to try out this software: david@dbooth.org .
