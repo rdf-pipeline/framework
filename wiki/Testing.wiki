@@ -65,7 +65,7 @@ To figure out why a test failed, cd into that test directory, and then do:
   diff -r -x lm -x .svn expected-files result-files
 }}}
 
-= Updating the expected-files =
+= Accepting test results =
 If you need to update the expected-files for a test (e.g., because a code change has caused the result-files to no longer match the expected-files), then *if you are certain that the current result-files are correct*, you can do
 {{{
   accept-test.perl [nnnn]
