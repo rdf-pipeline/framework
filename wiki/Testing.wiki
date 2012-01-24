@@ -28,21 +28,22 @@ A test usually issues a series of HTTP requests against the Apache instance that
 = Adding a new test =
 The easiest way:
 <ol>
-<li>Configure a pipeline as needed for the test, so that the contents of $RDF_PIPELINE_WWW_DIR reflect the desired state prior to running the new test.  Do not place anything in the $RDF_PIPELINE_WWW_DIR/test directory, as this will be entirely cleared out prior to running the test.
+<li>Configure a pipeline as needed for the test, so that the content of $RDF_PIPELINE_WWW_DIR reflects the desired initial state _prior_ to running the new test.  Do not place anything in the $RDF_PIPELINE_WWW_DIR/test directory, as this will be entirely cleared out just before the test is run.
 </li>
 <li>Run the command:
   {{{
   add-test.perl URL
   }}}
-where URL is the URL to be requested from the pipeline.  This will run the test (by invoking the URL) and generate a new, numbered test directory containing:
-    * setup-files
-    * setup
-    * test-script
-    * result-files
-    * sanitize-results
-However, at this point the new test directory has no expected-files, so the test will fail (as it should).
+where URL is the URL to be requested from the pipeline.  This will generate a new, numbered test directory containing:
+    * *setup-files* -- A snapshot of the current the $RDF_PIPELINE_WWW_DIR directory.
+    * *setup* -- Initial script that you can customize as needed for this test.
+    * *test-script* -- Initial script that you can customize as needed for this test.
+    * *sanitize-results* -- Initial script that you can customize as needed for this test.
+After creating the above files/directories, add-test.perl will invoke run-one-test.perl to execute the test, which in turn will create the following directory:
+    * *result-files* -- A snapshot of the $RDF_PIPELINE_WWW_DIR directory after running the test.
+and it will then compare the result-files with the non-existent expected-files, thus causing the test to initially fail (as it should).
 </li>
-<li>If necessary, you may run the test as many times as you need (restarting Apache each time you have modified anything, of course), until you have convinced yourself that the result-files that have been produced are indeed correct for this test.  You can run the test by running:
+<li>If necessary, you may run the test as many times as you need (*restarting Apache each time you have modified anything*), until you have convinced yourself that the result-files that have been produced are indeed correct for this test.  To run the test, simply issue the command:
     {{{
     run-one-test.perl [nnnn]
     }}}
@@ -52,7 +53,7 @@ where _nnnn_ is the directory for your new test.  (It defaults to the highest nu
     {{{
     accept-test.perl [nnnn]
     }}}
-to cause the current result-files to be saved as expected-files.
+to cause the current result-files to be saved as expected-files.  This should cause the test to pass the next time you run it.
 </li>
 </ol>
 
