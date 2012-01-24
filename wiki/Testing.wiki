@@ -49,22 +49,6 @@ to cause the current result-files to be saved as expected-files.  This should ca
 </li>
 </ol>
 
-= Deleting a test = 
-Delete that particular subdirectory, e.g., 0003.
-
-= Diagnosing a failed test =
-To figure out why a test failed, cd into that test directory, and then do:
-{{{
-  diff -r -x lm -x .svn expected-files result-files
-}}}
-
-= Accepting test results =
-If you need to update the expected-files for a test (e.g., because a code change has caused the result-files to no longer match the expected-files), then *if you are certain that the current result-files are correct*, you can do
-{{{
-  accept-test.perl [nnnn]
-}}}
-to delete the existing expected-files and copy the current result-files to the expected-files.
-
 = Running a test =
 To run one test (or more) without using "make test":
     {{{
@@ -76,6 +60,22 @@ where nnnn is the test's numbered directory.  This does the following for each t
   * The original $RDF_PIPELINE_WWW_DIR files are restored from "$RDF_PIPELINE_WWW_DIR"-SAVE if -c was not specified.
 
 The -c option ("clobber") tells run-test.perl to leave the $RDF_PIPELINE_WWW_DIR files in their final state after running the test, instead of restoring them from a saved copy.  I.e., the previous $RDF_PIPELINE_WWW_DIR files get clobbered.  This is particularly useful when you plan to add a new test (using add-test.perl) that should continue where the previous test left off.  
+
+= Diagnosing a failed test =
+To help figure out why a test failed, cd into that test directory and do:
+{{{
+  diff -r -x lm -x .svn expected-files result-files
+}}}
+
+= Accepting test results =
+If you need to update the expected-files for a test (e.g., because a code change has caused the result-files to no longer match the expected-files), then *if you are certain that the current result-files are correct*, you can do
+{{{
+  accept-test.perl [nnnn]
+}}}
+to delete the existing expected-files and copy the current result-files to the expected-files.
+
+= Deleting a test = 
+Delete that particular subdirectory, e.g., 0003.
 
 = Other helper scripts =
   * *pipeline-request [GET/HEAD] URL*
