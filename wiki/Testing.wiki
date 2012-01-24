@@ -78,5 +78,8 @@ to delete the existing expected-files and copy the current result-files to the e
 Delete that particular subdirectory, e.g., 0003.
 
 = Other helper scripts =
+The $RDF_PIPELINE_MODULE_DIR/t/helpers directory contains some additional helper scripts that you may find useful.  They are used by the other test scripts in $RDF_PIPELINE_MODULE_DIR/t , so be sure you check how they are used before modifying them.
   * *pipeline-request [GET/HEAD] URL*
     Use curl to invoke URL using the method specified (or GET, if no method is specified), saving the resulting headers and content to $RDF_PIPELINE_WWW_DIR/test/testout .  For example, `pipeline-request HEAD http://localhost/node/foo` will use curl to issue a HEAD request to http://localhost/node/foo .
+  * *filterlog.perl* -- A script for filtering Apache log files.
+  * *stripdates.perl* -- A script for replacing datetimes with some datetime constants.
