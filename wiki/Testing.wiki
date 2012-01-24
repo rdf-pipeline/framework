@@ -64,7 +64,7 @@ The -c option ("clobber") tells run-test.perl to leave the $RDF_PIPELINE_WWW_DIR
 = Diagnosing a failed test =
 To help figure out why a test failed, cd into that test directory and do:
 {{{
-  diff -r -x lm expected-files result-files
+  diff -r -x lm -x ont expected-files result-files
 }}}
 
 = Accepting test results =
