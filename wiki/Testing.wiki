@@ -40,19 +40,20 @@ The easiest way:
     * setup
     * test-script
     * result-files
+    * sanitize-results
   However, at this point the new test directory has no expected-files, so the test will fail (as it should).
 </li>
 <li>If necessary, you may run the test as many times as you need (restarting Apache each time you have modified anything, of course), until you have convinced yourself that the result-files that have been produced are indeed correct for this test.  You can run the test by running:
     {{{
     run-one-test [nnnn]
     }}}
-    where _nnnn_ is the directory for your new test.  (It defaults to the highest numbered test directory.)
+  where _nnnn_ is the directory for your new test.  (It defaults to the highest numbered test directory.)
 </li>
 <li>After you have verified that the result-files are correct, run
     {{{
     accept-test [nnnn]
     }}}
-    to cause the current result-files to be saved as expected-files.
+  to cause the current result-files to be saved as expected-files.
 </li>
 </ol>
 
