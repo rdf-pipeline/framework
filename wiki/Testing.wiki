@@ -1,7 +1,7 @@
 #summary Testing the RDF Pipeline framework
+<wiki:toc max_depth="1" />
 
 = Introduction =
-
 The RDF Pipeline framework has a regression test suite in RDF-Pipeline/t .  Since it runs as a mod_perl2 module in Apache2, the RDF Pipeline framework must be properly installed (as a mod_perl2 module) before the test suite can be run.  Once installed, the test suite may be run by issuing the following command from the RDF-Pipeline module directory:
 {{{
   make test
