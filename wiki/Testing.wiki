@@ -4,7 +4,7 @@
 
 The RDF Pipeline framework has a regression test suite in RDF-Pipeline/t .  Since it runs as a mod_perl2 module in Apache2, the RDF Pipeline framework must be properly installed (as a mod_perl2 module) before the test suite can be run.  Once installed, the test suite may be run by issuing the following command from the RDF-Pipeline module directory:
 {{{
-make test
+  make test
 }}}
 
 = Test suite conventions =
@@ -25,7 +25,6 @@ A test usually issues a series of HTTP requests against the Apache instance that
   * *apacheError.log* -- The Apache "error.log" file (excerpted and filtered through RDF-Pipeline/t/filterlog.perl to remove irrelevant detail)
   * *testout* -- The concatenated results (filtered through RDF-Pipeline/t/stripdates.perl) of running 'curl -i' on the test URLs.  This includes both the headers and the content that were returned.
 
-
 = Adding a new test =
 The easiest way:
 <ol>
@@ -33,27 +32,27 @@ The easiest way:
 </li>
 <li>Run the command:
   {{{
-  add-test URL
+  add-test.perl URL
   }}}
-  where URL is the URL to be requested from the pipeline.  This will run the test (by invoking the URL) and generate a new, numbered test directory containing:
+where URL is the URL to be requested from the pipeline.  This will run the test (by invoking the URL) and generate a new, numbered test directory containing:
     * setup-files
     * setup
     * test-script
     * result-files
     * sanitize-results
-  However, at this point the new test directory has no expected-files, so the test will fail (as it should).
+However, at this point the new test directory has no expected-files, so the test will fail (as it should).
 </li>
 <li>If necessary, you may run the test as many times as you need (restarting Apache each time you have modified anything, of course), until you have convinced yourself that the result-files that have been produced are indeed correct for this test.  You can run the test by running:
     {{{
-    run-one-test [nnnn]
+    run-one-test.perl [nnnn]
     }}}
-  where _nnnn_ is the directory for your new test.  (It defaults to the highest numbered test directory.)
+where _nnnn_ is the directory for your new test.  (It defaults to the highest numbered test directory.)
 </li>
 <li>After you have verified that the result-files are correct, run
     {{{
-    accept-test [nnnn]
+    accept-test.perl [nnnn]
     }}}
-  to cause the current result-files to be saved as expected-files.
+to cause the current result-files to be saved as expected-files.
 </li>
 </ol>
 
@@ -63,12 +62,16 @@ Delete that particular subdirectory, e.g., 0003.
 = Diagnosing a failed test =
 To figure out why a test failed, cd into that test directory, and then do:
 {{{
-diff -r -x lm -x .svn expected-files result-files
+  diff -r -x lm -x .svn expected-files result-files
 }}}
 
 = Updating the expected-files =
 If you need to update the expected-files for a test (e.g., because a code change has caused the result-files to no longer match the expected-files), then *if you are certain that the current result-files are correct*, you can do
 {{{
-accept-test [nnnn]
+  accept-test.perl [nnnn]
 }}}
 to delete the existing expected-files and copy the current result-files to the expected-files.
+
+= Other helper scripts =
+  * *pipeline-request [GET/HEAD] URL*
+    Use curl to invoke URL using the method specified (or GET, if no method is specified), saving the resulting headers and content to $RDF_PIPELINE_WWW_DIR/test/testout .  For example, `pipeline-request HEAD http://localhost/node/foo` will use curl to issue a HEAD request to http://localhost/node/foo .
