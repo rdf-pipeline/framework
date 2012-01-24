@@ -84,4 +84,4 @@ The $RDF_PIPELINE_MODULE_DIR/t/helpers directory contains some additional helper
   * *filterlog.perl* -- A script for filtering Apache log files.
   * *stripdates.perl* -- A script for replacing datetimes with some datetime constants.
   * *copy-result-files.perl fromDir toDir* -- Deletes directory toDir and then copies directory fromDir to toDir, excluding hidden (`.*`) files.
-  * *compare-results.perl expected-files result-files* -- Recursively compares expected-files with result-files excluding "lm" and "ont" subdirectories, returning 0 iff they are the same.
+  * *compare-results.perl expected-files result-files* -- Recursively compares expected-files with result-files (excluding "lm" and "ont" subdirectories), returning 0 iff they are the same.
