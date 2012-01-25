@@ -1,6 +1,0 @@
-#! /usr/bin/perl -w 
-# Node c: Merge numbers from nodes a and b.
-my $thisUri    = $ARGV[0];
-my $aCacheFile = $ARGV[1];
-my $bCacheFile = $ARGV[2];
-print `sort -n $aCacheFile $bCacheFile`;

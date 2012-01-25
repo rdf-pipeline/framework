@@ -69,14 +69,7 @@ use APR::Finfo ();
 use APR::Const -compile => qw(FINFO_NORM);
 use Apache2::RequestUtil ();
 use Apache2::Const -compile => qw( HTTP_METHOD_NOT_ALLOWED );
-### TODO: Get rid of Test::MockObject, because it causes a
-### an apache2 child seg fault:
-# use Test::MockObject;	# For testing from the command line ($test)
 use Fcntl qw(LOCK_EX O_RDWR O_CREAT);
-
-# Trying Apache2::SubProcess as a way to avoid the apache 2 child seg fault:
-# http://search.cpan.org/dist/mod_perl/docs/api/Apache2/SubProcess.pod
-use Apache2::SubProcess ();
 
 use HTTP::Date;
 use APR::Table ();
@@ -95,9 +88,6 @@ use WWW::Mechanize;
 my $debug = 1;
 my $test;
 
-my $configFile = "/home/dbooth/rdf-pipeline/trunk/pipeline.n3";
-my $ontFile = "/home/dbooth/rdf-pipeline/trunk/ont.n3";
-my $internalsFile = "/home/dbooth/rdf-pipeline/trunk/internals.n3";
 my $prefix = "http://purl.org/pipeline/ont#";	# Pipeline ont prefix
 $ENV{DOCUMENT_ROOT} ||= "/home/dbooth/rdf-pipeline/trunk/www";	# Set if not set
 ### TODO: Set $baseUri properly.  Needs port?
@@ -112,11 +102,14 @@ my $nodeBaseUriPattern = quotemeta($nodeBaseUri);
 my $nodeBasePath = "$basePath/node";
 my $nodeBasePathPattern = quotemeta($nodeBasePath);
 my $lmCounterFile = "$basePath/lm/lmCounter.txt";
-my $RUN_COMMAND_HELPER = "/home/dbooth/rdf-pipeline/trunk/runcommand.perl";
 my $THIS_URI = "THIS_URI"; # Env var name to use
 my $rdfsPrefix = "http://www.w3.org/2000/01/rdf-schema#";
 # my $subClassOf = $rdfsPrefix . "subClassOf";
 my $subClassOf = "rdfs:subClassOf";
+
+my $configFile = "$nodeBasePath/pipeline.n3";
+my $ontFile = "$basePath/ont/ont.n3";
+my $internalsFile = "$basePath/ont/internals.n3";
 
 my $logFile = "/tmp/rdf-pipeline-log.txt";
 # unlink $logFile || die;
@@ -1245,6 +1238,13 @@ return $newLM;
 # appending a counter to the lower order digits of the current time.
 # The counter is stored in $lmCounterFile and flock is used to
 # ensure that it is accessed by only one thread at a time.
+# As of 23-Jan-2012 on dbooth's laptop &GenerateNewLM() takes
+# about 200-300 microseconds per call, so the counter will always 
+# be 1 unless this is run on a machine that is much faster or that
+# has substantially lower clock resolution.
+#
+# TODO: Need to test the locking (flock) aspect of this code.  The other 
+# logic of this function has already been tested.
 sub GenerateNewLM
 {
 # Format time to avoid losing digits when serializing:
@@ -1262,11 +1262,11 @@ my $magic = <$fh>;
 # Remember any warning, to avoid other I/O while $lmCounterFile is locked:
 my $warning = "";	
 if (defined($magic)) {
-	$warning = "Bad magic string in $lmCounterFile" if $magic ne $MAGIC;
+	$warning = "Corrupt lmCounter file (bad magic string): $lmCounterFile\n" if $magic ne $MAGIC;
 	chomp( $oldTime = <$fh> );
 	chomp( $counter = <$fh> );
 	if (!$counter || !$oldTime || $oldTime>$newTime || $counter<=0) {
-		$warning .= "\nCorrupt $lmCounterFile or non-monotonic clock";
+		$warning .= "Corrupt $lmCounterFile or non-monotonic clock\n";
 		($oldTime, $counter) = ($newTime, 0);
 		}
 	}
@@ -1278,7 +1278,7 @@ print $fh $MAGIC;
 print $fh "$newTime\n";
 print $fh "$counter\n";
 close $fh;	# Release flock
-&Warn($warning) if $warning;
+&Warn("WARNING: $warning") if $warning;
 return &TimeToLM($newTime, $counter);
 }
 

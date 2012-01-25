@@ -1,5 +1,0 @@
-#! /usr/bin/perl -w 
-# Add numbers from two nodes.
-my $sum = `cat $ARGV[1]` + `cat $ARGV[2]`;
-print "$sum\n";
-
