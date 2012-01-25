@@ -68,7 +68,7 @@ To help figure out why a test failed, cd into that test directory and do:
 }}}
 
 = Accepting test results =
-If you need to update the expected-files for one or more tests (e.g., because a code change has caused the result-files to no longer match the expected-files), then *if you are certain that the current result-files are correct*, you can do
+If you need to update the expected-files for one or more tests (e.g., because a code change has caused the result-files to no longer match the expected-files), then *once you are certain that the current result-files are correct*, you can do
 {{{
   accept-test.perl [nnnn] ...
 }}}
