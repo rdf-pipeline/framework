@@ -50,6 +50,11 @@ to cause the current result-files to be saved as expected-files.  This should ca
 </ol>
 
 = Running a test =
+Before running a test it is best to restart Apache, to be sure that it uses the latest version of whatever you are working on.  This must be done as root:
+{{{
+# apache2ctl stop ; sleep 5 ; apache2ctl start
+}}}
+
 To run one test (or more) without using "make test":
     {{{
     run-test.perl [-c] [nnnn] ...
