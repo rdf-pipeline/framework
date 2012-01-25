@@ -34,7 +34,7 @@ lmFile	value	File name of node's last modified timestamps: (output and all input
 member	hash	Inverse of rdf:type (aka "a")
 Node
 nodeType	value	Most specific node type -- a leaf class.
-outputs	hash	URIs of this node's outputs.
+outputs	hash	URIs of this node's outputs.  Derived from inputs & parameters.
 parameterNames list	Local parameter names for this node.
 parameters	list/hash	URIs of this node's parameters.
 rdfs:subClassOf	hash	Inverse is subClass
