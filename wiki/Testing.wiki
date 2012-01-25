@@ -39,7 +39,7 @@ After creating the above files/directories, add-test.perl will invoke run-test.p
     * *result-files* -- A snapshot of the $RDF_PIPELINE_WWW_DIR directory after running the test.
 and it will then compare the result-files with the non-existent expected-files, thus causing the test to initially fail (as it should).
 </li>
-<li>If necessary, you may run the test as many times as you need while debugging, using "./run-test.perl [nnnn]` or `./run-test.perl -c [nnnn]`, as described below under "Running a test" (*restarting Apache each time you have modified anything*), until you have convinced yourself that the result-files that have been produced are indeed correct for this test.  Bear in mind that the result-files are replaced each time the test is run (and the $RDF_PIPELINE_WWW_DIR files will be also if you used the -c option).
+<li>If necessary, you may run the test as many times as you need while debugging, using "`./run-test.perl [nnnn]`" or "`./run-test.perl -c [nnnn]`", as described below under "Running a test" (*restarting Apache each time you have modified anything*), until you have convinced yourself that the result-files that have been produced are indeed correct for this test.  Bear in mind that the result-files are replaced each time the test is run (and the $RDF_PIPELINE_WWW_DIR files will be also if you used the -c option).
 </li>
 <li>After you are convinced that the result-files are correct, run
     {{{
