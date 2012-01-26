@@ -84,9 +84,11 @@ See the code in $RDF_PIPELINE_DEV_DIR/RDF-Pipeline/t/helpers/compare-results.per
 = Accepting test results =
 If you need to update the expected-files for one or more tests (e.g., because a code change has caused the result-files to no longer match the expected-files), then *once you are certain that the current result-files are correct*, you can do
 {{{
-  accept-test.perl [nnnn] ...
+  accept-test.perl [-s][nnnn] ...
 }}}
 to delete the existing expected-files and copy the current result-files to the expected-files.
+
+The "`-s`" option will cause accept-test.perl to attempt to add the test to subversion.
 
 = Deleting a test = 
 Delete that particular subdirectory, e.g., 0003.
