@@ -19,7 +19,8 @@
 #		be the final state of this test.
 
 my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
-my $moduleDir = $ENV{'RDF_PIPELINE_MODULE_DIR'} or &EnvNotSet('RDF_PIPELINE_MODULE_DIR');
+my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
+my $moduleDir = "$devDir/RDF-Pipeline";
 chdir("$moduleDir/t") or die "ERROR: Could not chdir('$moduleDir/t')\n";
 
 my $clobber = 0;

@@ -11,7 +11,8 @@ where URL is the RDF Pipeline test URL to invoke for the new test.\n";
 my $url = shift @ARGV;
 
 my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
-my $moduleDir = $ENV{'RDF_PIPELINE_MODULE_DIR'} or &EnvNotSet('RDF_PIPELINE_MODULE_DIR');
+my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
+my $moduleDir = "$devDir/RDF-Pipeline";
 
 # Make the new test dir:
 chdir("$moduleDir/t") or die "ERROR: Could not chdir('$moduleDir/t')\n";
