@@ -10,7 +10,13 @@ The RDF Pipeline framework has a regression test suite in RDF-Pipeline/t .  Sinc
 = Environment variables =
 The test suite depends on two directories, which must be specified in the following environment variables (normally set by set_env.sh):
   * *$RDF_PIPELINE_WWW_DIR* -- The Apache DOCUMENT_ROOT for the RDF Pipeline framework.
-  * *$RDF_PIPELINE_MODULE_DIR* -- The RDF::Pipeline module directory, "RDF-Pipeline".
+  * *$RDF_PIPELINE_DEV_DIR* -- The top level RDF Pipeline development directory, which must contain the RDF::Pipeline module directory "RDF-Pipeline".
+These variables are normally set by $RDF_PIPELINE_DEV_DIR/set_env.sh, which will also add the test scripts to your $PATH if our "source" it:
+{{{
+cd $RDF_PIPELINE_DEV_DIR
+. set_env.sh
+}}}
+You should customize set_env.sh according to your site.
 
 = Test suite conventions =
 Each test is in a numbered directory RDF-Pipeline/t/nnnn (where nnnn is a four-digit number that _must_ start with 0) and contains the following subdirectories or files.  All are optional unless noted:
@@ -73,7 +79,7 @@ To help figure out why a test failed, cd into that test directory and do:
 {{{
   diff -r -x lm -x ont -x '.*' expected-files result-files
 }}}
-See the code in $RDF_PIPELINE_MODULE_DIR/t/helpers/compare-results.perl (but you probably don't want to use the -q option).
+See the code in $RDF_PIPELINE_DEV_DIR/RDF-Pipeline/t/helpers/compare-results.perl (though you probably won't want to use the -q option that it uses).
 
 = Accepting test results =
 If you need to update the expected-files for one or more tests (e.g., because a code change has caused the result-files to no longer match the expected-files), then *once you are certain that the current result-files are correct*, you can do
@@ -86,7 +92,7 @@ to delete the existing expected-files and copy the current result-files to the e
 Delete that particular subdirectory, e.g., 0003.
 
 = Other helper scripts =
-The $RDF_PIPELINE_MODULE_DIR/t/helpers directory contains some additional helper scripts that you may find useful.  They are used by the other test scripts in $RDF_PIPELINE_MODULE_DIR/t , so be sure you check how they are used before modifying them.
+The $RDF_PIPELINE_DEV_DIR/RDF-Pipeline/t/helpers directory contains some additional helper scripts that you may find useful.  They are used by the other test scripts in $RDF_PIPELINE_DEV_DIR/RDF-Pipeline/t , so be sure you check how they are used before modifying them.
   * *pipeline-request [GET/HEAD] URL*
     Use curl to invoke URL using the method specified (or GET, if no method is specified), saving the resulting headers and content to $RDF_PIPELINE_WWW_DIR/test/testout .  For example, "`pipeline-request HEAD http://localhost/node/foo`" will use curl to issue a HEAD request to http://localhost/node/foo .
   * *filterlog.perl* -- A script for filtering Apache log files.
@@ -94,5 +100,9 @@ The $RDF_PIPELINE_MODULE_DIR/t/helpers directory contains some additional helper
   * *copy-result-files.perl fromDir toDir* -- Deletes directory toDir and then copies directory fromDir to toDir, excluding hidden (`.*`) files.
   * *compare-results.perl expected-files result-files* -- Recursively compares expected-files with result-files (excluding "lm", "ont" and hidden subdirectories/files), returning 0 iff they are the same.
 
-= Interaction with subversion (svn) =
-Because subversion places hidden ".svn" files in directories that are under its control, these test scripts can cause some hassle in working with subversion.  To avoid copying the ".svn" files, the test scripts above delete all hidden files after copying a directory.  (This is done by helpers/copy-result-files.perl .)  However, this has the downside that when a directory was rightfully under subversion control, but it is replaced by one of these scripts, the ".svn" files will no longer be in it, causing subversion to complain like: *"
+= Subversion (svn) errors =
+Because subversion places hidden ".svn" files in directories that are under its control, these test scripts can cause some hassle in working with subversion.  To avoid copying the ".svn" files, the test scripts above delete all hidden files after copying a directory.  (This is done by helpers/copy-result-files.perl .)  However, this has the downside that when a directory was rightfully under subversion control, but it is replaced by one of these scripts, the ".svn" files will no longer be in it, causing subversion to complain like: *"svn: Failed to add directory 'www/test': an unversioned directory of the same name already exists"*.  To correct this problem, use the "`--force`" svn option, such as:
+{{{
+cd $RDF_PIPELINE_DEV_DIR
+svn update --force
+}}}
