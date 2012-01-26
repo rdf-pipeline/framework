@@ -10,7 +10,7 @@ The RDF Pipeline framework has a regression test suite in RDF-Pipeline/t .  Sinc
 = Environment variables =
 The test suite depends on two directories, which must be specified in the following environment variables (normally set by set_env.sh):
   * *$RDF_PIPELINE_WWW_DIR* -- The Apache DOCUMENT_ROOT for the RDF Pipeline framework.
-  * *$RDF_PIPELINE_DEV_DIR* -- The top level RDF Pipeline development directory, which must contain the RDF::Pipeline module directory "RDF-Pipeline".
+  * *$RDF_PIPELINE_DEV_DIR* -- The top level RDF Pipeline development directory, which contains the RDF::Pipeline module directory "RDF-Pipeline".
 These variables are normally set by $RDF_PIPELINE_DEV_DIR/set_env.sh, which will also add the test scripts to your $PATH if our "source" it:
 {{{
 cd $RDF_PIPELINE_DEV_DIR
