@@ -39,7 +39,14 @@ my $setupCmd = "helpers/copy-result-files.perl '$wwwDir' '$setupFiles'";
 # warn "setupCmd: $setupCmd\n";
 !system($setupCmd) or die;
 
-print "Created test directory $dir\n";
+print "Created test directory: $dir\n\n";
+
+print "Running test $dir , which should fail because
+expected-files have not yet been created ...\n";
+my $runCmd = "./run-test.perl '$dir'";
+# warn "runCmd: $runCmd\n";
+system($runCmd);
+
 exit 0;
 
 
