@@ -2,7 +2,7 @@
 
 # Accept the current result-files as correct, by copying them
 # to expected-files (after deleting the current expected files).
-# If the -svn option is specified, then also try to add the
+# If the -s option is specified, then also try to add the
 # test into subversion.
 
 use strict;
@@ -12,8 +12,8 @@ my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
 my $moduleDir = "$devDir/RDF-Pipeline";
 chdir("$moduleDir/t") or die "ERROR: Could not chdir('$moduleDir/t')\n";
 
-my $svn = 0;	# -svn option
-if (@ARGV && $ARGV[0] eq "-svn") {
+my $svn = 0;	# -s option
+if (@ARGV && $ARGV[0] eq "-s") {
 	shift @ARGV;
 	$svn = 1;
 	}
@@ -34,7 +34,7 @@ foreach my $dir (@testDirs) {
 	# Add the test to svn?
 	next if !$svn;
 	warn "Attempting to add $dir to subversion ...\n";
-	my $svnCmd = "cd '$devDir' ; svn add 'RDF-Pipeline/t/$dir'";
+	my $svnCmd = "cd '$devDir' ; svn add --force 'RDF-Pipeline/t/$dir'";
 	warn "$svnCmd\n";
 	!system($svnCmd) or die;
 	}
