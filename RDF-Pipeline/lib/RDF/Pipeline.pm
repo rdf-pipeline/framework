@@ -317,10 +317,9 @@ if ($configLastModified != $cmtime
 	# %config || return Apache2::Const::SERVER_ERROR;
 	}
 
-##### TODO: Change this to use $nm->{value}->{$thisUri}->{nodeType}
-my @types = split(/\s+/, ($config{"$thisUri a"}||"") );
-&Warn("  WARNING: $thisUri is not a Node.  types: @types\n") if !(grep {$_ && $_ eq "Node"} @types);
-my $subtype = (grep {$_ && $_ ne "Node"} @types)[0] || "";
+my $thisVHash = $nm->{value}->{$thisUri} || {};
+my $subtype = $thisVHash->{nodeType} || "";
+&Warn("  WARNING: $thisUri is not a Node.  types: \n") if !$subtype;
 &Warn("  thisUri: $thisUri subtype: $subtype\n", 2);
 # Allow non-node files in the www/node/ dir to be served normally:
 return Apache2::Const::DECLINED if !$subtype;
