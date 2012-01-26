@@ -17,7 +17,9 @@ my $nTests;
 my @testDirs;
 BEGIN {
   $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
-  $moduleDir = $ENV{'RDF_PIPELINE_MODULE_DIR'} or &EnvNotSet('RDF_PIPELINE_MODULE_DIR');
+  my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
+  $moduleDir = "$devDir/RDF-Pipeline";
+
   chdir("$moduleDir/t") or die "ERROR: Could not chdir('$moduleDir/t')\n";
   -e $wwwDir or die "ERROR: No WWW root: $wwwDir\n";
   -d $wwwDir or die "ERROR: WWW root is not a directory: $wwwDir\n";

@@ -8,7 +8,8 @@ use strict;
 @ARGV == 0 || @ARGV == 1 or die "Usage: $0 [nnnn] ...\nWhere nnnn is the test directory whose result-files should be accepted.\n";
 
 # my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
-my $moduleDir = $ENV{'RDF_PIPELINE_MODULE_DIR'} or &EnvNotSet('RDF_PIPELINE_MODULE_DIR');
+my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
+my $moduleDir = "$devDir/RDF-Pipeline";
 chdir("$moduleDir/t") or die "ERROR: Could not chdir('$moduleDir/t')\n";
 
 my @testDirs = @ARGV;
