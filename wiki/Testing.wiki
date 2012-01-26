@@ -71,8 +71,9 @@ The -c option ("clobber") tells run-test.perl to leave the $RDF_PIPELINE_WWW_DIR
 = Diagnosing a failed test =
 To help figure out why a test failed, cd into that test directory and do:
 {{{
-  diff -r -x lm -x ont expected-files result-files
+  diff -r -x lm -x ont -x '.*' expected-files result-files
 }}}
+See the code in $RDF_PIPELINE_MODULE_DIR/t/helpers/compare-results.perl (but you probably don't want to use the -q option).
 
 = Accepting test results =
 If you need to update the expected-files for one or more tests (e.g., because a code change has caused the result-files to no longer match the expected-files), then *once you are certain that the current result-files are correct*, you can do
@@ -91,4 +92,7 @@ The $RDF_PIPELINE_MODULE_DIR/t/helpers directory contains some additional helper
   * *filterlog.perl* -- A script for filtering Apache log files.
   * *stripdates.perl* -- A script for replacing datetimes with some datetime constants.
   * *copy-result-files.perl fromDir toDir* -- Deletes directory toDir and then copies directory fromDir to toDir, excluding hidden (`.*`) files.
-  * *compare-results.perl expected-files result-files* -- Recursively compares expected-files with result-files (excluding "lm" and "ont" subdirectories), returning 0 iff they are the same.
+  * *compare-results.perl expected-files result-files* -- Recursively compares expected-files with result-files (excluding "lm", "ont" and hidden subdirectories/files), returning 0 iff they are the same.
+
+= Interaction with subversion (svn) =
+Because subversion places hidden ".svn" files in directories that are under its control, these test scripts can cause some hassle in working with subversion.  To avoid copying the ".svn" files, the test scripts above delete all hidden files after copying a directory.  (This is done by helpers/copy-result-files.perl .)  However, this has the downside that when a directory was rightfully under subversion control, but it is replaced by one of these scripts, the ".svn" files will no longer be in it, causing subversion to complain like: *"
