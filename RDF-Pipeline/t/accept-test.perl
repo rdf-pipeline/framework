@@ -2,15 +2,21 @@
 
 # Accept the current result-files as correct, by copying them
 # to expected-files (after deleting the current expected files).
+# If the -svn option is specified, then also try to add the
+# test into subversion.
 
 use strict;
-
-@ARGV == 0 || @ARGV == 1 or die "Usage: $0 [nnnn] ...\nWhere nnnn is the test directory whose result-files should be accepted.\n";
 
 # my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
 my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
 my $moduleDir = "$devDir/RDF-Pipeline";
 chdir("$moduleDir/t") or die "ERROR: Could not chdir('$moduleDir/t')\n";
+
+my $svn = 0;	# -svn option
+if (@ARGV && $ARGV[0] eq "-svn") {
+	shift @ARGV;
+	$svn = 1;
+	}
 
 my @testDirs = @ARGV;
 if (!@testDirs) {
@@ -25,6 +31,12 @@ foreach my $dir (@testDirs) {
 	my $copyCmd = "helpers/copy-result-files.perl '$dir/result-files' '$dir/expected-files'";
 	# warn "copyCmd: $copyCmd\n";
 	!system($copyCmd) or die;
+	# Add the test to svn?
+	next if !$svn;
+	warn "Attempting to add $dir to subversion ...\n";
+	my $svnCmd = "cd '$devDir' ; svn add 'RDF-Pipeline/t/$dir'";
+	warn "$svnCmd\n";
+	!system($svnCmd) or die;
 	}
 
 exit 0;
