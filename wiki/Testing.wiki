@@ -99,7 +99,7 @@ The $RDF_PIPELINE_DEV_DIR/RDF-Pipeline/t/helpers directory contains some additio
     Use curl to invoke URL using the method specified (or GET, if no method is specified), saving the resulting headers and content to $RDF_PIPELINE_WWW_DIR/test/testout .  For example, "`pipeline-request HEAD http://localhost/node/foo`" will use curl to issue a HEAD request to http://localhost/node/foo .
   * *filterlog.perl* -- A script for filtering Apache log files.
   * *stripdates.perl* -- A script for replacing datetimes with some datetime constants.
-  * *copy-result-files.perl fromDir toDir* -- Deletes directory toDir and then copies directory fromDir to toDir, excluding hidden (`.*`) files.
+  * *copy-dir.perl sourceDir destDir* -- Recursively copies sourceDir to destDir, excluding hidden (`.*`) files.
   * *compare-results.perl expected-files result-files* -- Recursively compares expected-files with result-files (excluding "lm", "ont" and hidden subdirectories/files), returning 0 iff they are the same.
 
 = Subversion (svn) errors =
