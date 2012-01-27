@@ -31,7 +31,7 @@ mkdir("$wwwDir/test") or die;
 ############################################
 
 # Save the result-files, excluding unwanted files:
-!system("../helpers/copy-result-files.perl '$wwwDir' 'result-files'") or die;
+!system("../helpers/copy-dir.perl '$wwwDir' 'result-files'") or die;
 
 # The test passes (exit 0) iff the result-files match the expected-files,
 # excluding the "lm" and "ont" directories:
