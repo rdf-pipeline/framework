@@ -99,11 +99,13 @@ The $RDF_PIPELINE_DEV_DIR/RDF-Pipeline/t/helpers directory contains some additio
     Use curl to invoke URL using the method specified (or GET, if no method is specified), saving the resulting headers and content to $RDF_PIPELINE_WWW_DIR/test/testout .  For example, "`pipeline-request HEAD http://localhost/node/foo`" will use curl to issue a HEAD request to http://localhost/node/foo .
   * *filterlog.perl* -- A script for filtering Apache log files.
   * *stripdates.perl* -- A script for replacing datetimes with some datetime constants.
-  * *copy-dir.perl sourceDir destDir* -- Recursively copies sourceDir to destDir, excluding hidden (`.*`) files.
+  * *copy-dir.perl sourceDir destDir* -- Recursively copies sourceDir to destDir, excluding hidden (`.*`) files, overwriting existing files in destDir that are also in sourceDir.  It does not delete files that exist only in destDir.
   * *compare-results.perl expected-files result-files* -- Recursively compares expected-files with result-files (excluding "lm", "ont" and hidden subdirectories/files), returning 0 iff they are the same.
 
-= Subversion (svn) errors =
-Because subversion places hidden ".svn" files in directories that are under its control, these test scripts can cause some hassle in working with subversion.  To avoid copying the ".svn" files, the test scripts above delete all hidden files after copying a directory.  (This is done by helpers/copy-result-files.perl .)  However, this has the downside that when a directory was rightfully under subversion control, but it is replaced by one of these scripts, the ".svn" files will no longer be in it, causing subversion to complain like: *"svn: Failed to add directory 'www/test': an unversioned directory of the same name already exists"*.  To correct this problem, use the "`--force`" svn option, such as:
+= Subversion (svn) issues =
+Because subversion places hidden ".svn" files in directories that are under its control, these test scripts can cause some hassle in working with subversion.  To avoid copying the ".svn" files, the test scripts above use `helpers/copy-dir.perl`, which excludes hidden files.  
+
+ use the "`--force`" svn option, such as:
 {{{
 cd $RDF_PIPELINE_DEV_DIR
 svn update --force
