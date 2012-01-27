@@ -24,6 +24,7 @@ if (!@testDirs) {
 	@testDirs = grep { -d $_ } <0*>;
 	@testDirs or die "ERROR: No test directories found in '$moduleDir/t'\n";
 	@testDirs = ( $testDirs[@testDirs-1] );		# default to last one
+	warn "Accepting test $testDirs[0] ...\n";
 	}
 
 foreach my $dir (@testDirs) {
@@ -34,7 +35,7 @@ foreach my $dir (@testDirs) {
 	# Add the test to svn?
 	next if !$svn;
 	warn "Attempting to add $dir to subversion ...\n";
-	my $svnCmd = "cd '$devDir' ; svn add --force 'RDF-Pipeline/t/$dir'";
+	my $svnCmd = "cd '$devDir' ; svn add 'RDF-Pipeline/t/$dir'";
 	warn "$svnCmd\n";
 	!system($svnCmd) or die;
 	}

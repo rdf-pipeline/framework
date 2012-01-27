@@ -34,6 +34,7 @@ if (!@testDirs) {
 	@testDirs = sort grep { -d $_ } <0*>;
 	@testDirs or die "ERROR: No numbered test directories found in $moduleDir/t\n";
 	@testDirs = ( $testDirs[@testDirs-1] );		# The last one.
+	warn "Running $testDirs[0] ...\n";
 	}
 
 my $allPassed = 1;

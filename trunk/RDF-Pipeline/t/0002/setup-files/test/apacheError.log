@@ -1,0 +1,7 @@
+  WARNING: http://localhost/node/addone-updater is not a Node.  types: 
+UPDATING inSerName: /home/dbooth/rdf-pipeline/trunk/www/cache/addone-updater/serCache
+UPDATING http://localhost/node/max {} out: /home/dbooth/rdf-pipeline/trunk/www/node/max
+  WARNING: http://localhost/node/odds-updater is not a Node.  types: 
+UPDATING inSerName: /home/dbooth/rdf-pipeline/trunk/www/cache/odds-updater/serCache
+UPDATING http://localhost/node/odds {odds-updater} out: /home/dbooth/rdf-pipeline/trunk/www/cache/odds/out
+UPDATING http://localhost/node/addone {addone-updater} out: /home/dbooth/rdf-pipeline/trunk/www/cache/addone/out
