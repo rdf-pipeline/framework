@@ -36,7 +36,7 @@ my $chmodCmd = "chmod +x '$dir/test-script'";
 
 # Capture the initial WWW state as the setup-files:
 my $setupFiles = "$dir/setup-files";
-my $setupCmd = "helpers/copy-dir.perl '$wwwDir' '$setupFiles'";
+my $setupCmd = "helpers/copy-dir.perl -s '$wwwDir' '$setupFiles'";
 # warn "setupCmd: $setupCmd\n";
 !system($setupCmd) or die;
 
