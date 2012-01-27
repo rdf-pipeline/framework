@@ -19,7 +19,7 @@ my $toDir = shift @ARGV;
 # http://stackoverflow.com/questions/2193584/copy-folder-recursively-excluding-some-folders
 $fromDir .= "/" if $fromDir !~ m|\/\Z|;
 my $copyCmd = "rsync -a '--exclude=.*' '$fromDir' '$toDir'";
-warn "copyCmd: $copyCmd\n";
+# warn "copyCmd: $copyCmd\n";
 !system($copyCmd) or die;
 
 exit 0;

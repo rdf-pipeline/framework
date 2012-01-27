@@ -29,7 +29,7 @@ if (!@testDirs) {
 
 foreach my $dir (@testDirs) {
 	# Copy the result-files to expected-files
-	my $copyCmd = "helpers/copy-result-files.perl '$dir/result-files' '$dir/expected-files'";
+	my $copyCmd = "helpers/copy-dir.perl '$dir/result-files' '$dir/expected-files'";
 	# warn "copyCmd: $copyCmd\n";
 	!system($copyCmd) or die;
 	# Add the test to svn?
