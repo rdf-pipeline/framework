@@ -3,6 +3,10 @@
 # Copy RDF Pipeline result-files from one directory to another, 
 # excluding hidden files/directories.
 # The destination directory is first deleted.
+# As a special case, if the source directory is "/dev/null" (which
+# isn't actually a directory, but whatever), then the contents
+# of the destination directory are deleted, leaving an empty
+# directory.
 #
 # The -s ("subversion") option says to be svn-aware, which means that it if the
 # destination directory contains a hidden .svn subdirectory, then
@@ -25,7 +29,8 @@ if (@ARGV && $ARGV[0] eq "-s") {
 my $sourceDir = shift @ARGV;
 my $destDir = shift @ARGV;
 
--d $sourceDir or die "$0: Source directory does not exist: $sourceDir\n";
+-d $sourceDir || $sourceDir eq "/dev/null"
+	or die "$0: Source directory does not exist: $sourceDir\n";
 
 my $useSvn = $svnOption && -d "$destDir/.svn";
 
@@ -42,18 +47,20 @@ Otherwise, manually delete the destination directory first.\n"
 		}
 	my $rmCmd = "rm -r '$destDir'";
 	# warn "rmCmd: $rmCmd\n";
-	!system($rmCmd) or die "Command failed: $rmCmd";
+	!system($rmCmd) or die "Command failed: $rmCmd" if -e $destDir;
 	}
 
-# Copy $sourceDir to $destDir .
-# $sourceDir *must* have a trailing slash, so that rsync won't put it
-# underneath $destDir, as explained in Kaleb Pederson's comment here:
-# http://stackoverflow.com/questions/2193584/copy-folder-recursively-excluding-some-folders
-$sourceDir .= "/" if $sourceDir !~ m|\/\Z|;
-my $copyCmd = "rsync -a '--exclude=.*' '$sourceDir' '$destDir'";
-# warn "copyCmd: $copyCmd\n";
-warn "Copying ...\n" if $useSvn;
-!system($copyCmd) or die;
+if ($sourceDir ne "/dev/null") {
+	# Copy $sourceDir to $destDir .
+	# $sourceDir *must* have a trailing slash, so that rsync won't put it
+	# underneath $destDir, as explained in Kaleb Pederson's comment here:
+	# http://stackoverflow.com/questions/2193584/copy-folder-recursively-excluding-some-folders
+	$sourceDir .= "/" if $sourceDir !~ m|\/\Z|;
+	my $copyCmd = "rsync -a '--exclude=.*' '$sourceDir' '$destDir'";
+	# warn "copyCmd: $copyCmd\n";
+	warn "Copying ...\n" if $useSvn;
+	!system($copyCmd) or die;
+	}
 
 if ($useSvn) {
 	my $svnCmd = "svn add -q '$destDir'";
