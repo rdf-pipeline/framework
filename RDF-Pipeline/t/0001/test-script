@@ -18,9 +18,8 @@ my $testDir = shift @ARGV || die;
 my $wwwDir = shift @ARGV || die;
 chdir("$testDir") or die "ERROR: Could not chdir('$testDir')\n";
 
-# Clear out the old $wwwDir/test files:
-!system("rm -rf '$wwwDir/test'") or die if -e "$wwwDir/test";
-mkdir("$wwwDir/test") or die;
+# Clear out old $wwwDir/test files:
+!system("../helpers/copy-dir.perl -s '/dev/null' '$wwwDir/test'") or die;
 
 ############ CUSTOMIZE HERE ################
 # Invoke the URL, concatenating its output to $wwwDir/test/testout :
