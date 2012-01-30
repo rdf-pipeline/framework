@@ -10,7 +10,8 @@ use strict;
 # my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
 my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
 my $moduleDir = "$devDir/RDF-Pipeline";
-chdir("$moduleDir/t") or die "ERROR: Could not chdir('$moduleDir/t')\n";
+my $testsDir = "$moduleDir/t/tests";
+chdir($testsDir) or die "ERROR: Could not chdir('$testsDir')\n";
 
 my $svn = 0;	# -s option
 if (@ARGV && $ARGV[0] eq "-s") {
@@ -22,7 +23,7 @@ my @testDirs = @ARGV;
 if (!@testDirs) {
 	my $maxDir = 0;
 	@testDirs = grep { -d $_ } <0*>;
-	@testDirs or die "ERROR: No test directories found in '$moduleDir/t'\n";
+	@testDirs or die "ERROR: No test directories found in '$testsDir'\n";
 	@testDirs = ( $testDirs[@testDirs-1] );		# default to last one
 	warn "Accepting test $testDirs[0] ...\n";
 	}
@@ -33,7 +34,10 @@ foreach my $dir (@testDirs) {
 	# warn "copyCmd: $copyCmd\n";
 	!system($copyCmd) or die;
 	# Add the test to svn?
-	next if !$svn;
+	if (!$svn) {
+		warn "Remember to add $dir to subversion, or use: accept-test.perl -s '$dir'\n";
+		next;
+		}
 	warn "Attempting to add $dir to subversion ...\n";
 	my $svnCmd = "cd '$devDir' ; svn add 'RDF-Pipeline/t/$dir'";
 	warn "$svnCmd\n";

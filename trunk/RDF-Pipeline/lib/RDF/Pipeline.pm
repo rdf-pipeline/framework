@@ -282,9 +282,9 @@ $thisUri = $r->construct_url() if !$test;
 &Warn("  thisUri: $thisUri\n", 2);
 
 # Reload config file?
-my $cmtime = &MTime($configFile);
-my $omtime = &MTime($ontFile);
-my $imtime = &MTime($internalsFile);
+my $cmtime = &MTime($configFile) || die "ERROR: File not found: $configFile\n";
+my $omtime = &MTime($ontFile) || die "ERROR: File not found: $ontFile\n";
+my $imtime = &MTime($internalsFile) || die "ERROR: File not found: $internalsFile\n";
 if ($configLastModified != $cmtime
 		|| $ontLastModified != $omtime
 		|| $internalsLastModified != $imtime) {
@@ -1150,6 +1150,10 @@ sub RegisterWrappers
 {
 @_ == 1 || die;
 my ($nm) = @_;
+# TODO: Wrapper registration should be done differently so that the 
+# framework can verify that all required properties have been set for
+# a new node type, and issue a warning if not.  Somehow, the framework
+# needs to know what node types are being registered.
 &FileNodeRegister($nm);
 }
 
@@ -1295,6 +1299,7 @@ my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
 	      $atime,$mtime,$ctime,$blksize,$blocks)
 	= ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
 	      $atime,$mtime,$ctime,$blksize,$blocks);
+# warn "MTime($f): $mtime\n";
 return $mtime;
 }
 

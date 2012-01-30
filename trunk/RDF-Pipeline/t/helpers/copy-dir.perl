@@ -19,6 +19,8 @@
 
 use strict;
 
+my $noisy = 0;
+
 my $svnOption = 0;
 if (@ARGV && $ARGV[0] eq "-s") {
 	shift @ARGV;
@@ -36,7 +38,7 @@ my $useSvn = $svnOption && -d "$destDir/.svn";
 
 if ($useSvn) {
 	my $svnCmd = "svn rm -q --force '$destDir'";
-	warn "$svnCmd\n";
+	warn "$svnCmd\n" if $noisy;
 	!system($svnCmd) or die "Command failed: $svnCmd";
 	}
 else	{
@@ -58,13 +60,13 @@ if ($sourceDir ne "/dev/null") {
 	$sourceDir .= "/" if $sourceDir !~ m|\/\Z|;
 	my $copyCmd = "rsync -a '--exclude=.*' '$sourceDir' '$destDir'";
 	# warn "copyCmd: $copyCmd\n";
-	warn "Copying ...\n" if $useSvn;
+	warn "Copying '$sourceDir' to '$destDir'\n" if $useSvn && $noisy;
 	!system($copyCmd) or die;
 	}
 
 if ($useSvn) {
 	my $svnCmd = "svn add -q '$destDir'";
-	warn "$svnCmd\n";
+	warn "$svnCmd\n" if $noisy;
 	!system($svnCmd) or die "Command failed: $svnCmd";
 	}
 

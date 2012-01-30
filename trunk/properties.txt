@@ -21,7 +21,7 @@ dependsOnName	hash	Maps a dependsOn URI to the local name for that input.  I.e.,
 dependsOnSerName	hash	Maps a dependsOn URI to the local file name for that serialized input.  I.e., points to local "serCache".
 dependsOnNameUri	hash	Maps a dependsOn URI to the URI corresponding to dependsOnName. (Used as key for saving LM.)
 dependsOnSerNameUri	hash	Maps a dependsOn URI to the URI corresponding to dependsOnSerName. (Used as key for saving LM.)
-fOutExists	value	Subject is $nodeType.  Function that returns 1 iff the given out exists.
+fOutExists	value	Subject is $nodeType.  Function that returns 1 iff the given out or local cache exists.
 fSetNodeDefaults	value	Subject is $nodeType.  @@ Is this used? @@
 fSerializer	value	Subject is $nodeType.
 fDeserializer	value	Subject is $nodeType.
@@ -41,7 +41,7 @@ rdfs:subClassOf	hash	Inverse is subClass
 # Obsolete?
 # scope	value	URI prefix without trailing "/".  Env = scope + node type
 # scopePath	value	File path corresponding to scope (under DOCUMENT_ROOT)
-serOut	value	File name of serialized out (under DOCUMENT_ROOT)
+serOut	value	File name of serialized out (under DOCUMENT_ROOT).  Same as out if the node has no fSerializer.
 serOutUri	value	URI of serOut
 serCache	value	File name of cache of serialized out.
 stderr	value	File name of stderr from last update.
