@@ -13,9 +13,10 @@ my $url = shift @ARGV;
 my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
 my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
 my $moduleDir = "$devDir/RDF-Pipeline";
+my $testsDir = "$moduleDir/t/tests";
+chdir($testsDir) or die "ERROR: Could not chdir('$testsDir')\n";
 
 # Make the new test dir:
-chdir("$moduleDir/t") or die "ERROR: Could not chdir('$moduleDir/t')\n";
 my $maxDir = 0;
 map {m/\A\d+/; $maxDir = $& if $& > $maxDir; } grep { -d $_ } <0*>;
 my $dir = sprintf("%04d", $maxDir+1);

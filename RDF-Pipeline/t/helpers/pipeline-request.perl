@@ -19,6 +19,8 @@ my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
 my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
 my $moduleDir = "$devDir/RDF-Pipeline";
 # chdir("$moduleDir/t") or die "ERROR: Could not chdir('$moduleDir/t')\n";
+# my $testsDir = "$moduleDir/t/tests";
+# chdir($testsDir) or die "ERROR: Could not chdir('$testsDir')\n";
 
 ###### Configure these paths as needed:
 my $apacheError = "/var/log/apache2/error.log";

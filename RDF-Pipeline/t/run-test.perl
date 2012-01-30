@@ -18,10 +18,13 @@
 #		one, and you want the initial state of the next test to
 #		be the final state of this test.
 
+my $noisy = 0;
+
 my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
 my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
 my $moduleDir = "$devDir/RDF-Pipeline";
-chdir("$moduleDir/t") or die "ERROR: Could not chdir('$moduleDir/t')\n";
+my $testsDir = "$moduleDir/t/tests";
+chdir($testsDir) or die "ERROR: Could not chdir('$testsDir')\n";
 
 my $clobber = 0;
 if (@ARGV && $ARGV[0] eq "-c") {
@@ -32,7 +35,7 @@ if (@ARGV && $ARGV[0] eq "-c") {
 my @testDirs = @ARGV;
 if (!@testDirs) {
 	@testDirs = sort grep { -d $_ } <0*>;
-	@testDirs or die "ERROR: No numbered test directories found in $moduleDir/t\n";
+	@testDirs or die "ERROR: No numbered test directories found in $testsDir\n";
 	@testDirs = ( $testDirs[@testDirs-1] );		# The last one.
 	warn "Running $testDirs[0] ...\n";
 	}
@@ -56,27 +59,28 @@ foreach my $testDir (@testDirs) {
       die "ERROR: savedWwwDir already exists: $savedWwwDir\n"
 		if -e $savedWwwDir;
       $needToRestoreWwwRoot = 1;
-      my $saveCmd = "copy-dir.perl -s '$wwwDir' '$savedWwwDir'";
-      warn "saveCmd: $saveCmd\n";
+      my $saveCmd = "copy-dir.perl '$wwwDir' '$savedWwwDir'";
+      # warn "saveCmd: $saveCmd\n";
       !system($saveCmd) or die "ERROR: Failed to save wwwDir: $saveCmd\n";
       }
-    my $copyCmd = "copy-dir.perl -s '$setupFiles' '$wwwDir'";
-    warn "copyCmd: $copyCmd\n";
+    my $copyCmd = "copy-dir.perl '$setupFiles' '$wwwDir'";
+    # warn "copyCmd: $copyCmd\n";
     !system($copyCmd) or die "ERROR: Failed to copy setup-files: $copyCmd\n";
     }
 
   # Run the test-script.
   my $testCmd = "$testDir/test-script '$testDir' '$wwwDir'";
-  warn "testCmd: $testCmd\n";
+  warn "Running test: $testCmd\n" if -e "$testDir/.svn" && $noisy;
   my $status = system($testCmd);
   warn "Failed: $testCmd\n" if $status;
   $allPassed = 0 if $status;
 
   # Restore $wwwDir if necessary.
   if ($needToRestoreWwwRoot) {
-    my $restoreCmd = "copy-dir.perl -s '$savedWwwDir' '$wwwDir'";
-    warn "restoreCmd: $restoreCmd\n";
+    my $restoreCmd = "copy-dir.perl '$savedWwwDir' '$wwwDir'";
+    # warn "restoreCmd: $restoreCmd\n";
     !system($restoreCmd) or die "ERROR: Failed to restore wwwDir: $restoreCmd\n";
+    !system("rm -r '$savedWwwDir'") or die "ERROR: Failed to remove old savedWwwDir: $savedWwwDir\n";
     }
   }
 

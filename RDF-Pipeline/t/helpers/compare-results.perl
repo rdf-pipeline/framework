@@ -11,6 +11,13 @@ my $resultFiles = shift @ARGV || die;
 
 -d $expectedFiles or exit 1;
 -d $resultFiles or exit 1;
-exit 1 if system("diff -rq -x lm -x ont -x '.*' '$expectedFiles' '$resultFiles'");
+my $cmd = "diff -r -q -x lm -x ont -x '.*' '$expectedFiles' '$resultFiles'";
+if (system($cmd)) {
+	my $noisyCmd = $cmd;
+	$noisyCmd =~ s/ \-q / /;
+	warn "To view the differences, use:
+  $noisyCmd\n";
+	exit 1;
+	}
 exit 0;
 

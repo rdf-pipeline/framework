@@ -39,8 +39,13 @@ chdir("$testDir") or die "ERROR: Could not chdir('$testDir')\n";
 # Save the result-files, excluding unwanted files:
 !system("../helpers/copy-dir.perl -s '$wwwDir' 'result-files'") or die;
 
-# The test passes (exit 0) iff the result-files match the expected-files,
-# excluding the "lm" and "ont" directories:
+# The test fails (exit 1) if the result-files do not match the expected-files,
+# excluding the "lm" and "ont" directories and hidden files:
 exit 1 if system("../helpers/compare-results.perl expected-files result-files");
+
+# The test also fails if the result-files contain the word "error" or "died":
+exit 1 if !system("grep -r -m 1 -i '\\berror\\b' result-files");
+exit 1 if !system("grep -r -m 1 -i '\\bdied\\b' result-files");
+
 exit 0;
 
