@@ -37,7 +37,7 @@ my $chmodCmd = "chmod +x '$dir/test-script'";
 
 # Capture the initial WWW state as the setup-files:
 my $setupFiles = "$dir/setup-files";
-my $setupCmd = "helpers/copy-dir.perl -s '$wwwDir' '$setupFiles'";
+my $setupCmd = "$moduleDir/t/helpers/copy-dir.perl -s '$wwwDir' '$setupFiles'";
 # warn "setupCmd: $setupCmd\n";
 !system($setupCmd) or die;
 
@@ -45,7 +45,7 @@ print "Created test directory: $dir\n\n";
 
 print "Running test $dir , which should fail because
 expected-files have not yet been created ...\n";
-my $runCmd = "./run-test.perl '$dir'";
+my $runCmd = "$moduleDir/t/run-test.perl '$dir'";
 # warn "runCmd: $runCmd\n";
 system($runCmd);
 

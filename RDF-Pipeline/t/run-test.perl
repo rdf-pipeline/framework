@@ -59,11 +59,11 @@ foreach my $testDir (@testDirs) {
       die "ERROR: savedWwwDir already exists: $savedWwwDir\n"
 		if -e $savedWwwDir;
       $needToRestoreWwwRoot = 1;
-      my $saveCmd = "copy-dir.perl '$wwwDir' '$savedWwwDir'";
+      my $saveCmd = "$moduleDir/t/helpers/copy-dir.perl '$wwwDir' '$savedWwwDir'";
       # warn "saveCmd: $saveCmd\n";
       !system($saveCmd) or die "ERROR: Failed to save wwwDir: $saveCmd\n";
       }
-    my $copyCmd = "copy-dir.perl '$setupFiles' '$wwwDir'";
+    my $copyCmd = "$moduleDir/t/helpers/copy-dir.perl '$setupFiles' '$wwwDir'";
     # warn "copyCmd: $copyCmd\n";
     !system($copyCmd) or die "ERROR: Failed to copy setup-files: $copyCmd\n";
     }
@@ -77,7 +77,7 @@ foreach my $testDir (@testDirs) {
 
   # Restore $wwwDir if necessary.
   if ($needToRestoreWwwRoot) {
-    my $restoreCmd = "copy-dir.perl '$savedWwwDir' '$wwwDir'";
+    my $restoreCmd = "$moduleDir/t/helpers/copy-dir.perl '$savedWwwDir' '$wwwDir'";
     # warn "restoreCmd: $restoreCmd\n";
     !system($restoreCmd) or die "ERROR: Failed to restore wwwDir: $restoreCmd\n";
     !system("rm -r '$savedWwwDir'") or die "ERROR: Failed to remove old savedWwwDir: $savedWwwDir\n";

@@ -30,7 +30,7 @@ if (!@testDirs) {
 
 foreach my $dir (@testDirs) {
 	# Copy the result-files to expected-files
-	my $copyCmd = "helpers/copy-dir.perl -s '$dir/result-files' '$dir/expected-files'";
+	my $copyCmd = "$moduleDir/t/helpers/copy-dir.perl -s '$dir/result-files' '$dir/expected-files'";
 	# warn "copyCmd: $copyCmd\n";
 	!system($copyCmd) or die;
 	# Add the test to svn?
@@ -39,7 +39,7 @@ foreach my $dir (@testDirs) {
 		next;
 		}
 	warn "Attempting to add $dir to subversion ...\n";
-	my $svnCmd = "cd '$devDir' ; svn add 'RDF-Pipeline/t/$dir'";
+	my $svnCmd = "cd '$devDir' ; svn add 'RDF-Pipeline/t/tests/$dir'";
 	warn "$svnCmd\n";
 	!system($svnCmd) or die;
 	}
