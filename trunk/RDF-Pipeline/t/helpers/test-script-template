@@ -24,24 +24,26 @@ use strict;
 my $testDir = shift @ARGV || die;
 my $wwwDir = shift @ARGV || die;
 chdir("$testDir") or die "ERROR: Could not chdir('$testDir')\n";
+my $helpersDir = "../../helpers";
+-d $helpersDir || die "ERROR: Not a directory: $helpersDir\n";
 
 # Clear out old $wwwDir/test files:
-!system("../helpers/copy-dir.perl '/dev/null' '$wwwDir/test'") or die;
+!system("$helpersDir/copy-dir.perl '/dev/null' '$wwwDir/test'") or die;
 
 ############ CUSTOMIZE HERE ################
 # Invoke the URL, concatenating its output to $wwwDir/test/testout :
-!system("../helpers/pipeline-request.perl GET '$URL'") or die;
+!system("$helpersDir/pipeline-request.perl GET '$URL'") or die;
 #### You can invoke more URLs if you want:
-# !system("../helpers/pipeline-request.perl GET 'URL'") or die;
-# !system("../helpers/pipeline-request.perl GET 'URL'") or die;
+# !system("$helpersDir/pipeline-request.perl GET 'URL'") or die;
+# !system("$helpersDir/pipeline-request.perl GET 'URL'") or die;
 ############################################
 
 # Save the result-files, excluding unwanted files:
-!system("../helpers/copy-dir.perl -s '$wwwDir' 'result-files'") or die;
+!system("$helpersDir/copy-dir.perl -s '$wwwDir' 'result-files'") or die;
 
 # The test fails (exit 1) if the result-files do not match the expected-files,
 # excluding the "lm" and "ont" directories and hidden files:
-exit 1 if system("../helpers/compare-results.perl expected-files result-files");
+exit 1 if system("$helpersDir/compare-results.perl expected-files result-files");
 
 # The test also fails if the result-files contain the word "error" or "died":
 exit 1 if !system("grep -r -m 1 -i '\\berror\\b' result-files");
