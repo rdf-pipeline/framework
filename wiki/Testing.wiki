@@ -36,9 +36,9 @@ A test usually issues one or more HTTP requests against the Apache instance that
 </li>
 <li>Run the command:
   {{{
-  add-test.perl URL
+  add-test.perl URL [shortDescription]
   }}}
-where URL is the URL to be requested from the pipeline.  This will generate a new, numbered test directory containing:
+where URL is the URL to be requested from the pipeline, and shortDescription is a short bit of test to be appended to the generated test name.  This will generate a new, numbered test directory containing:
     * *setup-files* -- A snapshot of the current the $RDF_PIPELINE_WWW_DIR directory.  You can customize its content as appropriate, such as deleting files that are not needed in setting up for your test.
     * *test-script* -- Initial script that you can customize as needed for this test.
 After creating the above files/directories, add-test.perl will invoke run-test.perl to execute the test, which in turn will create the following directory:
