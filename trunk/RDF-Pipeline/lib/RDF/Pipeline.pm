@@ -412,7 +412,7 @@ if ($code == RC_OK && $newLM && $newLM ne $oldLM) {
 	# $ua->get($url, ':content_file'=>$filename) ?  See
 	# http://search.cpan.org/~gaas/libwww-perl-6.03/lib/LWP/UserAgent.pm
 	&MakeParentDirs( $inSerName );
-	&Warn("UPDATING inSerName: $inSerName\n", $DEBUG_UPDATES); 
+	&Warn("UPDATING $depUri inSerName: $inSerName of $thisUri\n", $DEBUG_UPDATES); 
 	$ua->save_content( $inSerName ) if $method ne 'HEAD';
 	&SaveLMs($inSerNameUri, $newLM, $newLMHeader, $newETagHeader);
 	}
@@ -444,7 +444,7 @@ my ($oldCacheLM) = &LookupLMs($depNameUri);
 my $fExists = $depTypeVHash->{fExists} or die;
 $oldCacheLM = "" if !&{$fExists}($depName);
 return if (!$depLM || $depLM eq $oldCacheLM);
-&Warn("UPDATING local cache: $depName (of $thisUri)\n", $DEBUG_UPDATES); 
+&Warn("UPDATING $depUri local cache: $depName of $thisUri\n", $DEBUG_UPDATES); 
 &{$fDeserializer}($depSerName, $depName);
 &SaveLMs($depNameUri, $depLM);
 }
@@ -538,7 +538,7 @@ if (!$serOutLM || !-e $serOut || ($newThisLM && $newThisLM ne $serOutLM)) {
   # my $acceptHeader = $r->headers_in->get('Accept') || "";
   # warn "acceptHeader: $acceptHeader\n";
   my $fSerialize = $thisVHash->{fSerialize} || die;
-  &Warn("UPDATING serOut: $serOut\n", $DEBUG_UPDATES); 
+  &Warn("UPDATING $thisUri serOut: $serOut\n", $DEBUG_UPDATES); 
   &{$fSerialize}($out, $serOut) or die;
   $serOutLM = $newThisLM;
   &SaveLMs($serOutUri, $serOutLM);
@@ -682,7 +682,7 @@ foreach my $depUri (sort keys %{$thisDependsOn}) {
   if ($knownFresh && !$isInput) {
     # Nothing to do, because we don't need $depUri's content.
     $newDepLM = $callerLM;
-    &Warn("Nothing to do: Caller known fresh and not an input/parameter.\n", $DEBUG_DETAILS);
+    &Warn("Known fresh depUri: $depUri\n", $DEBUG_DETAILS);
     }
   elsif (!$depType || !$isSameServer) {
     # Foreign node or non-node.
@@ -708,9 +708,12 @@ foreach my $depUri (sort keys %{$thisDependsOn}) {
     &Warn("FreshenOut $depUri returned newDepLM: $newDepLM\n", $DEBUG_DETAILS);
     }
   my $oldDepLM = $oldDepLMs->{$depUri} || "";
-  $thisIsStale = 1 if !$oldDepLM || ($newDepLM && $newDepLM ne $oldDepLM);
+  my $depChanged = !$oldDepLM || ($newDepLM && $newDepLM ne $oldDepLM);
+  $thisIsStale = 1 if $depChanged;
   $newDepLMs->{$depUri} = $newDepLM;
-  &Warn("Finished depUri: $depUri oldDepLM: $oldDepLM newDepLM: $newDepLM stale: $thisIsStale\n", $DEBUG_DETAILS);
+  my $status = $depChanged ? "UPDATED" : "NO CHANGE to";
+  &Warn("$status depUri $depUri of $thisUri\n", $DEBUG_UPDATES);
+  &Warn("... oldDepLM: $oldDepLM newDepLM: $newDepLM stale: $thisIsStale\n", $DEBUG_DETAILS);
   }
 &Warn("RequestLatestDependsOn(nm, $thisUri, $callerUri, $callerLM, $oldDepLMs) returning: $thisIsStale\n", $DEBUG_DETAILS);
 return( $thisIsStale, $newDepLMs )
