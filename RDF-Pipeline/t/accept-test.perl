@@ -33,10 +33,6 @@ foreach my $dir (@testDirs) {
 	my $copyCmd = "$moduleDir/t/helpers/copy-dir.perl -s '$dir/result-files' '$dir/expected-files'";
 	# warn "copyCmd: $copyCmd\n";
 	!system($copyCmd) or die;
-	# Delete result-files, which are no longer needed.
-	my $rmCmd = "$moduleDir/t/helpers/copy-dir.perl -s /dev/null '$dir/result-files'";
-	# warn "rmCmd: $rmCmd\n";
-	!system($rmCmd) or die;
 	# Add the test to svn?
 	if (!$svn) {
 		warn "Remember to add $dir to subversion, or use: accept-test.perl -s '$dir'\n";
