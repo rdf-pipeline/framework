@@ -82,10 +82,12 @@ use File::Path qw(make_path remove_tree);
 use WWW::Mechanize;
 
 # $debug levels:
-#	0	No debugging.  Warnings/errors only.
-#	1	Show what was updated.  This level should be good for testing.
-#	2	Show more detail of what happened.
-my $debug = 1;
+my $DEBUG_OFF = 0;	# No debug output.  Warnings/errors only.
+my $DEBUG_UPDATES = 1; 	# Show what was updated.  This level should be good for testing.
+my $DEBUG_REQUESTS = 2;	# Show updates plus requests.
+my $DEBUG_DETAILS = 3;	# Show requests plus more detail.
+my $debug = $DEBUG_REQUESTS;
+
 my $test;
 
 my $prefix = "http://purl.org/pipeline/ont#";	# Pipeline ont prefix
@@ -141,12 +143,12 @@ my $configLastModified = 0;
 my $ontLastModified = 0;
 my $internalsLastModified = 0;
 
-&Warn("="x30 . " START9 " . "="x30 . "\n", 2);
-&Warn("  " . `date`, 2);
-&Warn("  SERVER_NAME: $ENV{SERVER_NAME}\n", 2);
-&Warn("  DOCUMENT_ROOT: $ENV{DOCUMENT_ROOT}\n", 2);
+&Warn("="x30 . " START9 " . "="x30 . "\n", $DEBUG_DETAILS);
+&Warn("  " . `date`, $DEBUG_DETAILS);
+&Warn("  SERVER_NAME: $ENV{SERVER_NAME}\n", $DEBUG_DETAILS);
+&Warn("  DOCUMENT_ROOT: $ENV{DOCUMENT_ROOT}\n", $DEBUG_DETAILS);
 # my $hasHiResTime = &Time::HiRes::d_hires_stat()>0 ? "true" : "false";
-# &Warn("Has HiRes time: $hasHiResTime\n", 2);
+# &Warn("Has HiRes time: $hasHiResTime\n", $DEBUG_DETAILS);
 
 if (0)
 	{
@@ -171,13 +173,13 @@ if (0)
 	$sessionId ||= $session{_session_id};
 
 	&WriteFile($sessionIdFile, $sessionId) if $isNewSessionId;
-	&Warn("sessionId: $sessionId\n", 2);
+	&Warn("sessionId: $sessionId\n", $DEBUG_DETAILS);
 
 	  #...time passes...
 
 	$session{date} ||= `date`;
 	my $testShared = $session{date};
-	&Warn("testShared: $testShared\n", 2);
+	&Warn("testShared: $testShared\n", $DEBUG_DETAILS);
 	}
 
 use Getopt::Long;
@@ -185,7 +187,7 @@ use Getopt::Long;
 &GetOptions("test" => \$test,
 	"debug" => \$debug,
 	);
-&Warn("  ARGV: @ARGV\n", 2) if $test || $debug;
+&Warn("  ARGV: @ARGV\n", $DEBUG_DETAILS) if $test || $debug;
 
 &RegisterWrappers($nm);
 
@@ -213,7 +215,7 @@ if ($test)
 	my $path = "/" . $';
 	$r->uri($path);
 	my $code = &handler($r);
-	&Warn("\nHandler returned code: $code\n", 2);
+	&Warn("\nHandler returned code: $code\n", $DEBUG_DETAILS);
 	exit 0;
 	}
 
@@ -256,9 +258,9 @@ return $r;
 # been specified in /etc/apache2/sites-enabled/000-default .
 sub handler
 {
-# &Warn("-"x20 . "handler" . "-"x20 . "\n", 2);
+# &Warn("-"x20 . "handler" . "-"x20 . "\n", $DEBUG_DETAILS);
 my $ret = &RealHandler(@_);
-&Warn("RealHandler returned: $ret\n", 2);
+&Warn("RealHandler returned: $ret\n", $DEBUG_DETAILS);
 return $ret;
 }
 
@@ -268,18 +270,18 @@ sub RealHandler
 my $r = shift || die;
 # $debug = ($r && $r->uri =~ m/c\Z/);
 # $r->content_type('text/plain') if $debug && !$test;
-&Warn("RealHandler called: " . `date`, 2);
+&Warn("RealHandler called: " . `date`, $DEBUG_DETAILS);
 if (0 && $debug) {
-	&Warn("  Environment variables:\n", 2);
+	&Warn("  Environment variables:\n", $DEBUG_DETAILS);
 	foreach my $k (sort keys %ENV) {
-		&Warn("    $k = " . $ENV{$k} . "\n", 2);
+		&Warn("    $k = " . $ENV{$k} . "\n", $DEBUG_DETAILS);
 		}
-	&Warn("\n", 2);
+	&Warn("\n", $DEBUG_DETAILS);
 	}
 my $thisUri = $testUri;
 # construct_url omits the query params though
 $thisUri = $r->construct_url() if !$test; 
-&Warn("  thisUri: $thisUri\n", 2);
+&Warn("  thisUri: $thisUri\n", $DEBUG_DETAILS);
 
 # Reload config file?
 my $cmtime = &MTime($configFile) || die "ERROR: File not found: $configFile\n";
@@ -289,7 +291,7 @@ if ($configLastModified != $cmtime
 		|| $ontLastModified != $omtime
 		|| $internalsLastModified != $imtime) {
 	# Reload config file.
-	&Warn("  Reloading config file: $configFile\n", 2);
+	&Warn("  Reloading config file: $configFile\n", $DEBUG_DETAILS);
 	$configLastModified = $cmtime;
 	$ontLastModified = $omtime;
 	$internalsLastModified = $imtime;
@@ -300,27 +302,27 @@ if ($configLastModified != $cmtime
 			map { $hr->{$_}=1; } split(/\s+/, ($config{$_}||"")); 
 			($_, $hr)
 			} keys %config;
-		# &Warn("  configValues:\n", 2);
+		# &Warn("  configValues:\n", $DEBUG_DETAILS);
 		foreach my $sp (sort keys %configValues) {
 			last if !$debug;
 			my $hr = $configValues{$sp};
 			foreach my $v (sort keys %{$hr}) {
-				# &Warn("    $sp $v\n", 2);
+				# &Warn("    $sp $v\n", $DEBUG_DETAILS);
 				}
 			}
 		}
 	&LoadNodeMetadata($nm, $ontFile, $configFile);
 	&PrintNodeMetadata($nm) if $debug;
 
-	# &Warn("  Got here!\n", 2); 
+	# &Warn("  Got here!\n", $DEBUG_DETAILS); 
 	# return Apache2::Const::OK;
 	# %config || return Apache2::Const::SERVER_ERROR;
 	}
 
 my $thisVHash = $nm->{value}->{$thisUri} || {};
 my $subtype = $thisVHash->{nodeType} || "";
-&Warn("  WARNING: $thisUri is not a Node.  types: \n") if !$subtype;
-&Warn("  thisUri: $thisUri subtype: $subtype\n", 2);
+&Warn("NOTICE: $thisUri is not a Node.\n", $DEBUG_DETAILS) if !$subtype;
+&Warn("  thisUri: $thisUri subtype: $subtype\n", $DEBUG_DETAILS);
 # Allow non-node files in the www/node/ dir to be served normally:
 return Apache2::Const::DECLINED if !$subtype;
 # return Apache2::Const::NOT_FOUND if !$subtype;
@@ -342,7 +344,7 @@ sub ForeignSendHttpRequest
 {
 @_ == 5 or die;
 my ($nm, $method, $thisUri, $depUri, $depLM) = @_;
-&Warn("ForeignSendHttpRequest(nm, $method, $thisUri, $depUri, $depLM) called\n", 2);
+&Warn("ForeignSendHttpRequest(nm, $method, $thisUri, $depUri, $depLM) called\n", $DEBUG_DETAILS);
 # Send conditional GET, GRAB or HEAD to depUri with depUri*/serCacheLM
 # my $ua = LWP::UserAgent->new;
 my $ua = WWW::Mechanize->new();
@@ -371,15 +373,16 @@ my $req = HTTP::Request->new($httpMethod => $requestUri);
 $req || die;
 $req->header('If-Modified-Since' => $oldLMHeader) if $oldLMHeader;
 $req->header('If-None-Match' => $oldETagHeader) if $oldETagHeader;
-my $isConditional = $req->header('If-Modified-Since') ? "CONDITIONAL" : "";
+my $isConditional = $req->header('If-Modified-Since') ? "CONDITIONAL" : "Unconditional";
 my $reqString = $req->as_string;
-&Warn("  ForeignSendHttpRequest: Sending remote $isConditional $method Request from $thisUri to $depUri with ETag $oldETagHeader\n", 2);
+&Warn("ForeignSendHttpRequest: $isConditional $method from $thisUri to $depUri\n", $DEBUG_REQUESTS);
+&Warn("  ... with ETag $oldETagHeader\n", $DEBUG_DETAILS);
 &PrintLog("[[\n$reqString\n]]\n");
 ############# Sending the HTTP request ##############
 my $res = $ua->request($req) or die;
 my $code = $res->code;
 $code == RC_NOT_MODIFIED || $code == RC_OK or die "ERROR: Unexpected HTTP response code $code ";
-&Warn("  ForeignSendHttpRequest: $isConditional $method Request from $thisUri to $depUri returned $code\n", 2);
+&Warn("  ForeignSendHttpRequest: $isConditional $method Request from $thisUri to $depUri returned $code\n", $DEBUG_DETAILS);
 my $newLMHeader = $res->header('Last-Modified') || "";
 my $newETagHeader = $res->header('ETag') || "";
 my $newLM = &HeadersToLM($newLMHeader, $newETagHeader);
@@ -394,7 +397,7 @@ if ($code == RC_OK && $newLM && $newLM ne $oldLM) {
 	# $ua->get($url, ':content_file'=>$filename) ?  See
 	# http://search.cpan.org/~gaas/libwww-perl-6.03/lib/LWP/UserAgent.pm
 	&MakeParentDirs( $inSerName );
-	&Warn("UPDATING inSerName: $inSerName\n", 1); 
+	&Warn("UPDATING inSerName: $inSerName\n", $DEBUG_UPDATES); 
 	$ua->save_content( $inSerName ) if $method ne 'HEAD';
 	&SaveLMs($inSerNameUri, $newLM, $newLMHeader, $newETagHeader);
 	}
@@ -408,7 +411,8 @@ sub DeserializeToLocalCache
 {
 @_ == 4 or die;
 my ($nm, $thisUri, $depUri, $depLM) = @_;
-&Warn("DeserializeToLocalCache(nm, $thisUri, $depUri, $depLM) called\n", 2);
+&Warn("DeserializeToLocalCache $thisUri In: $depUri\n", $DEBUG_DETAILS);
+&Warn("  ... with depLM: $depLM\n", $DEBUG_DETAILS);
 my $thisHHash = $nm->{hash}->{$thisUri} || {};
 my $thisDepSerNameHash = $thisHHash->{dependsOnSerName} || {};
 my $depSerName = $thisDepSerNameHash->{$depUri};
@@ -425,7 +429,7 @@ my ($oldCacheLM) = &LookupLMs($depNameUri);
 my $fExists = $depTypeVHash->{fExists} or die;
 $oldCacheLM = "" if !&{$fExists}($depName);
 return if (!$depLM || $depLM eq $oldCacheLM);
-&Warn("UPDATING local cache: $depName\n", 1); 
+&Warn("UPDATING local cache: $depName (of $thisUri)\n", $DEBUG_UPDATES); 
 &{$fDeserializer}($depSerName, $depName);
 &SaveLMs($depNameUri, $depLM);
 }
@@ -437,7 +441,7 @@ sub HandleHttpEvent
 my ($nm, $r) = @_;
 # construct_url omits the query params
 my $thisUri = $r->construct_url(); 
-&Warn("HandleHttpEvent called: thisUri: $thisUri\n", 2);
+&Warn("HandleHttpEvent called: thisUri: $thisUri\n", $DEBUG_DETAILS);
 my $thisVHash = $nm->{value}->{$thisUri} || {};
 my $thisType = $thisVHash->{nodeType} || "";
 if (!$thisType) {
@@ -445,7 +449,7 @@ if (!$thisType) {
 	return Apache2::Const::SERVER_ERROR;
 	}
 my $args = $r->args() || "";
-&Warn("  Query string: $args\n", 2);
+&Warn("  Query string: $args\n", $DEBUG_DETAILS);
 my %args = &ParseQueryString($args);
 my $callerUri = $args{callerUri} || "";
 my $callerLM = $args{callerLM} || "";
@@ -454,7 +458,9 @@ return Apache2::Const::HTTP_METHOD_NOT_ALLOWED
   if $method ne "HEAD" && $method ne "GET" && $method ne "GRAB" 
 	&& $method ne "NOTIFY";
 # TODO: If $r has fresh content, then store it.
-&Warn("  HandleHttpEvent method: $method callerUri: $callerUri callerLM: $callerLM\n", 2);
+&Warn("HandleHttpEvent $method $thisUri From: $callerUri\n", $DEBUG_REQUESTS);
+&Warn("    ... callerLM: $callerLM\n", $DEBUG_DETAILS);
+# TODO: Issue #12: Make FreshenSerOut return the serOut that was just freshened.
 my $newThisLM = &FreshenSerOut($nm, $method, $thisUri, $callerUri, $callerLM);
 ####### Ready to generate the HTTP response. ########
 my $serOut = $thisVHash->{serOut} || die;
@@ -497,7 +503,8 @@ sub FreshenSerOut
 {
 @_ == 5 or die;
 my ($nm, $method, $thisUri, $callerUri, $callerLM) = @_;
-&Warn("FreshenSerOut(nm, $method, $thisUri, $callerUri, $callerLM) called\n", 2);
+&Warn("FreshenSerOut $method $thisUri From: $callerUri\n", $DEBUG_REQUESTS);
+&Warn("  ... callerLM: $callerLM\n", $DEBUG_DETAILS);
 my $thisVHash = $nm->{value}->{$thisUri} || die;
 my $thisType = $thisVHash->{nodeType} || die;
 my $out = $thisVHash->{out} || die;
@@ -505,9 +512,9 @@ my $serOut = $thisVHash->{serOut} || die;
 my $outUri = $thisVHash->{outUri} || die;
 my $serOutUri = $thisVHash->{serOutUri} || die;
 my $newThisLM = &FreshenOut($nm, 'GET', $thisUri, $callerUri, $callerLM);
-&Warn("  FreshenOut $thisUri returned newThisLM: $newThisLM\n", 2);
+&Warn("  FreshenSerOut $thisUri returned newThisLM: $newThisLM\n", $DEBUG_DETAILS);
 if ($method eq 'HEAD' || $method eq 'NOTIFY' || $outUri eq $serOutUri) {
-  &Warn("  FreshenSerOut: No serialization needed. Returning newThisLM: $newThisLM\n", 2);
+  &Warn("  FreshenSerOut: No serialization needed. Returning newThisLM: $newThisLM\n", $DEBUG_DETAILS);
   return $newThisLM;
   }
 # Need to update serOut?
@@ -521,12 +528,12 @@ if (!$serOutLM || !-e $serOut || ($newThisLM && $newThisLM ne $serOutLM)) {
   # my $acceptHeader = $r->headers_in->get('Accept') || "";
   # warn "acceptHeader: $acceptHeader\n";
   my $fSerialize = $thisVHash->{fSerialize} || die;
-  &Warn("UPDATING serOut: $serOut\n", 1); 
+  &Warn("UPDATING serOut: $serOut\n", $DEBUG_UPDATES); 
   &{$fSerialize}($out, $serOut) or die;
   $serOutLM = $newThisLM;
   &SaveLMs($serOutUri, $serOutLM);
   }
-&Warn("  FreshenSerOut: Returning serOutLM: $serOutLM\n", 2);
+&Warn("  FreshenSerOut: Returning serOutLM: $serOutLM\n", $DEBUG_DETAILS);
 return $serOutLM
 }
 
@@ -536,7 +543,8 @@ sub FreshenOut
 {
 @_ == 5 or die;
 my ($nm, $method, $thisUri, $callerUri, $callerLM) = @_;
-&Warn("FreshenOut(nm, $method, $thisUri, $callerUri, $callerLM) called\n", 2);
+&Warn("FreshenOut $method $thisUri From: $callerUri\n", $DEBUG_REQUESTS);
+&Warn("  ... callerLM: $callerLM\n", $DEBUG_DETAILS);
 my ($oldThisLM, %oldDepLMs) = &LookupLMs($thisUri);
 return $oldThisLM if $method eq "GRAB";
 my $thisVHash = $nm->{value}->{$thisUri};
@@ -564,7 +572,12 @@ die "ERROR: Node $thisUri is STUCK: Inputs but no updater. "
 my $fRunUpdater = $nm->{value}->{$thisType}->{fRunUpdater} or die;
 # If there is no updater then it is up to $fRunUpdater to generate
 # an LM for the static out.
-&Warn("UPDATING $thisUri {$thisUpdater} out: $out\n", 1); 
+if ($thisUpdater) {
+	&Warn("UPDATING $thisUri {$thisUpdater} out: $out\n", $DEBUG_UPDATES); 
+	}
+else	{
+	&Warn("Generating LM of static node: $thisUri\n", $DEBUG_UPDATES); 
+	}
 my $newThisLM = &{$fRunUpdater}($nm, $thisUri, $thisUpdater, $out, 
 	$thisInputs, $thisParameters, $oldThisLM, $callerUri, $callerLM);
 &Warn("WARNING: fRunUpdater on $thisUri $thisUpdater returned false LM") if !$newThisLM;
@@ -586,7 +599,8 @@ sub Notify
 {
 @_ == 4 or die;
 my ($nm, $thisUri, $callerUri, $callerLM) = @_;
-&Warn("Notify(nm, $thisUri, $callerUri, $callerLM) called\n", 2);
+&Warn("Notify $thisUri From: $callerUri\n", $DEBUG_REQUESTS);
+&Warn("  ... callerLM: $callerLM\n", $DEBUG_DETAILS);
 # Avoid unused var warning:
 ($nm, $thisUri, $callerUri, $callerLM) = 
 ($nm, $thisUri, $callerUri, $callerLM);
@@ -616,7 +630,7 @@ sub RequestLatestDependsOns
 {
 @_ == 5 or die;
 my ($nm, $thisUri, $callerUri, $callerLM, $oldDepLMs) = @_;
-&Warn("RequestLatestDependsOn(nm, $thisUri, $callerUri, $callerLM, $oldDepLMs) called\n", 2);
+&Warn("RequestLatestDependsOn(nm, $thisUri, $callerUri, $callerLM, $oldDepLMs) called\n", $DEBUG_DETAILS);
 # callerUri and callerLM are only used to avoid requesting the latest 
 # state from an input/parameter that is already known fresh, because 
 # it was the one that notified thisUri.
@@ -653,11 +667,11 @@ foreach my $depUri (sort keys %{$thisDependsOn}) {
 	&Warn("REMOVE AFTER TESTING!!!\n");
 	$isSameType = 1;
 	}
-  &Warn("  depUri: $depUri depType: $depType method: $method depLM: $depLM\n    isSameServer: $isSameServer isSameType: $isSameType knownFresh: $knownFresh isInput: $isInput\n", 2);
+  &Warn("  depUri: $depUri depType: $depType method: $method depLM: $depLM\n    isSameServer: $isSameServer isSameType: $isSameType knownFresh: $knownFresh isInput: $isInput\n", $DEBUG_DETAILS);
   if ($knownFresh && !$isInput) {
     # Nothing to do, because we don't need $depUri's content.
     $newDepLM = $callerLM;
-    &Warn("  Nothing to do: Caller known fresh and not an input/parameter.\n", 2);
+    &Warn("  Nothing to do: Caller known fresh and not an input/parameter.\n", $DEBUG_DETAILS);
     }
   elsif (!$depType || !$isSameServer) {
     # Foreign node or non-node.
@@ -672,19 +686,19 @@ foreach my $depUri (sort keys %{$thisDependsOn}) {
   elsif ($knownFresh) {
     # Nothing to do, because it's local and already known fresh.
     $newDepLM = $callerLM;
-    &Warn("  Nothing to do: Caller known fresh and local.\n", 2);
+    &Warn("  Nothing to do: Caller known fresh and local.\n", $DEBUG_DETAILS);
     }
   else {
     # Local: Same server and type, but not known fresh.  When local, GET==HEAD.
-    # &Warn("  Same server and type.\n", 2);
+    # &Warn("  Same server and type.\n", $DEBUG_DETAILS);
     $newDepLM = &FreshenOut($nm, 'GET', $depUri, "", "");
-    &Warn("  FreshenOut $thisUri returned newDepLM: $newDepLM\n", 2);
+    &Warn("  FreshenOut $thisUri returned newDepLM: $newDepLM\n", $DEBUG_DETAILS);
     }
   my $oldDepLM = $oldDepLMs->{$depUri} || "";
   $thisIsStale = 1 if !$oldDepLM || ($newDepLM && $newDepLM ne $oldDepLM);
   $newDepLMs->{$depUri} = $newDepLM;
   }
-&Warn("RequestLatestDependsOn(nm, $thisUri, $callerUri, $callerLM, $oldDepLMs) returning: $thisIsStale\n", 2);
+&Warn("RequestLatestDependsOn(nm, $thisUri, $callerUri, $callerLM, $oldDepLMs) returning: $thisIsStale\n", $DEBUG_DETAILS);
 return( $thisIsStale, $newDepLMs )
 }
 
@@ -698,7 +712,7 @@ my $nmv = $nm->{value};
 my $nml = $nm->{list};
 my $nmh = $nm->{hash};
 foreach my $k (sort keys %config) {
-	# &Warn("  LoadNodeMetadata key: $k\n", 2);
+	# &Warn("  LoadNodeMetadata key: $k\n", $DEBUG_DETAILS);
 	my ($s, $p) = split(/\s+/, $k) or die;
 	my $v = $config{$k};
 	die if !defined($v);
@@ -707,7 +721,7 @@ foreach my $k (sort keys %config) {
 	$nmv->{$s}->{$p} = $v;
 	$nml->{$s}->{$p} = \@vList;
 	$nmh->{$s}->{$p} = \%vHash;
-	# &Warn("  $s -> $p -> $v\n", 2);
+	# &Warn("  $s -> $p -> $v\n", $DEBUG_DETAILS);
 	}
 &PresetGenericDefaults($nm);
 # Run the initialization function to set defaults for each node type 
@@ -1119,7 +1133,7 @@ sub SaveLMs
 my ($thisUri, $thisLM, @depLMs) = @_;
 my $f = &UriToLmFile($thisUri);
 my $s = join("\n", "# $thisUri", $thisLM, @depLMs) . "\n";
-&Warn("  SaveLMs($thisUri, $s) to file: $f\n", 2);
+&Warn("  SaveLMs($thisUri, $s) to file: $f\n", $DEBUG_DETAILS);
 &WriteFile($f, $s);
 }
 
@@ -1184,7 +1198,7 @@ my ($nm, $thisUri, $updater, $out, $thisInputs, $thisParameters,
 	$oldThisLM, $callerUri, $callerLM) = @_;
 ($nm, $thisUri, $updater, $out, $thisInputs, $thisParameters, 
 	$oldThisLM, $callerUri, $callerLM) = @_;
-&Warn("  FileNodeRunUpdater(nm, $thisUri, $updater, $out, ...) called.\n", 2);
+&Warn("  FileNodeRunUpdater(nm, $thisUri, $updater, $out, ...) called.\n", $DEBUG_DETAILS);
 $updater = &NodeAbsPath($updater) if $updater;
 return &TimeToLM(&MTime($out)) if !$updater;
 # TODO: Move this warning to when the metadata is loaded?
@@ -1195,10 +1209,10 @@ if (!-x $updater) {
 # inputs and parameters.
 my $inputFiles = join(" ", map {quotemeta($_)} 
 	@{$nm->{list}->{$thisUri}->{inputNames}});
-&Warn("    inputFiles: $inputFiles\n", 2);
+&Warn("    inputFiles: $inputFiles\n", $DEBUG_DETAILS);
 my $parameterFiles = join(" ", map {quotemeta($_)} 
 	@{$nm->{list}->{$thisUri}->{parameterNames}});
-&Warn("    parameterFiles: $parameterFiles\n", 2);
+&Warn("    parameterFiles: $parameterFiles\n", $DEBUG_DETAILS);
 my $ipFiles = "$inputFiles $parameterFiles";
 my $stderr = $nm->{value}->{$thisUri}->{stderr};
 # Make sure parent dirs exist for $stderr and $out:
@@ -1213,14 +1227,14 @@ $useStdout = 1 if $updater && !$nm->{value}->{$thisUri}->{outOriginal};
 my $cmd = "( export $THIS_URI=$qThisUri ; $qUpdater $qOut $ipFiles > $qStderr 2>&1 )";
 $cmd =    "( export $THIS_URI=$qThisUri ; $qUpdater         $ipFiles > $qOut 2> $qStderr )"
 	if $useStdout;
-&Warn("    cmd: $cmd\n", 2);
+&Warn("    cmd: $cmd\n", $DEBUG_DETAILS);
 my $result = (system($cmd) >> 8);
 my $saveError = $?;
-&Warn("    FileNodeRunUpdater: Updater returned " . ($result ? "error code:" : "success:") . " $result.\n", 2);
+&Warn("    FileNodeRunUpdater: Updater returned " . ($result ? "error code:" : "success:") . " $result.\n", $DEBUG_DETAILS);
 if (-s $stderr) {
-	&Warn("FileNodeRunUpdater: Updater stderr" . ($useStdout ? "" : " and stdout") . ":\n[[\n", 2);
-	&Warn(&ReadFile("<$stderr"), 2);
-	&Warn("]]\n", 2);
+	&Warn("FileNodeRunUpdater: Updater stderr" . ($useStdout ? "" : " and stdout") . ":\n[[\n", $DEBUG_DETAILS);
+	&Warn(&ReadFile("<$stderr"), $DEBUG_DETAILS);
+	&Warn("]]\n", $DEBUG_DETAILS);
 	}
 # unlink $stderr;
 if ($result) {
@@ -1228,7 +1242,7 @@ if ($result) {
 	return "";
 	}
 my $newLM = &GenerateNewLM();
-&Warn("  FileNodeRunUpdater returning newLM: $newLM\n", 2);
+&Warn("  FileNodeRunUpdater returning newLM: $newLM\n", $DEBUG_DETAILS);
 return $newLM;
 }
 
@@ -1453,7 +1467,7 @@ my $baseServer = $& || "";
 $thisUri =~ m/\A[^\/]*/;
 my $thisServer = $& || "";
 my $isSame = ($baseServer eq $thisServer);
-# &Warn("IsSameServer($baseUri , $thisUri): $isSame\n", 2);
+# &Warn("IsSameServer($baseUri , $thisUri): $isSame\n", $DEBUG_DETAILS);
 return $isSame;
 }
 
