@@ -35,13 +35,16 @@ foreach my $dir (@testDirs) {
 	!system($copyCmd) or die;
 	# Add the test to svn?
 	if (!$svn) {
-		warn "Remember to add $dir to subversion, or use: accept-test.perl -s '$dir'\n";
+		warn "Remember to add $dir to subversion, or use: accept-test.perl -s '$dir'\n"
+			if !-e ".svn";
+		next;
+		}
+	if (-e ".svn") {
+		warn "Already in subversion: $dir\n";
 		next;
 		}
 	warn "Attempting to add $dir to subversion ...\n";
-	my $force = "";
-	$force = "--force" if -d "$dir/.svn";
-	my $svnCmd = "cd '$devDir' ; svn add $force 'RDF-Pipeline/t/tests/$dir'";
+	my $svnCmd = "cd '$devDir' ; svn add 'RDF-Pipeline/t/tests/$dir'";
 	warn "$svnCmd\n";
 	!system($svnCmd) or die;
 	}

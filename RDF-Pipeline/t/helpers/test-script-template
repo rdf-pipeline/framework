@@ -43,7 +43,7 @@ my $helpersDir = "../../helpers";
 
 # The test fails (exit 1) if the result-files do not match the expected-files,
 # excluding the "lm" and "ont" directories and hidden files:
-exit 1 if system("$helpersDir/compare-results.perl expected-files result-files");
+exit 1 if system("$helpersDir/compare-results.perl -q expected-files result-files");
 
 # The test also fails if the result-files contain the word "error" or "died":
 exit 1 if !system("grep -r -m 1 -i '\\berror\\b' result-files");

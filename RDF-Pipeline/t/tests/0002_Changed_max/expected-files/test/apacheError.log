@@ -1,0 +1,5 @@
+            UPDATING inSerName: /home/dbooth/rdf-pipeline/trunk/www/cache/addone-updater/serCache
+                Generating LM of static node: http://localhost/node/max
+                UPDATING inSerName: /home/dbooth/rdf-pipeline/trunk/www/cache/odds-updater/serCache
+            UPDATING http://localhost/node/odds {odds-updater} out: /home/dbooth/rdf-pipeline/trunk/www/cache/odds/out
+        UPDATING http://localhost/node/addone {addone-updater} out: /home/dbooth/rdf-pipeline/trunk/www/cache/addone/out

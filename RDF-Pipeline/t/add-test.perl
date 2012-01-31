@@ -6,9 +6,13 @@
 
 use strict;
 
-@ARGV == 1 or die "Usage: $0 URL
+@ARGV >= 1 or die "Usage: $0 URL [description]
 where URL is the RDF Pipeline test URL to invoke for the new test.\n";
 my $url = shift @ARGV;
+my $description = join("_", @ARGV) || "";
+$description =~ s/[^a-zA-Z\-\_0-9]//g;
+$description =~ s/\A[^a-zA-Z0-9]*//;
+$description =~ s/[^a-zA-Z0-9]*\Z//;
 
 my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
 my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
@@ -24,6 +28,7 @@ my $dir = sprintf("%04d", $maxDir+1);
   must be renamed to add another digit, and this test script 
   ( $0 ) must be 
   updated to generate another digit.\n";
+$dir .= "_$description" if $description;
 mkdir($dir) or die;
 
 # Generate an initial test-script, that can later be customized:
@@ -35,17 +40,10 @@ my $chmodCmd = "chmod +x '$dir/test-script'";
 # warn "chmodCmd: $chmodCmd\n";
 !system($chmodCmd) or die;
 
-# Capture the initial WWW state as the setup-files:
-my $setupFiles = "$dir/setup-files";
-my $setupCmd = "$moduleDir/t/helpers/copy-dir.perl -s '$wwwDir' '$setupFiles'";
-# warn "setupCmd: $setupCmd\n";
-!system($setupCmd) or die;
+warn "Created test: $dir\n\n";
 
-print "Created test directory: $dir\n\n";
-
-print "Running test $dir , which should fail because
-expected-files have not yet been created ...\n";
-my $runCmd = "$moduleDir/t/run-test.perl '$dir'";
+# Create setup-files and run the test (which will initially fail):
+my $runCmd = "$moduleDir/t/update-test-setup.perl '$dir'";
 # warn "runCmd: $runCmd\n";
 system($runCmd);
 
