@@ -49,20 +49,20 @@ foreach my $testDir (@testDirs) {
     next;
     }
 
+  ### Save the existing $wwwDir if necessary.
+  -e $wwwDir || mkdir($wwwDir) || die "ERROR: Failed to mkdir $wwwDir\n";
+  my $savedWwwDir = "$wwwDir-SAVE";
+  if (!$clobber) {
+    die "ERROR: savedWwwDir already exists: $savedWwwDir\n"
+		if -e $savedWwwDir;
+    my $saveCmd = "$moduleDir/t/helpers/copy-dir.perl '$wwwDir' '$savedWwwDir'";
+    # warn "saveCmd: $saveCmd\n";
+    !system($saveCmd) or die "ERROR: Failed to save wwwDir: $saveCmd\n";
+    }
+
   ### If there is a "setup-files" directory, then use it.
   my $setupFiles = "$testDir/setup-files";
-  my $needToRestoreWwwRoot = 0;
-  my $savedWwwDir = "$wwwDir-SAVE";
-
   if (-d $setupFiles) {
-    if (-e $wwwDir && !$clobber) {
-      die "ERROR: savedWwwDir already exists: $savedWwwDir\n"
-		if -e $savedWwwDir;
-      $needToRestoreWwwRoot = 1;
-      my $saveCmd = "$moduleDir/t/helpers/copy-dir.perl '$wwwDir' '$savedWwwDir'";
-      # warn "saveCmd: $saveCmd\n";
-      !system($saveCmd) or die "ERROR: Failed to save wwwDir: $saveCmd\n";
-      }
     my $copyCmd = "$moduleDir/t/helpers/copy-dir.perl '$setupFiles' '$wwwDir'";
     # warn "copyCmd: $copyCmd\n";
     !system($copyCmd) or die "ERROR: Failed to copy setup-files: $copyCmd\n";
@@ -76,7 +76,7 @@ foreach my $testDir (@testDirs) {
   $allPassed = 0 if $status;
 
   # Restore $wwwDir if necessary.
-  if ($needToRestoreWwwRoot) {
+  if (!$clobber) {
     my $restoreCmd = "$moduleDir/t/helpers/copy-dir.perl '$savedWwwDir' '$wwwDir'";
     # warn "restoreCmd: $restoreCmd\n";
     !system($restoreCmd) or die "ERROR: Failed to restore wwwDir: $restoreCmd\n";
