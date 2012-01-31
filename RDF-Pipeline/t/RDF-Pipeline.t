@@ -20,12 +20,13 @@ BEGIN {
   my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
   $moduleDir = "$devDir/RDF-Pipeline";
 
-  chdir("$moduleDir/t") or die "ERROR: Could not chdir('$moduleDir/t')\n";
+  my $testsDir = "$moduleDir/t/tests";
+  chdir($testsDir) or die "ERROR: Could not chdir('$testsDir')\n";
   -e $wwwDir or die "ERROR: No WWW root: $wwwDir\n";
   -d $wwwDir or die "ERROR: WWW root is not a directory: $wwwDir\n";
   @testDirs = sort grep { -d $_ } <0*>;
   $nTests = scalar(@testDirs);
-  $nTests or die "ERROR: No numbered test directories found in $moduleDir/t\n";
+  $nTests or die "ERROR: No numbered test directories found in $testsDir\n";
 
   ########## EnvNotSet #########
   sub EnvNotSet
@@ -47,7 +48,7 @@ use Test::More tests => $nTests;
 # This section is where our tests are run.
 
 foreach my $testDir (@testDirs) {
-    my $runCmd = "./run-test.perl '$testDir'";
+    my $runCmd = "$moduleDir/t/run-test.perl '$testDir'";
     # warn "runCmd: $runCmd\n";
     is(system($runCmd), 0, $runCmd);
     }
