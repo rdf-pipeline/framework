@@ -43,7 +43,9 @@ foreach my $dir (@testDirs) {
 		next;
 		}
 	warn "Attempting to add $dir to subversion ...\n";
-	my $svnCmd = "cd '$devDir' ; svn add 'RDF-Pipeline/t/tests/$dir'";
+	my $force = "";
+	$force = "--force" if -d "$dir/.svn";
+	my $svnCmd = "cd '$devDir' ; svn add $force 'RDF-Pipeline/t/tests/$dir'";
 	warn "$svnCmd\n";
 	!system($svnCmd) or die;
 	}
