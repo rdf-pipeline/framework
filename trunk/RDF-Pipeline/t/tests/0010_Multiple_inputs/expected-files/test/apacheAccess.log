@@ -1,0 +1,5 @@
+"HEAD /node/addone-updater?debugStackDepth=7 HTTP/1.1" 200
+"HEAD /node/mult-updater?debugStackDepth=9 HTTP/1.1" 200
+"GET /node/multiplier.txt?debugStackDepth=9 HTTP/1.1" 200
+"HEAD /node/odds-updater?debugStackDepth=11 HTTP/1.1" 200
+"GET /node/addone HTTP/1.1" 200

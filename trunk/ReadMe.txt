@@ -8,7 +8,49 @@ before I used code.google.com and had any formal bug tracker
 or issues list.  It is currently being used as a place for recording
 notes or things to do.
 
-1/25/11: Got testing working, so now it is easy to add and run tests.
+1/31/12: Thinking about how to do SPARQL Update templates, i.e.,
+how to parameterize a SPARQL Update by graph names.  A few ideas:
+
+1. Use special comments to indicate inputs and output:
+	# inputs: foo: bar: 
+	# output: fum:
+	PREFIX foo: <http://example/foo>
+	PREFIX bar: <http://example/bar>
+	PREFIX fum: <http://example/fum>
+
+2. Use special PREFIX declarations:
+	PREFIX input1: <foo:>
+	PREFIX input2: <bar:>
+	PREFIX output: <fum:>
+	PREFIX foo: <http://example/foo>
+	PREFIX bar: <http://example/bar>
+	PREFIX fum: <http://example/fum>
+
+3. Use pre-established PREFIXes:
+	PREFIX input1: <http://example/foo>
+	PREFIX input2: <http://example/bar>
+	PREFIX output: <http://example/fum>
+	PREFIX parameters: <http://example/allpar>
+	PREFIX thisUri: <http://example/anything>
+	PREFIX pipeline: <...pipeline definition...>
+
+This may be simplest.   Not sure what to do about parameters,
+though, because they're not supposed to be known to the node in advance.
+
+	...
+	GRAPH parameters: {
+		thisUri: p:parameter ?param .
+		...
+
+It may also be useful to be able to parameterize entire portions of
+a query, rather than just a graph or URI.
+
+4. Use relative URIs?
+
+5. See what Callimachus does for SPARQL templates:
+http://code.google.com/p/callimachus/wiki/ServicePatterns#Action_With_No_Side-Effects
+
+1/25/12: Got testing working, so now it is easy to add and run tests.
 Previously got caching working, though it has not yet been tested
 with a Node type that requires serialization.
 
