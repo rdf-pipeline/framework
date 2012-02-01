@@ -8,6 +8,26 @@ before I used code.google.com and had any formal bug tracker
 or issues list.  It is currently being used as a place for recording
 notes or things to do.
 
+2/1/12: In thinking about implementing ParliamentRdfNode, it occurred
+to me that we need a way to indicate the root location that will
+be used by that wrapper, for accessing the Parliament server
+on a particular host, because it will vary depending on the host.
+Perhaps something like this:
+[[
+# Root location (as local name) for ParliamentRdfNodes on host ":"
+# (which is @prefix defined as http://localhost/node/):
+p:ParliamentRdfNode p:root ( : <http://localhost:8080/parliament/> ) .
+# Or get it from an env var:
+p:ParliamentRdfNode p:root ( : "$PARLIAMENT_ROOT" ) .
+# Or via a config document:
+p:ParliamentRdfNode p:root ( : "@http://example/parliament-config.n3" ) .
+
+# Or maybe a configuration file should be supplied:
+p:ParliamentRdfNode p:config ( : <http://example/parliament-config.n3> ) .
+p:ParliamentRdfNode p:config ( : <relativeUri/parliament-config.n3> ) .
+<> owl:imports <...possibly relativeUri config file...> .
+]]
+
 1/31/12: Thinking about how to do SPARQL Update templates, i.e.,
 how to parameterize a SPARQL Update by graph names.  A few ideas:
 
@@ -36,6 +56,7 @@ how to parameterize a SPARQL Update by graph names.  A few ideas:
 
 This may be simplest.   Not sure what to do about parameters,
 though, because they're not supposed to be known to the node in advance.
+Maybe just have a graph called "parameters:", with all parameters merged.
 
 	...
 	GRAPH parameters: {
