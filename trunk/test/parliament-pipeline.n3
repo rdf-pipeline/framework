@@ -1,0 +1,25 @@
+# Test ParliamentRdfNode.
+
+@prefix p: <http://purl.org/pipeline/ont#> .
+@prefix : <http://localhost/node/> .
+
+# Root location (as local name) for ParliamentRdfNodes on server ":"
+# (which is defined above as http://localhost/node/):
+p:ParliamentRdfNode p:root ( : <http://localhost:8080/parliament/> ) .
+p:ParliamentRdfNode p:root ( : "$PARLIAMENT_ROOT" ) .
+
+# Or maybe a configuration file should be supplied:
+p:ParliamentRdfNode p:config ( : <http://example/parliament-config.n3> ) .
+p:ParliamentRdfNode p:config ( : <relativeUri/parliament-config.n3> ) .
+<> owl:imports <...possibly relativeUri config file...> .
+
+:one a p:ParliamentRdfNode .	# No updater
+
+:two a p:ParliamentRdfNode ;
+	p:inputs ( :one ) ;
+	p:updater "two-updater.sparql" .
+
+:three a p:ParliamentRdfNode ;
+	p:inputs ( :two ) ;
+	p:updater "three-updater.sparql" .
+
