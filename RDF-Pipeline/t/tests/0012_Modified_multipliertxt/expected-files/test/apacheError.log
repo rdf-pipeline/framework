@@ -1,0 +1,11 @@
+          NO CHANGE to depUri http://localhost/node/addone-updater of http://localhost/node/addone
+              NO CHANGE to depUri http://localhost/node/mult-updater of http://localhost/node/mult
+                UPDATING http://localhost/node/multiplier.txt inSerName: /home/dbooth/rdf-pipeline/trunk/www/cache/multiplier.txt/serCache of http://localhost/node/mult
+              UPDATED depUri http://localhost/node/multiplier.txt of http://localhost/node/mult
+                    Generating LM of static node: http://localhost/node/max
+                  NO CHANGE to depUri http://localhost/node/max of http://localhost/node/odds
+                  NO CHANGE to depUri http://localhost/node/odds-updater of http://localhost/node/odds
+              NO CHANGE to depUri http://localhost/node/odds of http://localhost/node/mult
+            UPDATING http://localhost/node/mult {mult-updater} out: /home/dbooth/rdf-pipeline/trunk/www/cache/mult/out
+          UPDATED depUri http://localhost/node/mult of http://localhost/node/addone
+        UPDATING http://localhost/node/addone {addone-updater} out: /home/dbooth/rdf-pipeline/trunk/www/cache/addone/out
