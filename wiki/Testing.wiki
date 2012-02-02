@@ -91,7 +91,9 @@ to delete the existing expected-files and copy the current result-files to the e
 The "`-s`" option will cause accept-test.perl to attempt to add the test to subversion.
 
 = Deleting a test = 
-Delete that particular subdirectory, e.g., 0003.
+You can delete a test by deleting its directory, e.g., 0003, however:
+  * It is helpful to keep the test numbers consecutive, because the Perl test framework reports test failures by number (counting from the first test).  Therefore it is safe to delete the highest numbered test, but instead of deleting an earlier test it is better to make it a no-op by modifying its "test-script" to immediately "exit 0;", so that it will always pass.
+  * If the directory has already been checked into subversion, then you will have to delete it through subversion, using an "svn rm DIR" command, where DIR is the directory relative to the subversion trunk.
 
 = Other helper scripts =
 The $RDF_PIPELINE_DEV_DIR/RDF-Pipeline/t/helpers directory contains some additional helper scripts that you may find useful.  They are used by the other test scripts in $RDF_PIPELINE_DEV_DIR/RDF-Pipeline/t , so be sure you check how they are used before modifying them.
