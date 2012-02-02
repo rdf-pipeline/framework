@@ -18,10 +18,6 @@ my $resultFiles = shift @ARGV || die;
 -d $resultFiles or exit 1;
 my $cmd = "diff -r -b $quiet -x lm -x ont -x '.*' '$expectedFiles' '$resultFiles'";
 if (system($cmd)) {
-	my $compare = $0;
-	$compare =~ s|\A.*\/||;
-	warn "To view the differences, use:
-  $compare $expectedFiles $resultFiles\n" if $quiet;
 	exit 1;
 	}
 exit 0;
