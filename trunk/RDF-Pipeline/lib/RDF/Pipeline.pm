@@ -92,7 +92,7 @@ my $debugStackDepth = 0;	# Used for indenting debug messages.
 
 my $test;
 
-my $prefix = "http://purl.org/pipeline/ont#";	# Pipeline ont prefix
+my $pipelinePrefix = "http://purl.org/pipeline/ont#";	# Pipeline ont prefix
 $ENV{DOCUMENT_ROOT} ||= "/home/dbooth/rdf-pipeline/trunk/www";	# Set if not set
 ### TODO: Set $baseUri properly.  Needs port?
 $ENV{SERVER_NAME} ||= "localhost";
@@ -137,7 +137,7 @@ my %configValues = ();		# Maps: "?s ?p" --> {v1 => 1, v2 => 1, ...}
 #    if ($hashRef->{$someValue}) { ... }
 #    # Hash valued (maps a key to a value):
 #    my $value = $hashRef->{$key};
-my $nm = {"value"=>{}, "list"=>{}, "hash"=>{}};
+my $nm;
 
 my %cachedResponse = ();	# Previous HTTP response to GET or HEAD.
 				# Key: "$thisUri $supplierUri"
@@ -187,8 +187,6 @@ use Getopt::Long;
 	"debug" => \$debug,
 	);
 &Warn("ARGV: @ARGV\n", $DEBUG_DETAILS) if $test;
-
-&RegisterWrappers($nm);
 
 my $testUri = shift @ARGV || "http://localhost/chain";
 my $testArgs = "";
@@ -300,6 +298,9 @@ my $imtime = &MTime($internalsFile) || die "ERROR: File not found: $internalsFil
 if ($configLastModified != $cmtime
 		|| $ontLastModified != $omtime
 		|| $internalsLastModified != $imtime) {
+	# Initialize node metadata:
+	$nm = {"value"=>{}, "list"=>{}, "hash"=>{}};
+	&RegisterWrappers($nm);
 	# Reload config file.
 	&Warn("Reloading config file: $configFile\n", $DEBUG_DETAILS);
 	$configLastModified = $cmtime;
@@ -1036,7 +1037,7 @@ return %args;
 ################### CheatLoadN3 #####################
 # Not proper n3 parsing, but good enough for this purpose.
 # Returns a hash map that maps: "$s $p" --> $o
-# Global $prefix is also stripped off from terms.
+# Global $pipelinePrefix is also stripped off from terms.
 # Example: "http://localhost/a out" --> "c/cp-out.txt"
 sub CheatLoadN3
 {
@@ -1070,7 +1071,7 @@ my $nTriples = scalar @triples;
 my %config = ();
 foreach my $t (@triples) {
 	# Strip ont prefix from terms:
-	$t = join(" ", map { s/\A$prefix([a-zA-Z])/$1/;	$_ }
+	$t = join(" ", map { s/\A$pipelinePrefix([a-zA-Z])/$1/;	$_ }
 		split(/\s+/, $t));
 	# Convert rdfs: namespace to "rdfs:" prefix:
 	$t = join(" ", map { s/\A$rdfsPrefix([a-zA-Z])/rdfs:$1/;	$_ }
@@ -1242,6 +1243,8 @@ my $qOut = quotemeta($out);
 my $qUpdater = quotemeta($updater);
 my $qStderr = quotemeta($stderr);
 my $useStdout = 0;
+my $outOriginal = $nm->{value}->{$thisUri}->{outOriginal} || "";
+&Warn("outOriginal: $outOriginal\n", $DEBUG_DETAILS);
 $useStdout = 1 if $updater && !$nm->{value}->{$thisUri}->{outOriginal};
 my $cmd = "( export $THIS_URI=$qThisUri ; $qUpdater $qOut $ipFiles > $qStderr 2>&1 )";
 $cmd =    "( export $THIS_URI=$qThisUri ; $qUpdater         $ipFiles > $qOut 2> $qStderr )"

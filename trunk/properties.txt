@@ -38,6 +38,7 @@ outputs	hash	URIs of this node's outputs.  Derived from inputs & parameters.
 parameterNames list	Local parameter names for this node.
 parameters	list/hash	URIs of this node's parameters.
 rdfs:subClassOf	hash	Inverse is subClass
+nodeHost	hash	Subject is $nodeType.  Maps the server prefix (such as "http://localhost/") of node URIs of that $nodeType to the root location (as local name) of the server that implements the wrapper for for that $nodeType.  Analogous to $DOCUMENT_ROOT.  
 # Obsolete?
 # scope	value	URI prefix without trailing "/".  Env = scope + node type
 # scopePath	value	File path corresponding to scope (under DOCUMENT_ROOT)
