@@ -16,7 +16,6 @@ use strict;
 use warnings;
 
 require Exporter;
-
 our @ISA = qw(Exporter);
 
 # Items to export into callers namespace by default. Note: do not export
@@ -27,21 +26,16 @@ our @ISA = qw(Exporter);
 # If you do not need this, moving things directly into @EXPORT or @EXPORT_OK
 # will save memory.
 our %EXPORT_TAGS = ( 'all' => [ qw(
-	
 ) ] );
 
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
 our @EXPORT = qw(
-	
 );
 
 our $VERSION = '0.01';
 
-
-# Preloaded methods go here.
-
-#file:MyApache2/Chain.pm
+#file:RDF-Pipeline/lib/RDF/Pipeline.pm
 #----------------------
 # Apache2 uses multiple threads and a pool of PerlInterpreters.
 # Code below that is outside of any function will be executed once
@@ -81,6 +75,7 @@ use Time::HiRes ();
 use File::Path qw(make_path remove_tree);
 use WWW::Mechanize;
 
+##################  Debugging and testing ##################
 # $debug verbosity:
 my $DEBUG_OFF = 0;	# No debug output.  Warnings/errors only.
 my $DEBUG_UPDATES = 1; 	# Show what was updated.  This verbosity should be good for testing.
@@ -92,6 +87,7 @@ my $debugStackDepth = 0;	# Used for indenting debug messages.
 
 my $test;
 
+##################  Constants for this server  ##################
 my $pipelinePrefix = "http://purl.org/pipeline/ont#";	# Pipeline ont prefix
 $ENV{DOCUMENT_ROOT} ||= "/home/dbooth/rdf-pipeline/trunk/www";	# Set if not set
 ### TODO: Set $baseUri properly.  Needs port?
@@ -114,6 +110,10 @@ my $subClassOf = "rdfs:subClassOf";
 my $configFile = "$nodeBasePath/pipeline.n3";
 my $ontFile = "$basePath/ont/ont.n3";
 my $internalsFile = "$basePath/ont/internals.n3";
+
+my $configLastModified = 0;
+my $ontLastModified = 0;
+my $internalsLastModified = 0;
 
 my $logFile = "/tmp/rdf-pipeline-log.txt";
 # unlink $logFile || die;
@@ -139,15 +139,9 @@ my %configValues = ();		# Maps: "?s ?p" --> {v1 => 1, v2 => 1, ...}
 #    my $value = $hashRef->{$key};
 my $nm;
 
-my %cachedResponse = ();	# Previous HTTP response to GET or HEAD.
-				# Key: "$thisUri $supplierUri"
-my $configLastModified = 0;
-my $ontLastModified = 0;
-my $internalsLastModified = 0;
-
-&Warn("*"x10 . " NEW APACHE THREAD INSTANCE " . "*"x10 . "\n", $DEBUG_DETAILS);
-# my $hasHiResTime = &Time::HiRes::d_hires_stat()>0 ? "true" : "false";
-# &Warn("Has HiRes time: $hasHiResTime\n", $DEBUG_DETAILS);
+&Warn("********** NEW APACHE THREAD INSTANCE **********\n", $DEBUG_DETAILS);
+my $hasHiResTime = &Time::HiRes::d_hires_stat()>0;
+$hasHiResTime || die;
 
 if (0)
 	{
@@ -219,36 +213,6 @@ if ($test)
 #######################################################################
 ###################### Functions start here ###########################
 #######################################################################
-
-############### MakeFakeRequestRec ###############
-# I started writing this, but abandoned it because I'm not sure it is needed.
-# Its only purpose was to allow simple testing from the command line, but
-# I think it may be easier to set up a test harness and to all testing
-# through Apache.
-sub MakeFakeRequestReq
-{
-# Fake a RequestRec object.
-# This did NOT work:
-# my $r = Apache2::RequestRec->Apache2::RequestRec::new(undef); # Will this work?
-# See: http://www.perlmonks.org/?node_id=667221
-my $r = Test::MockObject->new();
-$r->mock( pool => sub { return APR::Pool->new; } );
-my @setterGetters = qw( uri content_type construct_url args
-	set_content_length set_last_modified method header_only
-	meets_conditions sendfile headers_in headers_out internal_redirect );
-foreach my $sg (@setterGetters) {
-	$r->mock( $sg => sub { my $r=shift; return @_ ? $r->{$sg}=shift : $r->{$sg}; } );
-	}
-my $hi = Test::MockObject->new();
-$hi->mock( set => sub { my $r=shift; return @_ ? $r->{set}=shift : $r->{set}; } );
-$hi->mock( get => sub { my $r=shift; return @_ ? $r->{get}=shift : $r->{get}; } );
-$r->headers_in($hi);
-my $ho = Test::MockObject->new();
-$ho->mock( set => sub { my $r=shift; return @_ ? $r->{set}=shift : $r->{set}; } );
-$ho->mock( get => sub { my $r=shift; return @_ ? $r->{get}=shift : $r->{get}; } );
-$r->headers_out($ho);
-return $r;
-}
 
 ##################### handler #######################
 # handler will be called by apache2 to handle any request that has
@@ -976,7 +940,7 @@ die;
 # Given a list of classes (with rdfs:subClassOf relations in $nmv, $nml, $nmh), 
 # return the ones that are not a 
 # superclass of any of them.  The list of classes is expected to
-# be complete, e.g., for if you have:
+# be complete, e.g., if you have:
 #	:a rdfs:subClassOf :b .
 #	:b rdfs:subClassOf :c .
 # then if :a is in the given list of classes then :b (and :c) must be also.
@@ -1035,7 +999,7 @@ return %args;
 }
 
 ################### CheatLoadN3 #####################
-# Not proper n3 parsing, but good enough for this purpose.
+# Not proper n3 parsing, but good enough for simple POC.
 # Returns a hash map that maps: "$s $p" --> $o
 # Global $pipelinePrefix is also stripped off from terms.
 # Example: "http://localhost/a out" --> "c/cp-out.txt"
@@ -1127,18 +1091,11 @@ return $all;
 sub UriToLmFile
 {
 my $thisUri = shift;
+# Use cached LM file path if available:
 my $lmFile = $UriToLmFile::lmFile{$thisUri};
 if (!$lmFile) {
-	$lmFile = &UriToPath($thisUri);
-	### Commented out the true branch of this "if", to
-	### put them all in $basePath/lm/
-	if (0 && $lmFile && $lmFile =~ m|\A$basePathPattern\/cache\/|) {
-		$lmFile .= "LM";
-		}
-	else	{
-		my $t = uri_escape($thisUri);
-		$lmFile = "$basePath/lm/$t";
-		}
+	my $t = uri_escape($thisUri);
+	$lmFile = "$basePath/lm/$t";
 	$UriToLmFile::lmFile{$thisUri} = $lmFile;
 	}
 return $lmFile;
@@ -1341,15 +1298,11 @@ return $mtime;
 
 ############## QuickName ##############
 # Generate a relative filename based on the given URI.
-#### TODO:  This is a quick and dirty POC hack that makes the
-#### filenames easier to read, for debugging purposes.  
-#### Production code should url-encode the URI into the filename.
 sub QuickName
 {
 my $t = shift;
-# $t = uri_escape($t);
-$t =~ s|\A.*\/||;	# Chop off all but the last part of the path
-$t =~ s/[^a-zA-Z0-9\.\-\_]/_/g;	# Change any bad chars to _
+$t =~ s|$nodeBaseUriPattern\/||;	# Simplify if it's local
+$t = uri_escape($t);
 return $t;
 }
 
