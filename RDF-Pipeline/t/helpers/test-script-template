@@ -46,7 +46,7 @@ my $testUrl = '$URL';
 if (system("$helpersDir/compare-results.perl -q expected-files '$wwwDir'")) {
         warn "To view the differences, do:
   cd $testDir
-  compare-results.perl expected-files '$wwwDir'\n" if $quiet;
+  compare-results.perl expected-files '$wwwDir'\n";
 	exit 1;
 	}
 

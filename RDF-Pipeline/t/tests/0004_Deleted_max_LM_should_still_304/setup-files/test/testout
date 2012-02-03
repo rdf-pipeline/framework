@@ -4,7 +4,7 @@ Server: Apache/2.2.14 (Ubuntu)
 Content-Length: 11
 Content-Location: http://localhost/cache/addone/out
 Last-Modified: Wed, 18 Jan 2012 01:30:56 GMT
-ETag: "1326850256.504565000001"
+ETag: "LM1326850256.504565000001"
 Vary: Accept-Encoding
 Content-Type: text/plain
 
