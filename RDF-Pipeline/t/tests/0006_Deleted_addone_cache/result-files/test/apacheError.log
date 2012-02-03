@@ -1,6 +1,0 @@
-          NO CHANGE to depUri http://localhost/node/addone-updater of http://localhost/node/addone
-                Generating LM of static node: http://localhost/node/max
-              NO CHANGE to depUri http://localhost/node/max of http://localhost/node/odds
-              NO CHANGE to depUri http://localhost/node/odds-updater of http://localhost/node/odds
-          NO CHANGE to depUri http://localhost/node/odds of http://localhost/node/addone
-        UPDATING http://localhost/node/addone {addone-updater} out: /home/dbooth/rdf-pipeline/trunk/www/cache/addone/out

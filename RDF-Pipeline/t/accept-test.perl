@@ -1,6 +1,6 @@
 #! /usr/bin/perl -w
 
-# Accept the current result-files as correct, by copying them
+# Accept the current $wwwDir files as correct, by copying them
 # to expected-files (after deleting the current expected files).
 # If the -s option is specified, then also try to add the
 # test into subversion.
@@ -29,8 +29,8 @@ if (!@testDirs) {
 	}
 
 foreach my $dir (@testDirs) {
-	# Copy the result-files to expected-files
-	my $copyCmd = "$moduleDir/t/helpers/copy-dir.perl -s '$dir/result-files' '$dir/expected-files'";
+	# Copy the $wwwDir files to expected-files
+	my $copyCmd = "$moduleDir/t/helpers/copy-dir.perl -s '$wwwDir' '$dir/expected-files'";
 	# warn "copyCmd: $copyCmd\n";
 	!system($copyCmd) or die;
 	# Add the test to svn?

@@ -32,27 +32,27 @@ my $helpersDir = "../../helpers";
 
 ############ CUSTOMIZE HERE ################
 # Invoke the URL, concatenating its output to $wwwDir/test/testout :
-!system("$helpersDir/pipeline-request.perl GET '$URL'") or die;
+my $testUrl = '$URL';
+!system("$helpersDir/pipeline-request.perl GET '$testUrl'") or die;
 #### You can invoke more URLs if you want:
-# !system("$helpersDir/pipeline-request.perl GET 'URL'") or die;
-# !system("$helpersDir/pipeline-request.perl GET 'URL'") or die;
+# $testUrl = 'PUT_YOUR_URL_HERE';
+# !system("$helpersDir/pipeline-request.perl GET '$testUrl'") or die;
+# $testUrl = 'PUT_YOUR_URL_HERE';
+# !system("$helpersDir/pipeline-request.perl GET '$testUrl'") or die;
 ############################################
 
-# Save the result-files, excluding unwanted files:
-!system("$helpersDir/copy-dir.perl -s '$wwwDir' 'result-files'") or die;
-
-# The test fails (exit 1) if the result-files do not match the expected-files,
+# The test fails (exit 1) if the result files do not match the expected-files,
 # excluding the "lm" and "ont" directories and hidden files:
-if (system("$helpersDir/compare-results.perl -q expected-files result-files")) {
+if (system("$helpersDir/compare-results.perl -q expected-files '$wwwDir'")) {
         warn "To view the differences, do:
   cd $testDir
-  compare-results.perl expected-files result-files\n" if $quiet;
+  compare-results.perl expected-files '$wwwDir'\n" if $quiet;
 	exit 1;
 	}
 
-# The test also fails if the result-files contain the word "error" or "died":
-exit 1 if !system("grep -r -m 1 -i '\\berror\\b' result-files");
-exit 1 if !system("grep -r -m 1 -i '\\bdied\\b' result-files");
+# The test also fails if the result files contain the word "error" or "died":
+exit 1 if !system("grep -r -m 1 -i '\\berror\\b' '$wwwDir'");
+exit 1 if !system("grep -r -m 1 -i '\\bdied\\b' '$wwwDir'");
 
 exit 0;
 

@@ -11,7 +11,8 @@
 # to the highest numbered test directory if none is specified.  
 #
 # Options:
-#	-c	Clobber the existing $RDF_PIPELINE_WWW_DIR files and leave
+#	-c	[This option is no longer needed, as it is now the default.]
+#		Clobber the existing $RDF_PIPELINE_WWW_DIR files and leave
 #		them in whatever state the test leaves them in, instead
 #		restoring them from a saved copy after the test.  This
 #		is useful when you plan to add another test after this
@@ -26,7 +27,7 @@ my $moduleDir = "$devDir/RDF-Pipeline";
 my $testsDir = "$moduleDir/t/tests";
 chdir($testsDir) or die "ERROR: Could not chdir('$testsDir')\n";
 
-my $clobber = 0;
+my $clobber = 1;
 if (@ARGV && $ARGV[0] eq "-c") {
 	shift @ARGV;
 	$clobber = 1;
