@@ -11,8 +11,8 @@ while (<>) {
 	# Last-Modified: Wed, 18 Jan 2012 01:30:56 GMT
 	s/^Last-Modified:.*/Last-Modified: Wed, 18 Jan 2012 01:30:56 GMT/;
 
-	# ETag: "1326850256.504565000001"
-	s/^ETag:.*/ETag: "1326850256.504565000001"/;
+	# ETag: "LM1326850256.504565000001"
+	s/^ETag:.*/ETag: "LM1326850256.504565000001"/;
 
 	print;
 	}
