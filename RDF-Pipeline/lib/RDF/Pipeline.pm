@@ -309,7 +309,7 @@ return &HandleHttpEvent($nm, $r, $thisUri, %args);
 # the stored LM of $thisUri's local serNameUri LM for $depLM.
 # The reason for checking $depLM here instead of checking it in
 # &RequestLatestDependsOns(...) is because the check requires a call to
-# &LookupLMs($inSerNameUri), which needs to be done here anyway
+# &LookupLMHeaders($inSerNameUri), which needs to be done here anyway
 # in order to look up the old LM headers.
 # Also remember that $depUri is not necessarily a node: it may be 
 # an arbitrary URI source.
@@ -338,7 +338,7 @@ elsif ($method eq "NOTIFY") {
 # Set If-Modified-Since and If-None-Match headers in request, if available.
 my $inSerName = $nm->{hash}->{$thisUri}->{dependsOnSerName}->{$depUri} || die;
 my $inSerNameUri = $nm->{hash}->{$thisUri}->{dependsOnSerNameUri}->{$depUri} || die;
-my ($oldLM, $oldLMHeader, $oldETagHeader) = &LookupLMs($inSerNameUri);
+my ($oldLM, $oldLMHeader, $oldETagHeader) = &LookupLMHeaders($inSerNameUri);
 $oldLM ||= "";
 $oldLMHeader ||= "";
 $oldETagHeader ||= "";
@@ -349,6 +349,7 @@ $queryParams .= "&debugStackDepth=" . ($debugStackDepth + &CallStackDepth())
 	if $debug;
 $queryParams =~ s/\A\&/\?/ if $queryParams;
 $requestUri .= $queryParams;
+&Warn("ForeignSendHttpRequest: Setting req L-MH: $oldLMHeader If-N-M: $oldETagHeader\n", $DEBUG_REQUESTS);
 my $req = HTTP::Request->new($httpMethod => $requestUri);
 $req || die;
 $req->header('If-Modified-Since' => $oldLMHeader) if $oldLMHeader;
@@ -356,16 +357,25 @@ $req->header('If-None-Match' => $oldETagHeader) if $oldETagHeader;
 my $isConditional = $req->header('If-Modified-Since') ? "CONDITIONAL" : "Unconditional";
 my $reqString = $req->as_string;
 &Warn("ForeignSendHttpRequest: $isConditional $method from $thisUri to $depUri\n", $DEBUG_REQUESTS);
-&Warn("... with ETag $oldETagHeader\n", $DEBUG_DETAILS);
+&Warn("... with L-MH: $oldLMHeader ETagH: $oldETagHeader\n", $DEBUG_DETAILS);
 &PrintLog("[[\n$reqString\n]]\n");
 ############# Sending the HTTP request ##############
 my $res = $ua->request($req) or die;
 my $code = $res->code;
 $code == RC_NOT_MODIFIED || $code == RC_OK or die "ERROR: Unexpected HTTP response code $code ";
-&Warn("ForeignSendHttpRequest: $isConditional $method Request from $thisUri to $depUri returned $code\n", $DEBUG_DETAILS);
 my $newLMHeader = $res->header('Last-Modified') || "";
 my $newETagHeader = $res->header('ETag') || "";
+if ($code == RC_NOT_MODIFIED) {
+	# Apache does not seem to send the Last-Modified header on 304.
+	$newLMHeader ||= $oldLMHeader;
+	$newETagHeader ||= $oldETagHeader;
+	}
+&Warn("ForeignSendHttpRequest: $isConditional $method from $thisUri to $depUri returned $code\n", $DEBUG_DETAILS);
+&Warn("... with newL-MH: $newLMHeader newETagH: $newETagHeader\n", $DEBUG_DETAILS);
 my $newLM = &HeadersToLM($newLMHeader, $newETagHeader);
+&Warn("... with newLMHeader: $newLMHeader\n", $DEBUG_DETAILS);
+&Warn("... with newETagHeader: $newETagHeader\n", $DEBUG_DETAILS);
+&Warn("... with newLM: $newLM\n", $DEBUG_DETAILS);
 if ($code == RC_OK && $newLM && $newLM ne $oldLM) {
 	### Allow non-monotonic LM (because they could be checksums):
 	### $newLM gt $oldLM || die; # Verify monotonic LM
@@ -379,7 +389,7 @@ if ($code == RC_OK && $newLM && $newLM ne $oldLM) {
 	&MakeParentDirs( $inSerName );
 	&Warn("UPDATING $depUri inSerName: $inSerName of $thisUri\n", $DEBUG_UPDATES); 
 	$ua->save_content( $inSerName ) if $method ne 'HEAD';
-	&SaveLMs($inSerNameUri, $newLM, $newLMHeader, $newETagHeader);
+	&SaveLMHeaders($inSerNameUri, $newLM, $newLMHeader, $newETagHeader);
 	}
 return $newLM;
 }
@@ -406,8 +416,9 @@ my $depTypeVHash = $nm->{value}->{$depType} || {};
 my $fDeserializer = $depTypeVHash->{fDeserializer} || "";
 return if !$fDeserializer;
 my ($oldCacheLM) = &LookupLMs($depNameUri);
+$oldCacheLM ||= "";
 my $fExists = $depTypeVHash->{fExists} or die;
-$oldCacheLM = "" if !&{$fExists}($depName);
+$oldCacheLM = "" if $oldCacheLM && !&{$fExists}($depName);
 return if (!$depLM || $depLM eq $oldCacheLM);
 &Warn("UPDATING $depUri local cache: $depName of $thisUri\n", $DEBUG_UPDATES); 
 &{$fDeserializer}($depSerName, $depName);
@@ -494,6 +505,7 @@ if ($method eq 'HEAD' || $method eq 'NOTIFY' || $outUri eq $serOutUri) {
   }
 # Need to update serOut?
 my ($serOutLM) = &LookupLMs($serOutUri);
+$serOutLM ||= "";
 if (!$serOutLM || !-e $serOut || ($newThisLM && $newThisLM ne $serOutLM)) {
   ### Allow non-monotonic LM (because they could be checksums):
   ### die if $newThisLM && $serOutLM && $newThisLM lt $serOutLM;
@@ -521,6 +533,7 @@ my ($nm, $method, $thisUri, $callerUri, $callerLM) = @_;
 &Warn("FreshenOut $method $thisUri From: $callerUri\n", $DEBUG_REQUESTS);
 &Warn("... callerLM: $callerLM\n", $DEBUG_DETAILS);
 my ($oldThisLM, %oldDepLMs) = &LookupLMs($thisUri);
+$oldThisLM ||= "";
 return $oldThisLM if $method eq "GRAB";
 my $thisVHash = $nm->{value}->{$thisUri};
 my $thisLHash = $nm->{list}->{$thisUri};
@@ -1110,7 +1123,10 @@ sub SaveLMs
 my ($thisUri, $thisLM, @depLMs) = @_;
 my $f = &UriToLmFile($thisUri);
 my $s = join("\n", "# $thisUri", $thisLM, @depLMs) . "\n";
-# &Warn("SaveLMs($thisUri, $s) to file: $f\n", $DEBUG_DETAILS);
+&Warn("SaveLMs($thisUri ...) to file: $f\n", $DEBUG_DETAILS);
+foreach my $line ("# thisUri", @depLMs) {
+	&Warn("... $line\n", $DEBUG_DETAILS);
+	}
 &WriteFile($f, $s);
 }
 
@@ -1125,7 +1141,37 @@ my $f = &UriToLmFile($thisUri);
 open(my $fh, $f) or return ("", ());
 my ($cThisUri, $thisLM, @depLMs) = map {chomp; $_} <$fh>;
 close($fh) || die;
+&Warn("LookupLMs($thisUri) from file: $f\n", $DEBUG_DETAILS);
+foreach my $line ($thisLM, @depLMs) {
+	&Warn("... $line\n", $DEBUG_DETAILS);
+	}
 return($thisLM, @depLMs);
+}
+
+############# SaveLMHeaders ##############
+# Save LM and Last-Modified and ETag headers for a URI.
+sub SaveLMHeaders
+{
+@_ == 4 || die;
+my ($thisUri, $thisLM, $thisLMHeader, $thisETagHeader) = @_;
+&SaveLMs($thisUri, $thisLM, 
+	"Last-Modified: $thisLMHeader", 
+	"ETag: $thisETagHeader");
+}
+
+############# LookupLMHeaders ##############
+# Lookup LM and Last-Modified and ETag headers for a URI.
+sub LookupLMHeaders
+{
+@_ == 1 || die;
+my ($thisUri) = @_;
+my ($thisLM, $thisLMHeader, $thisETagHeader) = &LookupLMs($thisUri);
+$thisLM ||= "";
+$thisLMHeader ||= "";
+$thisETagHeader ||= "";
+$thisLMHeader =~ s/^Last\-Modified\:\s*//;
+$thisETagHeader =~ s/^ETag\:\s*//;
+return ($thisLM, $thisLMHeader, $thisETagHeader);
 }
 
 ############# FileExists ##############
@@ -1539,7 +1585,7 @@ my $lmHeader = time2str($lm);
 # http://www.w3.org/Protocols/rfc2616/rfc2616-sec3.html#sec3.11
 # and quoted-string at the end of sec 2.2:
 # http://www.w3.org/Protocols/rfc2616/rfc2616-sec2.html#sec2.2
-my $eTagHeader = '"' . $lm . '"';
+my $eTagHeader = "\"LM$lm\"";
 return($lmHeader, $eTagHeader);
 }
 
@@ -1560,12 +1606,18 @@ $lm = &TimeToLM(str2time($lmHeader)) if $lmHeader;
 # http://www.w3.org/Protocols/rfc2616/rfc2616-sec2.html#sec2.2
 if ($eTagHeader) {
   if ($eTagHeader =~ m|\A(W\/)?\"(.*)\"\Z|) {
-    $lm = $2;
+    my $etag = $2;
+    # Format generated by LMToHeaders:
+    # LM1328199534.092006000001
+    if ($etag =~ m/\A(LM)((\d+)\.(\d+))\Z/) {
+      $lm = $2;
+      }
     }
   else {
     &Warn("WARNING: Bad ETag header received: $eTagHeader ");
     }
   }
+&Warn("HeadersToLM($lmHeader, $eTagHeader) returning LM: $lm\n", $DEBUG_DETAILS);
 return $lm;
 }
 
@@ -1644,7 +1696,7 @@ If you have a web site set up for your module, mention it here.
 
 =head1 AUTHOR
 
-David Booth, E<lt>dbooth@E<gt>
+David Booth <lt>david@dbooth.org<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
