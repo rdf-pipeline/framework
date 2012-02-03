@@ -25,7 +25,7 @@ my $helpersDir = "../../helpers";
 
 ############ CUSTOMIZE HERE ################
 # Invoke the URL, concatenating its output to $wwwDir/test/testout :
-my $testUrl = 'http://localhost/node/addon';
+my $testUrl = 'http://localhost/node/addone';
 !system("$helpersDir/pipeline-request.perl GET '$testUrl'") or die;
 #### You can invoke more URLs if you want:
 # $testUrl = 'PUT_YOUR_URL_HERE';
@@ -39,7 +39,7 @@ my $testUrl = 'http://localhost/node/addon';
 if (system("$helpersDir/compare-results.perl -q expected-files '$wwwDir'")) {
         warn "To view the differences, do:
   cd $testDir
-  compare-results.perl expected-files '$wwwDir'\n" if $quiet;
+  compare-results.perl expected-files '$wwwDir'\n";
 	exit 1;
 	}
 
