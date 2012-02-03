@@ -1,8 +1,8 @@
 #! /usr/bin/perl -w
 
-# Recursively compare expected-files with result-files (excluding 
+# Recursively compare the contents of the given two directories (excluding 
 # "lm", "ont" and hidden subdirectories/files), exiting with 0 iff 
-# they are the same. 
+# they are the same.  
 #
 # Option:
 #	-q	Quiet: only set return status, instead of showing diffs.

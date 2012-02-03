@@ -1,7 +1,6 @@
 #! /usr/bin/perl -w
 
-# Copy RDF Pipeline result-files from one directory to another, 
-# excluding hidden files/directories.
+# Copy one directory to another, excluding hidden files/directories.
 # The destination directory is first deleted.
 # As a special case, if the source directory is "/dev/null" (which
 # isn't actually a directory, but whatever), then the contents
@@ -15,7 +14,8 @@
 # copying, we will do an "svn add" to add the destination directory
 # back under svn control.  This allows files to be added/removed
 # from the destination directory, which svn otherwise would not
-# notice or would automatically restore.
+# notice or would automatically restore.  THE USE OF SVN MEANS
+# THAT THIS SCRIPT MUST BE RUN FROM THE SUBVERSION TRUNK DIRECTORY.
 
 use strict;
 
