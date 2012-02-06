@@ -64,25 +64,39 @@ To run one test (or more) without using "make test":
     }}}
 where nnnn is the test's numbered directory, and defaults to the highest numbered test if not specified.  This does the following for each test directory:
   * If there are setup-files, then the existing $RDF_PIPELINE_WWW_DIR files are deleted and replaced with setup-files.
-  * The test-script is run as `./test-script '$TESTDIR' '$RDF_PIPELINE_WWW_DIR'` , where $TESTDIR is the full path of the current test directory nnnn.  The default test-script compares the contents of $RDF_PIPELINE_WWW_DIR with the expected-files (excluding "lm", "ont" and hidden files/directories).  If they match, and the $RDF_PIPELINE_WWW_DIR files do not contain the word "error" or "died" (case insensitively), then test-script exits with 0 status to indicate that the test passed.  Otherwise it exists with 1 status to indicate failure.
+  * The test-script is run as `cd '$TESTDIR' ; ./test-script '$RDF_PIPELINE_WWW_DIR'` , where $TESTDIR is the full path of the current test directory nnnn.  If it fails, the test fails.
+  * The contents of $RDF_PIPELINE_WWW_DIR are copied to /tmp/rdfp/nnnn/actual-files and /tmp/rdfp/nnnn/actual-filtered, and the contents of $TESTDIR/expected-files are copied to /tmp/rdfp/nnnn/expected-filtered.
+  * The files in /tmp/rdfp/nnnn/expected-filtered and /tmp/rdfp/nnnn/actual-filtered are filtered through helpers/filter-expected.perl and helpers/filter-actual.perl (respectively).
+  * The contents of /tmp/rdfp/nnnn/expected-filtered and /tmp/rdfp/nnnn/actual-filtered are compared (excluding "lm", "ont" and hidden files/directories).  If they do not match, the test fails.
+  * The contents of /tmp/rdfp/nnnn/actual-filtered are searched for the word "error" or "died" (case insensitively), and the test fails if either word is present.
 
 Finally, run-test.perl silently exits with 0 status if the test passed, or it noisily prints an error and exits with non-zero status if the test failed.
 
 = Diagnosing a failed test =
-To help figure out why a test failed, cd into that test directory and do:
-{{{
-  diff -r -x lm -x ont -x '.*' expected-files $RDF_PIPELINE_WWW_DIR
-}}}
-See the code in $RDF_PIPELINE_DEV_DIR/RDF-Pipeline/t/helpers/compare-results.perl (though you probably won't want to use the -q option that it uses).
+A couple of approaches:
+  * cd into `/tmp/rdfp/nnnn` and do:
+  {{{
+  compare-results.perl expected-filtered actual-filtered
+  }}}
+  * View `/tmp/rdfp/diffs.txt` after running the failed test.
+  * View the `/tmp/rdfp/nnnn/actual-filtered/test/*` files.
 
 = Accepting test results =
-If you need to update the expected-files for one or more tests (e.g., because a code change has caused the result files to no longer match the expected-files), then *once you are certain that the current $RDF_PIPELINE_WWW_DIR result files are correct*, you can do
+If you need to update the expected-files for one or more tests (e.g., because a code change has caused the result files to no longer match the expected-files), then *once you are certain that the current result files are correct*, you can do
 {{{
   accept-test.perl [-s][nnnn] ...
 }}}
-to delete the existing expected-files and copy $RDF_PIPELINE_WWW_DIR to the expected-files.
+to delete the existing expected-files and copy the current actual-files to the expected-files.
 
 The "`-s`" option will cause accept-test.perl to attempt to add the test to subversion.
+
+= Filtering global output changes =
+If you make a code change that affects the output of all (or several) tests, such as changing the output format, thus causing the actual-files to not match the expected-files, then it may be tedious and error prone to individually verify that the current actual-files are correct.  To enable such global changes to be easily verified, the following scripts (in the helpers directory) may be customized to filter the expected and actual files, respectively:
+  * filter-expected.perl
+  * filter-actual.perl
+These scripts are run by run-test.perl on a copy of each of the expected and actual files.  These copies are in /tmp/rdfp/nnnn/ (where nnnn is the test name).  *After the global changes have been verified and accepted, these scripts should be modified back to being no-ops.*
+
+In addition, when tests are run by run-test.perl, the concatenated diffs of all tests that it runs are written to /tmp/rdfp/diffs.txt, so that you can quickly view all differences (after filtering through filter-expected.perl and filter-actual.perl).
 
 = Deleting a test = 
 You can delete a test by deleting its directory, e.g., 0003, however:
