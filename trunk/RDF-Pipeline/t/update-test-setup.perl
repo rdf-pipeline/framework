@@ -31,6 +31,9 @@ my $setupFiles = "$dir/setup-files";
 my $setupCmd = "$moduleDir/t/helpers/copy-dir.perl -s '$wwwDir' '$setupFiles'";
 # warn "setupCmd: $setupCmd\n";
 !system($setupCmd) or die;
+# Empty out the "test" subdir, because that's for test results:
+$setupCmd = "$moduleDir/t/helpers/copy-dir.perl -s '/dev/null' '$setupFiles/test'";
+!system($setupCmd) or die;
 
 warn "Running test $dir , which should fail because
 expected-files have not yet been created/updated ...\n";

@@ -1,8 +1,10 @@
 #! /usr/bin/perl -w
 
 # Run a test of an RDF Pipeline by using curl to invoke a URL, 
-# saving the output and the apache access and error logs 
+# concatenating the output and the apache access and error logs 
 # to the $RDF_PIPELINE_WWW_DIR/test directory.
+# Because the results are concatenated, a single test may run
+# this script more than once.  
 #
 # Usage: 
 #	pipeline-request.perl [GET/HEAD] URL
@@ -14,6 +16,8 @@
 #	pipeline-request.perl HEAD http://localhost/node/addone
 
 use strict;
+
+my $sleepSeconds = 0;	# Time to wait for Apache to finish writing log files.
 
 my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
 my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
@@ -51,7 +55,7 @@ $apacheAccessStart = `wc -l < '$apacheAccess'` + 1 if -e $apacheAccess;
 # Sleep is used here to ensure that apache has had time to write
 # the log files.
 my $curlOption = $method eq "HEAD" ? "-I" : "-i";
-my $curlCmd = "curl $curlOption -s '$url' | '$stripDates' >> '$wwwDir/test/testout' ; sleep 1";
+my $curlCmd = "curl $curlOption -s '$url' | '$stripDates' >> '$wwwDir/test/testout' ; sleep $sleepSeconds";
 # warn "curlCmd: $curlCmd\n";
 my $curlResult = system($curlCmd);
 die "ERROR: curl failed: $curlCmd\n" if $curlResult;

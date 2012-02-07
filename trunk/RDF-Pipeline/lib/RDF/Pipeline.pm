@@ -345,9 +345,13 @@ $oldETagHeader ||= "";
 if ($depLM && $oldLM && $oldLM eq $depLM) {
 	return $oldLM;
 	}
+# This is only for prettier debugging output:
 $queryParams .= "&debugStackDepth=" . ($debugStackDepth + &CallStackDepth())
-	if $debug;
-$queryParams =~ s/\A\&/\?/ if $queryParams;
+	if $debug && $nm->{value}->{$depUri} 
+		&& $nm->{value}->{$depUri}->{nodeType}
+		&& &IsSameServer($baseUri, $depUri);
+$requestUri =~ s/\#.*//;  # Strip any frag ID
+$queryParams =~ s/\A\&/\?/ if $queryParams || $requestUri =~ m/\?/;
 $requestUri .= $queryParams;
 &Warn("ForeignSendHttpRequest: Setting req L-MH: $oldLMHeader If-N-M: $oldETagHeader\n", $DEBUG_REQUESTS);
 my $req = HTTP::Request->new($httpMethod => $requestUri);

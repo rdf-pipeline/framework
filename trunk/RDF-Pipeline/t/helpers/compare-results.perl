@@ -14,9 +14,10 @@ $quiet = shift @ARGV if @ARGV && $ARGV[0] eq "-q";
 my $expectedFiles = shift @ARGV || die;
 my $resultFiles = shift @ARGV || die;
 
--d $expectedFiles or exit 1;
--d $resultFiles or exit 1;
+# -d $expectedFiles or exit 1;
+# -d $resultFiles or exit 1;
 my $cmd = "diff -r -b $quiet -x lm -x ont -x '.*' '$expectedFiles' '$resultFiles'";
+# warn "cmd: $cmd\n";
 if (system($cmd)) {
 	exit 1;
 	}

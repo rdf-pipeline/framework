@@ -5,21 +5,19 @@
 #
 # Usage:
 #
-#  	./run-test.perl [-c] [nnnn] ...
+#  	./run-test.perl [-q] [nnnn] ...
 #
 # where nnnn is the numbered test directory you wish to run, defaulting
 # to the highest numbered test directory if none is specified.  
 #
-# Options:
-#	-c	[This option is no longer needed, as it is now the default.]
-#		Clobber the existing $RDF_PIPELINE_WWW_DIR files and leave
-#		them in whatever state the test leaves them in, instead
-#		restoring them from a saved copy after the test.  This
-#		is useful when you plan to add another test after this
-#		one, and you want the initial state of the next test to
-#		be the final state of this test.
+# Option:
+#	-q	Quiet.  Less verbose output.
 
-my $noisy = 0;
+my $quietOption = 0;
+if (@ARGV && $ARGV[0] eq "-q") {
+	shift @ARGV;
+	$quietOption = 1;
+	}
 
 my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
 my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
@@ -27,62 +25,104 @@ my $moduleDir = "$devDir/RDF-Pipeline";
 my $testsDir = "$moduleDir/t/tests";
 chdir($testsDir) or die "ERROR: Could not chdir('$testsDir')\n";
 
-my $clobber = 1;
-if (@ARGV && $ARGV[0] eq "-c") {
-	shift @ARGV;
-	$clobber = 1;
+my @tDirs = @ARGV;
+if (!@tDirs) {
+	@tDirs = sort grep { -d $_ } <0*>;
+	@tDirs or die "ERROR: No numbered test directories found in $testsDir\n";
+	@tDirs = ( $tDirs[@tDirs-1] );		# The last one.
+	warn "Running $tDirs[0] ...\n";
 	}
 
-my @testDirs = @ARGV;
-if (!@testDirs) {
-	@testDirs = sort grep { -d $_ } <0*>;
-	@testDirs or die "ERROR: No numbered test directories found in $testsDir\n";
-	@testDirs = ( $testDirs[@testDirs-1] );		# The last one.
-	warn "Running $testDirs[0] ...\n";
-	}
+my $tmpDir = "/tmp/rdfp";
+-e $tmpDir || mkdir($tmpDir) || die;
+
+# Diffs file will hold diffs of *all* tests run in the loop below,
+# so clear it out first:
+my $tmpDiff = "$tmpDir/diffs.txt";
+!system("/bin/cat /dev/null > '$tmpDiff'") || die;
 
 my $allPassed = 1;
-foreach my $testDir (@testDirs) {
-  my $testScript = "$testDir/test-script";
+foreach my $tDir (@tDirs) {
+  $tDir =~ s|\/$||;
+  warn "=================== $tDir ===================\n" if !$quietOption;
+  !system("/bin/echo '===================' '$tDir' '===================' >> '$tmpDiff'") || die;
+
+  my $testScript = "$tDir/test-script";
   if (!-e $testScript || !-x $testScript) {
-    # Fail if there's no exectutable test-script
+    # Fail if there's no executable test-script
+    warn "Failed -- no test-script: $tDir\n";
     $allPassed = 0;
     next;
     }
 
-  ### Save the existing $wwwDir if necessary.
+  my $tmpTDir = "$tmpDir/$tDir";
+  -e $tmpTDir || mkdir($tmpTDir) || die;
+
   -e $wwwDir || mkdir($wwwDir) || die "ERROR: Failed to mkdir $wwwDir\n";
-  my $savedWwwDir = "$wwwDir-SAVE";
-  if (!$clobber) {
-    die "ERROR: savedWwwDir already exists: $savedWwwDir\n"
-		if -e $savedWwwDir;
-    my $saveCmd = "$moduleDir/t/helpers/copy-dir.perl '$wwwDir' '$savedWwwDir'";
-    # warn "saveCmd: $saveCmd\n";
-    !system($saveCmd) or die "ERROR: Failed to save wwwDir: $saveCmd\n";
-    }
 
   ### If there is a "setup-files" directory, then use it.
-  my $setupFiles = "$testDir/setup-files";
+  my $setupFiles = "$tDir/setup-files";
   if (-d $setupFiles) {
     my $copyCmd = "$moduleDir/t/helpers/copy-dir.perl '$setupFiles' '$wwwDir'";
     # warn "copyCmd: $copyCmd\n";
     !system($copyCmd) or die "ERROR: Failed to copy setup-files: $copyCmd\n";
     }
 
-  # Run the test-script.
-  my $testCmd = "$testDir/test-script '$testDir' '$wwwDir'";
-  warn "Running test: $testCmd\n" if -e "$testDir/.svn" && $noisy;
-  my $status = system($testCmd);
-  warn "Failed: $testCmd\n" if $status;
-  $allPassed = 0 if $status;
+  # Clear out old $wwwDir/test files:
+  !system("$moduleDir/t/helpers/copy-dir.perl '/dev/null' '$wwwDir/test'") or die;
 
-  # Restore $wwwDir if necessary.
-  if (!$clobber) {
-    my $restoreCmd = "$moduleDir/t/helpers/copy-dir.perl '$savedWwwDir' '$wwwDir'";
-    # warn "restoreCmd: $restoreCmd\n";
-    !system($restoreCmd) or die "ERROR: Failed to restore wwwDir: $restoreCmd\n";
-    !system("rm -r '$savedWwwDir'") or die "ERROR: Failed to remove old savedWwwDir: $savedWwwDir\n";
+  # Run the test-script.
+  my $testCmd = "cd '$tDir' ; ./test-script '$wwwDir'";
+  # warn "Running test: $testCmd\n" if -e "$tDir/.svn";
+  my $status = system($testCmd);
+  warn "Failed test-script: $tDir\n" if $status;
+  $allPassed = 0 if $status;
+  if ($status) {
+    $allPassed = 0;
+    next;
     }
+
+  # Copy actual result files to tmp dirs for filtering:
+  my $actualUnfilteredDir = "$tmpTDir/actual-files";
+  my $actualFilteredDir = "$tmpTDir/actual-filtered";
+  !system("$moduleDir/t/helpers/copy-dir.perl '$wwwDir' '$actualUnfilteredDir'") || die;
+  !system("$moduleDir/t/helpers/copy-dir.perl '$wwwDir' '$actualFilteredDir'") || die;
+
+  # Filter all actual-files
+  my $aFindCmd = "find '$actualFilteredDir' -type f -exec '$moduleDir/t/helpers/run-filter.perl' '$moduleDir/t/helpers/filter-actual.perl' '{}' \\;";
+  # warn "aFindCmd: $aFindCmd\n";
+  !system($aFindCmd) || die;
+
+  # Fail if the result files contain the word "error" or "died":
+  if (!system("grep -r -m 1 -i '\\berror\\b' '$actualFilteredDir'")
+	    || !system("grep -r -m 1 -i '\\bdied\\b' '$actualFilteredDir'"))
+        {
+	warn "Failed 'error' or 'died' check: $tDir\n";
+	$allPassed = 0;
+	}
+
+  # Copy expected-files to tmp dirs for filtering:
+  if (!-e "$tDir/expected-files") {
+    # Fail if there's no expected-files
+    warn "Failed -- no expected-files: $tDir\n";
+    $allPassed = 0;
+    next;
+    }
+  my $expectedFilteredDir = "$tmpTDir/expected-filtered";
+  !system("$moduleDir/t/helpers/copy-dir.perl '$tDir/expected-files' '$expectedFilteredDir'") || die;
+
+  # Filter all expected-files
+  my $eFindCmd = "find '$expectedFilteredDir' -type f -exec '$moduleDir/t/helpers/run-filter.perl' '$moduleDir/t/helpers/filter-expected.perl' '{}' \\;";
+  # warn "eFindCmd: $eFindCmd\n";
+  !system($eFindCmd) || die;
+
+  # Compare the (filtered) expected with the (filtered) actual files:
+  my $checkCmd = "$moduleDir/t/helpers/compare-results.perl '$expectedFilteredDir' '$actualFilteredDir' >> $tmpDiff";
+  # warn "Running check: $checkCmd\n" if -e "$tDir/.svn";
+  my $diffStatus = system($checkCmd);
+  warn "Failed comparison: $tDir\n  Diffs file: $tmpDiff\n" if $diffStatus;
+  $allPassed = 0 if $diffStatus;
+
   }
 
 exit 0 if $allPassed;

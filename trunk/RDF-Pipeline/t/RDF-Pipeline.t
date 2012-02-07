@@ -48,7 +48,7 @@ use Test::More tests => $nTests;
 # This section is where our tests are run.
 
 foreach my $testDir (@testDirs) {
-    my $runCmd = "$moduleDir/t/run-test.perl '$testDir'";
+    my $runCmd = "$moduleDir/t/run-test.perl -q '$testDir'";
     # warn "runCmd: $runCmd\n";
     is(system($runCmd), 0, $runCmd);
     }
