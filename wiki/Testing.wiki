@@ -109,7 +109,7 @@ The $RDF_PIPELINE_DEV_DIR/RDF-Pipeline/t/helpers directory contains some additio
     Use curl to invoke URL using the method specified (or GET, if no method is specified), saving the resulting headers and content to $RDF_PIPELINE_WWW_DIR/test/testout .  For example, "`pipeline-request HEAD http://localhost/node/foo`" will use curl to issue a HEAD request to http://localhost/node/foo .
   * *filterlog.perl* -- A script for filtering Apache log files.
   * *stripdates.perl* -- A script for replacing datetimes with some datetime constants.
-  * *copy-dir.perl [-s] sourceDir destDir* -- Recursively copy sourceDir to destDir, excluding hidden (`.*`) files, overwriting existing files in destDir that are also in sourceDir.  It does not delete files that exist only in destDir.  Option '`-s`' (subversion) causes copy-dir.perl to be svn-aware, which means it will do "svn rm" and "svn add".
+  * *copy-dir.perl [-s] sourceDir destDir* -- Recursively copy sourceDir to destDir, excluding hidden (`.*`) files, after first deleting destDir.  Option '`-s`' (subversion) causes copy-dir.perl to be svn-aware, which means it will do "svn rm" and "svn add".
   * *compare-results.perl [-q] dir1 dir2* -- Recursively compare dir1 with dir2 (excluding "lm", "ont" and hidden subdirectories/files), returning 0 iff they are the same. Option "-q" (quiet) suppresses most output. 
 
 = Subversion (svn) issues =
