@@ -2,7 +2,8 @@
 
 # This script will be invoked by run-test.perl as:
 #
-# 	test-script '$TESTDIR' '$RDF_PIPELINE_WWW_DIR'
+#	cd '$TESTDIR'
+# 	test-script '$RDF_PIPELINE_WWW_DIR'
 #
 # where $TESTDIR is the full path of the nnnn numbered test directory
 # that is being tested, and $RDF_PIPELINE_WWW_DIR is the full path
@@ -14,38 +15,15 @@
 
 use strict;
 
-my $testDir = shift @ARGV || die;
-my $wwwDir = shift @ARGV || die;
-chdir("$testDir") or die "ERROR: Could not chdir('$testDir')\n";
-my $helpersDir = "../../helpers";
--d $helpersDir || die "ERROR: Not a directory: $helpersDir\n";
-
-# Clear out old $wwwDir/test files:
-!system("$helpersDir/copy-dir.perl '/dev/null' '$wwwDir/test'") or die;
+my $wwwDir = shift @ARGV || $ENV{RDF_PIPELINE_WWW_DIR} || die;
+# Ensure this env var is set, so that pipeline-request.perl can find it:
+$ENV{RDF_PIPELINE_WWW_DIR} = $wwwDir;	
 
 ############ CUSTOMIZE HERE ################
 # Invoke the URL, concatenating its output to $wwwDir/test/testout :
 my $testUrl = 'http://localhost/node/addone';
-!system("$helpersDir/pipeline-request.perl GET '$testUrl'") or die;
-#### You can invoke more URLs if you want:
-# $testUrl = 'PUT_YOUR_URL_HERE';
-# !system("$helpersDir/pipeline-request.perl GET '$testUrl'") or die;
-# $testUrl = 'PUT_YOUR_URL_HERE';
-# !system("$helpersDir/pipeline-request.perl GET '$testUrl'") or die;
+!system("../../helpers/pipeline-request.perl GET '$testUrl'") or die;
 ############################################
-
-# The test fails (exit 1) if the result files do not match the expected-files,
-# excluding the "lm" and "ont" directories and hidden files:
-if (system("$helpersDir/compare-results.perl -q expected-files '$wwwDir'")) {
-        warn "To view the differences, do:
-  cd $testDir
-  compare-results.perl expected-files '$wwwDir'\n";
-	exit 1;
-	}
-
-# The test also fails if the result files contain the word "error" or "died":
-exit 1 if !system("grep -r -m 1 -i '\\berror\\b' '$wwwDir'");
-exit 1 if !system("grep -r -m 1 -i '\\bdied\\b' '$wwwDir'");
 
 exit 0;
 

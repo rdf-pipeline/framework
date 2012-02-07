@@ -1,25 +1,38 @@
 #! /usr/bin/perl -w
 
-# Accept the current $wwwDir files as correct, by copying them
+# Accept the current actual-files as correct, by copying them
 # to expected-files (after deleting the current expected files).
-# If the -s option is specified, then also try to add the
-# test into subversion.
+#
+# Options:
+# 	-s 	Try to add the test into subversion.
+#	-r	Run the test before accepting the results.
 
 use strict;
 
-my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
+my $tmpRoot = "/tmp/rdfp";	# run-test.perl will put actual-files here
+
+# my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
 my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
 my $moduleDir = "$devDir/RDF-Pipeline";
 my $testsDir = "$moduleDir/t/tests";
 chdir($testsDir) or die "ERROR: Could not chdir('$testsDir')\n";
 
-my $svn = 0;	# -s option
-if (@ARGV && $ARGV[0] eq "-s") {
-	shift @ARGV;
-	$svn = 1;
+my $svnOption = 0;	# -s option
+my $runOption = 0;	# -r option
+my @testDirs = ();
+while (my $arg = shift @ARGV) {
+	if ($arg eq "-s") {
+		$svnOption = 1;
+		}
+	elsif (0 && $arg eq "-r") {
+		# $runOption = 1;
+		warn "WARNING: -r option is currently ignored.\n";
+		}
+	else	{
+		push(@testDirs, $arg);
+		}
 	}
 
-my @testDirs = @ARGV;
 if (!@testDirs) {
 	my $maxDir = 0;
 	@testDirs = grep { -d $_ } <0*>;
@@ -29,12 +42,16 @@ if (!@testDirs) {
 	}
 
 foreach my $dir (@testDirs) {
-	# Copy the $wwwDir files to expected-files
-	my $copyCmd = "$moduleDir/t/helpers/copy-dir.perl -s '$wwwDir' '$dir/expected-files'";
+
+	my $tmpTDir = "$tmpRoot/$dir/actual-files";
+	-e $tmpTDir || die "ERROR: No actual-files to accept: $tmpTDir\n";
+
+	# Copy the $tmpTDir files to expected-files
+	my $copyCmd = "$moduleDir/t/helpers/copy-dir.perl -s '$tmpTDir' '$dir/expected-files'";
 	# warn "copyCmd: $copyCmd\n";
 	!system($copyCmd) or die;
 	# Add the test to svn?
-	if (!$svn) {
+	if (!$svnOption) {
 		warn "Remember to add $dir to subversion, or use: accept-test.perl -s '$dir'\n"
 			if !-e "$dir/.svn";
 		next;
