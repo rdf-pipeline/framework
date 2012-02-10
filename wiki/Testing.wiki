@@ -31,7 +31,7 @@ A test usually issues one or more HTTP requests against the Apache instance that
 
 = Adding a new test =
 <ol>
-<li>Configure a pipeline as needed for the test, so that the content of $RDF_PIPELINE_WWW_DIR reflects the desired initial state _prior_ to running the new test.  Do not place anything in the $RDF_PIPELINE_WWW_DIR/test directory, as the default test script clears that directory just before the test is run.
+<li>Configure a pipeline as needed for the test, so that the content of $RDF_PIPELINE_WWW_DIR reflects the desired initial state _prior_ to running the new test.  Do not place anything in the $RDF_PIPELINE_WWW_DIR/test directory, as that directory will be cleared just before the test is run.
 </li>
 <li>Run the command:
   {{{
@@ -40,15 +40,15 @@ A test usually issues one or more HTTP requests against the Apache instance that
 where URL is the URL to be requested from the pipeline, and shortDescription is a short bit of test to be appended to the generated test name.  This will generate a new, numbered test directory containing:
     * *setup-files* -- A snapshot of the current the $RDF_PIPELINE_WWW_DIR directory.  You can customize its content as appropriate, such as deleting files that are not needed in setting up for your test.
     * *test-script* -- Initial script that you can customize as needed for this test.
-After creating the above files/directories, add-test.perl will invoke run-test.perl as described below.
+After creating the above files/directories, add-test.perl will invoke run-test.perl as described below, saving actual results in `/tmp/rdfp/nnnn/`.
 </li>
 <li>If necessary, you may run the test as many times as you need while debugging, *restarting Apache each time you have modified anything*.  
 </li>
-<li>After you are convinced that the result files in $RDF_PIPELINE_WWW_DIR are correct, run
+<li>After you are convinced that the test produces the correct actual results, run
     {{{
     accept-test.perl [nnnn]
     }}}
-to cause the current $RDF_PIPELINE_WWW_DIR files to be saved as expected-files.  This should cause the test to pass the next time you run it.  If you omit the test name nnnn, it will default to the highest numbered test, which will normally be the one you just added.
+to cause the current actual result files in `/tmp/rdfp/nnnn/` to be saved as expected-files.  This should cause the test to pass the next time you run it.  If you omit the test name nnnn, it will default to the highest numbered test, which will normally be the one you just added.
 </li>
 </ol>
 
