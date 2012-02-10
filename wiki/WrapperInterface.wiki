@@ -17,7 +17,7 @@ Deserializes the content of serFilename to deserName.  Inverse of fSerializer.
 
 A node type whose cached data is already serialized does not need to implement _fDeserializer_.
 
-== fSerializer(deserName, serFilename) ==
+== fSerializer(deserName, serFilename) (OPTIONAL) ==
 Parameters:
   * *deserName* -- String: Local name of the object to be serialized.
   * *serFilename* -- String: Filename of the content to be deserialized.
