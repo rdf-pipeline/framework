@@ -40,9 +40,9 @@ A test usually issues one or more HTTP requests against the Apache instance that
 where URL is the URL to be requested from the pipeline, and shortDescription is a short bit of test to be appended to the generated test name.  This will generate a new, numbered test directory containing:
     * *setup-files* -- A snapshot of the current the $RDF_PIPELINE_WWW_DIR directory.  You can customize its content as appropriate, such as deleting files that are not needed in setting up for your test.
     * *test-script* -- Initial script that you can customize as needed for this test.
-After creating the above files/directories, add-test.perl will invoke run-test.perl to execute the test, which will: (a) leave the raw actual test results in the $RDF_PIPELINE_WWW_DIR directory and `/tmp/rdfp/nnnn/actual-files`; leave the filtered actual test results in `/tmp/rdfp/nnnn/actual-filtered`; and (c) compare the results with the expected-files, thus causing the test to initially fail (as it should) because the test will not yet have any expected-files.
+After creating the above files/directories, add-test.perl will invoke run-test.perl as described below.
 </li>
-<li>If necessary, you may run the test as many times as you need while debugging, using "`./run-test.perl [nnnn]`", as described below under "Running a test", *restarting Apache each time you have modified anything*.  
+<li>If necessary, you may run the test as many times as you need while debugging, *restarting Apache each time you have modified anything*.  
 </li>
 <li>After you are convinced that the result files in $RDF_PIPELINE_WWW_DIR are correct, run
     {{{
