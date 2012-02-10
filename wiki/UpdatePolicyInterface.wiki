@@ -2,10 +2,10 @@
 
 = Introduction =
 The update policy interface allows arbitrary update policy functions to be plugged in to the RDF Pipeline framework.  Update policies currently envisioned include:
-  * *LazyUpdatePolicy* -- Freshens the node only when data is requested by a GET or HEAD request.
-  * *EagerUpdatePolicy* -- (NOT YET IMPLEMENTED) Freshens the node whenever a NOTIFY event is received (because an upstream node was updated) or when data is requested by a GET or HEAD request.
-  * *EagerThrottledUpdatePolicy* -- (NOT YET IMPLEMENTED) Similar to _EagerUpdatePolicy_, but a NOTIFY event that occurs within _n_ seconds of when the node was last updated will be ignored until _n_ seconds have elapsed.
-  * *PeriodicUpdatePolicy* -- (NOT YET IMPLEMENTED) Node is freshened periodically or as a cron job.
+  * *!LazyUpdatePolicy* -- Freshens the node only when data is requested by a GET or HEAD request.
+  * *!EagerUpdatePolicy* -- (NOT YET IMPLEMENTED) Freshens the node whenever a NOTIFY event is received (because an upstream node was updated) or when data is requested by a GET or HEAD request.
+  * *!EagerThrottledUpdatePolicy* -- (NOT YET IMPLEMENTED) Similar to _!EagerUpdatePolicy_, but a NOTIFY event that occurs within _n_ seconds of when the node was last updated will be ignored until _n_ seconds have elapsed.
+  * *!PeriodicUpdatePolicy* -- (NOT YET IMPLEMENTED) Node is freshened periodically or as a cron job.
 
 = Interface =
 To implement an update policy, a function with the following signature must be provided.
