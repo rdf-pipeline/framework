@@ -15,7 +15,7 @@ A wrapper must implement the following functions.
 
 Deserializes the content of serFilename to deserName.  Inverse of fSerializer.  
 
-A node type whose cached data is already serialized does not need to implement _fDeserializer_.
+A node type whose cached data is already in serialized form (suitable for HTTP transmission) does not need to implement _fDeserializer_.
 
 == fSerializer(...) (OPTIONAL) ==
 *Parameters:*
@@ -26,7 +26,7 @@ A node type whose cached data is already serialized does not need to implement _
 
 Serializes the object named by deserName to the file named by serFilename.  Inverse of fDeserializer.
 
-A node type whose cached data is already serialized does not need to implement _fSerializer_.
+A node type whose cached data is already in serialized form (suitable for HTTP transmission) does not need to implement _fSerializer_.
 
 == fRunUpdater(...) ==
 *Parameters:*
