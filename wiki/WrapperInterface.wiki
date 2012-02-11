@@ -54,6 +54,6 @@ Run updater _thisUpdater_ on node _thisUri_ using inputs _thisInputs_ and parame
 
 Converts URI _uri_ to a local name based on _root_ as the root of the local name space.  
 
-(A "local name" is a name that is native to a particular node type.  For example, a filename in the case of FileNode.)
+(A "local name" is a name that is native to a particular node type.  For example, a filename in the case of !FileNode.)
 
 For example, for a !FileNode _fUriToLocalName_ will convert a URI to the corresponding full path filename on the current server.  In this case, _root_ will be the Apache $DOCUMENT_ROOT (synonym: $basePath -- not to be confused with $baseUri).  So if _uri_ is "http://example.com:8080/foo/bar" and _baseUri_ is "http://example.com:8080" and _root_ is "/a/www", then _fUriToLocalName_ will return "/a/www/foo/bar".
