@@ -47,13 +47,13 @@ Run updater _thisUpdater_ on node _thisUri_ using inputs _thisInputs_ and parame
 == fUriToLocalName(...) ==
 *Parameters:*
   * *uri* -- String: URI to be converted to a local name.
-  * *relativeUri* -- String: Relative part of _uri_ e.g., the "foo/bar" part of "http://example.com:8080/foo/bar", if "http://example.com:8080" is the $baseUri.  Note that the initial "/" has also been stripped.  This parameter is provided as a convenience, since most _fUriToLocalName_ functions will either substitute or concatenate the _root_ with the _relativeUri_ to produce the resulting local name.
+  * *baseUri* -- String: The initial part of _uri_ that indicates the host (and port) where _uri_ is hosted.  It does not include a trailing "/".  For example, if _uri_ is "http://example.com:8080/foo/bar" then _baseUri_ would be "http://example.com:8080".  
   * *root* -- String: Root of the local name.  This is the substring or pattern from which _fUriToLocalName_ will create a local name from _uri_.
 *Returns:*
   * String: Local name corresponding to _uri_.
 
 Converts URI _uri_ to a local name based on _root_ as the root of the local name space.  
 
-(A "local name" is a name that is relevant to a particular node type.  For example, a filename in the case of FileNode.)
+(A "local name" is a name that is native to a particular node type.  For example, a filename in the case of FileNode.)
 
-For example, for a !FileNode _fUriToLocalName_ will convert a URI to the corresponding filename within the $DOCUMENT_ROOT of the current server.  ($baseUri is a synonym for the Apache $DOCUMENT_ROOT.)  In this case, if _uri_ is "http://example.com:8080/foo/bar" and $baseUri is "http://example.com:8080" and _root_ is "/www", then _relativeUri_ will be "foo/bar" and the result of _fUriToLocalName_ will be "/www/foo/bar".
+For example, for a !FileNode _fUriToLocalName_ will convert a URI to the corresponding full path filename on the current server.  In this case, _root_ will be the Apache $DOCUMENT_ROOT (synonym: $basePath -- not to be confused with $baseUri).  So if _uri_ is "http://example.com:8080/foo/bar" and _baseUri_ is "http://example.com:8080" and _root_ is "/a/www", then _fUriToLocalName_ will return "/a/www/foo/bar".
