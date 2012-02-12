@@ -425,7 +425,7 @@ my $fExists = $depTypeVHash->{fExists} or die;
 $oldCacheLM = "" if $oldCacheLM && !&{$fExists}($depName);
 return if (!$depLM || $depLM eq $oldCacheLM);
 &Warn("UPDATING $depUri local cache: $depName of $thisUri\n", $DEBUG_UPDATES); 
-&{$fDeserializer}($depSerName, $depName);
+&{$fDeserializer}($depSerName, $depName) or die;
 &SaveLMs($depNameUri, $depLM);
 }
 
@@ -883,6 +883,7 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
       my $fUriToLocalName = $nmv->{$depType}->{fUriToLocalName};
       my $cacheName = "$baseUri/cache/$thisType/$depUriEncoded/cache";
       $thisHHash->{dependsOnNameUri}->{$depUri} = $cacheName;
+      # TODO: Add $baseUri and $root parameter:
       $cacheName = &{$fUriToLocalName}($cacheName) if $fUriToLocalName;
       $thisHHash->{dependsOnName}->{$depUri} = $cacheName;
       # warn "thisUri: $thisUri depUri: $depUri Path 2\n";

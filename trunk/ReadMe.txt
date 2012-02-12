@@ -6,7 +6,68 @@ It is licensed for use under the license in License.txt
 These are my (dbooth) personal notes and "To Do" list from
 before I used code.google.com and had any formal bug tracker
 or issues list.  It is currently being used as a place for recording
-notes or things to do.
+notes, ideas or things to do.
+
+2/8/12: I'm thinking of doing SPARQL templates like sub-pipelines,
+because they both require a way to bind formal with actual parameters.
+
+2/8/12: The inputs/outputs of SPARQL nodes do not need to be named
+graphs.  Since it is only a URI that is substituted into the SPARQL
+template, that URI could represent anything.  However, the substitution
+business may be easier for the user if prefixes are used instead
+of full URIs.
+
+Where a sub-pipeline definition would write:
+
+    p:inputNames ( :sb :sc ) .
+
+  and be used as:
+
+    :s a p:PipelineNode ;
+      p:inputs ( :b :c ) ;
+      p:outputNames   ( :sd :se ) ;
+      p:updater "s.n3" .
+
+    :e a p:FileNode ;
+      p:inputs ( :sd :se ) .
+
+In a SPARQL template that might be written as:
+
+    # [pipeline-meta]
+    # <> p:inputNames ( sb: sc: ) .
+    # [/pipeline-meta]
+    PREFIX sb: <http://example/sb>
+    PREFIX sc: <http://example/sc>
+    PREFIX sd: <http://example/sd>
+    PREFIX se: <http://example/se>
+
+  where the PREFIXes appearing in the SPARQL code are used, and p: 
+  defaults to the pipeline prefix.
+  And it could be used as:
+
+    :s a p:PipelineNode ;
+      p:inputs ( :b :c ) ;
+      p:outputNames   ( sd: se: ) ;
+      p:updater "s.n3" .
+
+    :e a p:FileNode ;
+      p:inputs ( sd: se: ) .
+
+This means that full URIs would be substituted in at runtime, rather
+than just prefixes.  In practice this would probably mean that a 
+SPARQL template would have to use each full URI in a prefix definition,
+to avoid having to fully parse the SPARQL and expand prefixed local
+names.
+
+Another option would be to make the SPARQL template not conform to
+standard SPARQL syntax (until actual parameters have been substituted
+for formal parameters).  This is the Callimachus approach, and it means
+that those SPARQL templates would only be testable from a tool that
+will do the substitution.
+
+2/7/12: Thinking about how to do pipeline hierarchies, or sub-pipelines.
+I wrote up some thoughts in issue #18:
+http://code.google.com/p/rdf-pipeline/issues/detail?id=18
 
 2/1/12: In thinking about implementing ParliamentRdfNode, it occurred
 to me that we need a way to indicate the root location that will
@@ -38,6 +99,33 @@ how to parameterize a SPARQL Update by graph names.  A few ideas:
 	PREFIX bar: <http://example/bar>
 	PREFIX fum: <http://example/fum>
 
+1.a. 	# __START__
+	# inputs: foo: bar:
+	# output: fum:
+	# __END__
+
+1.b. http://jinja.pocoo.org/docs/templates/
+	# {%
+	# inputs: foo: bar:
+	# output: fum:
+	# %}
+
+1.c. 	# <%
+	# inputs: foo: bar:
+	# output: fum:
+	# %>
+
+1.d. http://template-toolkit.org/docs/manual/Syntax.html
+ 	# [%
+	# inputs: foo: bar:
+	# output: fum:
+	# %]
+
+1.e. 	# <rdf-pipeline>
+	# inputs: foo: bar:
+	# output: fum:
+	# </rdf-pipeline>
+
 2. Use special PREFIX declarations:
 	PREFIX input1: <foo:>
 	PREFIX input2: <bar:>
@@ -64,7 +152,7 @@ Maybe just have a graph called "parameters:", with all parameters merged.
 		...
 
 It may also be useful to be able to parameterize entire portions of
-a query, rather than just a graph or URI.
+a query, rather than just a graph or URI, but that may be a Pandora's box.
 
 4. Use relative URIs?
 
