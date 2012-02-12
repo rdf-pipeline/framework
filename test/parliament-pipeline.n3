@@ -6,20 +6,17 @@
 # Root location (as local name) for ParliamentRdfNodes on server ":"
 # (which is defined above as http://localhost/node/):
 p:ParliamentRdfNode p:root ( : <http://localhost:8080/parliament/> ) .
-p:ParliamentRdfNode p:root ( : "$PARLIAMENT_ROOT" ) .
+# p:ParliamentRdfNode p:root ( : "$PARLIAMENT_ROOT" ) .
 
-# Or maybe a configuration file should be supplied:
-p:ParliamentRdfNode p:config ( : <http://example/parliament-config.n3> ) .
-p:ParliamentRdfNode p:config ( : <relativeUri/parliament-config.n3> ) .
-<> owl:imports <...possibly relativeUri config file...> .
+:graph1 a p:ParliamentRdfNode ;
+	p:inputs ( "infile.txt" ) ;
+	p:updater "noop.sparql" .
 
-:one a p:ParliamentRdfNode .	# No updater
-
-:two a p:ParliamentRdfNode ;
-	p:inputs ( :one ) ;
-	p:updater "two-updater.sparql" .
-
-:three a p:ParliamentRdfNode ;
-	p:inputs ( :two ) ;
+:graph2 a p:ParliamentRdfNode ;
+	p:inputs ( :graph1 ) ;
 	p:updater "three-updater.sparql" .
+
+:graph3 a p:ParliamentRdfNode ;
+	p:inputs ( :graph2 ) ;
+	p:updater "noop.sparql" .
 

@@ -66,7 +66,33 @@ foreach my $dir (@testDirs) {
 	!system($svnCmd) or die;
 	}
 
+# Warn if filters may need to be reset:
+my @filters = (		"$moduleDir/t/helpers/filter-expected.perl",
+			"$moduleDir/t/helpers/filter-actual.perl" );
+foreach my $filter (@filters) {
+	my $f = $filter;
+	$f =~ s|^.*\/||;
+	warn "WARNING: Filter changed: $f Do you need to reset it?\n"
+		if &FilterChanged($filter);
+	}
+
 exit 0;
+
+########## FilterChanged #########
+sub FilterChanged
+{
+@_ == 1 || die;
+my ($newFilter) = @_;
+open(my $newFh, "<$newFilter") || die;
+my $newFilterString = join("", map {s/\#.*//; s/[\s\n\r]+//ms; $_} <$newFh>);
+close($newFh) || die;
+my $oldFilter = "$moduleDir/t/helpers/filter-original.perl";
+open(my $oldFh, "<$oldFilter") || die;
+my $oldFilterString = join("", map {s/\#.*//; s/[\s\n\r]+//ms; $_} <$oldFh>);
+close($oldFh) || die;
+return( $oldFilterString ne $newFilterString );
+}
+
 
 ########## EnvNotSet #########
 sub EnvNotSet

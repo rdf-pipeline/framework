@@ -1,0 +1,17 @@
+HTTP/1.1 200 OK
+Date: Thu, 19 Jan 2012 18:26:00 GMT
+Server: Apache/2.2.14 (Ubuntu)
+Content-Length: 30
+Content-Location: http://localhost/cache/addone/out
+Last-Modified: Wed, 18 Jan 2012 01:30:56 GMT
+ETag: "LM1326850256.504565000001"
+Vary: Accept-Encoding
+Content-Type: text/plain
+
+101
+301
+501
+701
+901
+1101
+1301
