@@ -10,10 +10,11 @@ A wrapper must implement the following functions.
 *Parameters:*
   * *serFilename* -- String: Filename of the content to be deserialized.
   * *deserName* -- String: Local name for the resulting deserialized object.
+  * *contentType* -- String: HTTP Content-Type of _serFilename_'s content.
 *Returns:*
   * Boolean: true (1) iff the deserialization succeeded.
 
-Deserializes the content of serFilename to deserName.  Inverse of fSerializer.  
+Deserializes the content of _serFilename_ to _deserName_.  Inverse of _fSerializer_.  
 
 A node type whose cached data is already in serialized form (suitable for HTTP transmission) does not need to implement _fDeserializer_.
 
@@ -21,10 +22,11 @@ A node type whose cached data is already in serialized form (suitable for HTTP t
 *Parameters:*
   * *deserName* -- String: Local name of the object to be serialized.
   * *serFilename* -- String: Filename of the content to be deserialized.
+  * *contentType* -- String: Desired HTTP Content-Type for _serFilename_'s content.
 *Returns:*
   * Boolean: true (1) iff the serialization succeeded.
 
-Serializes the object named by deserName to the file named by serFilename.  Inverse of fDeserializer.
+Serializes the object named by _deserName_ to the file named by _serFilename_.  Inverse of _fDeserializer_.  The 
 
 A node type whose cached data is already in serialized form (suitable for HTTP transmission) does not need to implement _fSerializer_.
 
@@ -34,8 +36,8 @@ A node type whose cached data is already in serialized form (suitable for HTTP t
   * *thisUri* -- String: URI of the node to be updated.
   * *thisUpdater* -- String: Local name of the updater to be invoked.
   * *out* -- String: Local name of the output cache to be updated.
-  * *thisInputs* -- List of strings: Local names of thisUri's input caches.
-  * *thisParameters* -- List of strings: Local names of thisUri's parameter caches.
+  * *thisInputs* -- List of strings: Local names of _thisUri_'s input caches.
+  * *thisParameters* -- List of strings: Local names of _thisUri_'s parameter caches.
   * *oldThisLM* -- String: Previous [http://code.google.com/p/rdf-pipeline/wiki/LM LM] of _out_.  If the updater does not end up changing the content of _out_ then _oldThisLM_ should be returned as the function result of _fRunUpdater_, so that the framework will recognize that _out_ did not change.
   * *callerUri* -- (AT RISK) String: URI of the downstream node (in the case of GET) or upstream node (in the case of NOTIFY) that caused thisUri to be updated.
   * *callerLM* -- (AT RISK) String: [http://code.google.com/p/rdf-pipeline/wiki/LM LM] of _callerUri_.
