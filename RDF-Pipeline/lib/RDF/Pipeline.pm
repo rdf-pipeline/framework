@@ -786,12 +786,14 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
   # out is a native name; serOut is a file path.
   my $thisFUriToNativeName = $nmv->{$thisType}->{fUriToNativeName} || "";
   my $defaultOutUri = "$baseUri/cache/" . &QuickName($thisUri) . "/out";
-  my $defaultOut = $defaultOutUri;
   my $thisTypeHash = $nm->{hash}->{$thisType} || {};
   my $hostRoot = $thisTypeHash->{$baseUri} || $basePath;
+  my $defaultOut = $defaultOutUri;
   $defaultOut = &{$thisFUriToNativeName}($defaultOut, $baseUri, $hostRoot) 
 	if $thisFUriToNativeName;
-  my $thisName = $thisFUriToNativeName ? &{$thisFUriToNativeName}($thisUri, $baseUri, $hostRoot) : $thisUri;
+  my $thisName = $thisUri;
+  $thisName = &{$thisFUriToNativeName}($thisUri, $baseUri, $hostRoot)
+	if $thisFUriToNativeName;
   $thisVHash->{out} ||= 
     $thisVHash->{updater} ? $defaultOut : $thisName;
   $thisVHash->{outUri} ||= 
