@@ -1,12 +1,12 @@
 #summary Wrapper Interface
 
 = Introduction =
-The RDF Pipeline framework is designed to allow new wrappers to be implemented for new node types.  A wrapper is provided by implementing the wrapper interface and registering the wrapper, which sets appropriate node metadata.  The mechanics of the interface depend on the programming language that is used (e.g., Java or Perl), but all interfaces involve the same kinds of functions.
+The RDF Pipeline framework is designed to allow new wrappers to be implemented for new node types.  A wrapper is provided by implementing the wrapper interface and registering the wrapper, which sets appropriate node metadata.  The mechanics of the interface depend on the programming language that is used (e.g., Java or Perl), but all interfaces involve similar functions.
 
 = Wrapper Functions =
 A wrapper must implement the following functions.
 
-== fDeserializer(...) (OPTIONAL) ==
+== fDeserializer(...) -- OPTIONAL ==
 *Parameters:*
   * *serFilename* -- String: Filename of the content to be deserialized.
   * *deserName* -- String: Native name for the resulting deserialized object.
@@ -18,7 +18,7 @@ Deserializes the content of _serFilename_ to _deserName_.  Inverse of _fSerializ
 
 A node type whose cached data is already in serialized form (suitable for HTTP transmission) does not need to implement _fDeserializer_.
 
-== fSerializer(...) (OPTIONAL) ==
+== fSerializer(...) -- OPTIONAL ==
 *Parameters:*
   * *deserName* -- String: Native name of the object to be serialized.
   * *serFilename* -- String: Filename of the content to be deserialized.
@@ -46,7 +46,7 @@ A node type whose cached data is already in serialized form (suitable for HTTP t
 
 Run updater _thisUpdater_ on node _thisUri_ using inputs _thisInputs_ and parameters _thisParameters_ to refresh the content of _out_.
 
-== fUriToNativeName(...) ==
+== fUriToNativeName(...) -- OPTIONAL ==
 *Parameters:*
   * *uri* -- String: URI to be converted to a native name.
   * *baseUri* -- String: $baseUri for _uri_'s host.  I.e., the initial part of _uri_ that indicates the host (and port) where _uri_ is hosted.  It does not include a trailing "/".  For example, if _uri_ is "http://example.com:8080/foo/bar" then _baseUri_ would be "http://example.com:8080". 
