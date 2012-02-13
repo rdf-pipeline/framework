@@ -897,7 +897,7 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
       # TODO: Add $baseUri and $root parameters:
       my $thisTypeHash = $nm->{hash}->{$thisType} || {};
       my $hostRoot = $thisTypeHash->{$baseUri} || $basePath;
-      $cacheName = &{$fUriToNativeName}($cacheName, $baseuri, $hostRoot) 
+      $cacheName = &{$fUriToNativeName}($cacheName, $baseUri, $hostRoot) 
 		if $fUriToNativeName;
       $thisHHash->{dependsOnName}->{$depUri} = $cacheName;
       # warn "thisUri: $thisUri depUri: $depUri Path 2\n";
