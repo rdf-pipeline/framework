@@ -9,7 +9,7 @@ A wrapper must implement the following functions.
 == fDeserializer(...) (OPTIONAL) ==
 *Parameters:*
   * *serFilename* -- String: Filename of the content to be deserialized.
-  * *deserName* -- String: Local name for the resulting deserialized object.
+  * *deserName* -- String: Native name for the resulting deserialized object.
   * *contentType* -- String: HTTP Content-Type of _serFilename_'s content.
 *Returns:*
   * Boolean: true (1) iff the deserialization succeeded.
@@ -20,7 +20,7 @@ A node type whose cached data is already in serialized form (suitable for HTTP t
 
 == fSerializer(...) (OPTIONAL) ==
 *Parameters:*
-  * *deserName* -- String: Local name of the object to be serialized.
+  * *deserName* -- String: Native name of the object to be serialized.
   * *serFilename* -- String: Filename of the content to be deserialized.
   * *contentType* -- String: Desired HTTP Content-Type for _serFilename_'s content.
 *Returns:*
@@ -34,10 +34,10 @@ A node type whose cached data is already in serialized form (suitable for HTTP t
 *Parameters:*
   * *nm* -- Hashmap: Node metadata.
   * *thisUri* -- String: URI of the node to be updated.
-  * *thisUpdater* -- String: Local name of the updater to be invoked.
-  * *out* -- String: Local name of the output cache to be updated.
-  * *thisInputs* -- List of strings: Local names of _thisUri_'s input caches.
-  * *thisParameters* -- List of strings: Local names of _thisUri_'s parameter caches.
+  * *thisUpdater* -- String: Native name of the updater to be invoked.
+  * *out* -- String: Native name of the output cache to be updated.
+  * *thisInputs* -- List of strings: Native names of _thisUri_'s input caches.
+  * *thisParameters* -- List of strings: Native names of _thisUri_'s parameter caches.
   * *oldThisLM* -- String: Previous [http://code.google.com/p/rdf-pipeline/wiki/LM LM] of _out_.  If the updater does not end up changing the content of _out_ then _oldThisLM_ should be returned as the function result of _fRunUpdater_, so that the framework will recognize that _out_ did not change.
   * *callerUri* -- String: URI of the downstream node (in the case of GET) or upstream node (in the case of NOTIFY) that caused thisUri to be updated.
   * *callerLM* -- String: [http://code.google.com/p/rdf-pipeline/wiki/LM LM] of _callerUri_.
@@ -46,19 +46,19 @@ A node type whose cached data is already in serialized form (suitable for HTTP t
 
 Run updater _thisUpdater_ on node _thisUri_ using inputs _thisInputs_ and parameters _thisParameters_ to refresh the content of _out_.
 
-== fUriToLocalName(...) ==
+== fUriToNativeName(...) ==
 *Parameters:*
-  * *uri* -- String: URI to be converted to a local name.
+  * *uri* -- String: URI to be converted to a native name.
   * *baseUri* -- String: The initial part of _uri_ that indicates the host (and port) where _uri_ is hosted.  It does not include a trailing "/".  For example, if _uri_ is "http://example.com:8080/foo/bar" then _baseUri_ would be "http://example.com:8080".  
-  * *root* -- String: Root of the local name.  This is the substring or pattern from which _fUriToLocalName_ will create a local name from _uri_.
+  * *root* -- String: Root of the native name.  This is the substring or pattern from which _fUriToNativeName_ will create a native name from _uri_.
 *Returns:*
-  * String: Local name corresponding to _uri_.
+  * String: Native name corresponding to _uri_.
 
-Converts URI _uri_ to a local name based on _root_ as the root of the local name space.  
+Converts URI _uri_ to a native name based on _root_ as the root of the native name space.  
 
-(A "local name" is a name that is native to a particular node type.  For example, a filename in the case of !FileNode.)
+(A "native name" is a name that is native to a particular node type.  For example, a filename in the case of !FileNode.)
 
-For example, for a !FileNode _fUriToLocalName_ will convert a URI to the corresponding full path filename on the current server.  In this case, _root_ will be the Apache $DOCUMENT_ROOT (synonym: $basePath -- not to be confused with $baseUri).  So if _uri_ is "http://example.com:8080/foo/bar" and _baseUri_ is "http://example.com:8080" and _root_ is "/a/www", then _fUriToLocalName_ will return "/a/www/foo/bar".
+For example, for a !FileNode _fUriToNativeName_ will convert a URI to the corresponding full path filename on the current server.  In this case, _root_ will be the Apache $DOCUMENT_ROOT (synonym: $basePath -- not to be confused with $baseUri).  So if _uri_ is "http://example.com:8080/foo/bar" and _baseUri_ is "http://example.com:8080" and _root_ is "/a/www", then _fUriToNativeName_ will return "/a/www/foo/bar".
 
 = Node metadata =
 In addition to specifying the functions listed above, the following properties must be set on the node type that the wrapper implements.
