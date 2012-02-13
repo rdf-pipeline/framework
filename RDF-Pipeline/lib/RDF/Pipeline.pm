@@ -424,8 +424,13 @@ $oldCacheLM ||= "";
 my $fExists = $depTypeVHash->{fExists} or die;
 $oldCacheLM = "" if $oldCacheLM && !&{$fExists}($depName);
 return if (!$depLM || $depLM eq $oldCacheLM);
+my $thisVHash = $nm->{value}->{$thisUri} || {};
+my $thisType = $thisVHash->{nodeType} || "";
+my $contentType = $thisVHash->{contentType}
+	|| $nm->{value}->{$thisType}->{defaultContentType}
+	|| "text/plain";
 &Warn("UPDATING $depUri local cache: $depName of $thisUri\n", $DEBUG_UPDATES); 
-&{$fDeserializer}($depSerName, $depName) or die;
+&{$fDeserializer}($depSerName, $depName, $contentType) or die;
 &SaveLMs($depNameUri, $depLM);
 }
 
@@ -457,7 +462,7 @@ my $serOut = $thisVHash->{serOut} || die;
 my $serOutUri = $thisVHash->{serOutUri} || die;
 my $size = -s $serOut || 0;
 $r->set_content_length($size);
-# TODO: Should use Accept header in choosing contentType.
+# TODO: Should use Accept header in choosing contentType?
 my $contentType = $thisVHash->{contentType}
 	|| $nm->{value}->{$thisType}->{defaultContentType}
 	|| "text/plain";
@@ -503,6 +508,7 @@ my $outUri = $thisVHash->{outUri} || die;
 my $serOutUri = $thisVHash->{serOutUri} || die;
 my $newThisLM = &FreshenOut($nm, 'GET', $thisUri, $callerUri, $callerLM);
 &Warn("FreshenSerOut $thisUri returned newThisLM: $newThisLM\n", $DEBUG_DETAILS);
+# TODO: Is this correct? Why not serialize on a HEAD request?
 if ($method eq 'HEAD' || $method eq 'NOTIFY' || $outUri eq $serOutUri) {
   &Warn("FreshenSerOut: No serialization needed. Returning newThisLM: $newThisLM\n", $DEBUG_DETAILS);
   return $newThisLM;
@@ -518,9 +524,12 @@ if (!$serOutLM || !-e $serOut || ($newThisLM && $newThisLM ne $serOutLM)) {
   # to the serialization function.
   # my $acceptHeader = $r->headers_in->get('Accept') || "";
   # warn "acceptHeader: $acceptHeader\n";
+  my $contentType = $thisVHash->{contentType}
+	|| $nm->{value}->{$thisType}->{defaultContentType}
+	|| "text/plain";
   my $fSerialize = $thisVHash->{fSerialize} || die;
   &Warn("UPDATING $thisUri serOut: $serOut\n", $DEBUG_UPDATES); 
-  &{$fSerialize}($out, $serOut) or die;
+  &{$fSerialize}($out, $serOut, $contentType) or die;
   $serOutLM = $newThisLM;
   &SaveLMs($serOutUri, $serOutLM);
   }
@@ -883,7 +892,7 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
       my $fUriToLocalName = $nmv->{$depType}->{fUriToLocalName};
       my $cacheName = "$baseUri/cache/$thisType/$depUriEncoded/cache";
       $thisHHash->{dependsOnNameUri}->{$depUri} = $cacheName;
-      # TODO: Add $baseUri and $root parameter:
+      # TODO: Add $baseUri and $root parameters:
       $cacheName = &{$fUriToLocalName}($cacheName) if $fUriToLocalName;
       $thisHHash->{dependsOnName}->{$depUri} = $cacheName;
       # warn "thisUri: $thisUri depUri: $depUri Path 2\n";
@@ -1210,6 +1219,7 @@ $nm->{value}->{FileNode}->{fDeserializer} = "";
 $nm->{value}->{FileNode}->{fUriToLocalName} = \&UriToPath;
 $nm->{value}->{FileNode}->{fRunUpdater} = \&FileNodeRunUpdater;
 $nm->{value}->{FileNode}->{fOutExists} = \&FileExists;
+$nm->{value}->{FileNode}->{defaultContentType} = "text/plain";
 }
 
 ############# FileNodeRunUpdater ##############
