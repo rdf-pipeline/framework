@@ -49,8 +49,8 @@ Run updater _thisUpdater_ on node _thisUri_ using inputs _thisInputs_ and parame
 == fUriToNativeName(...) ==
 *Parameters:*
   * *uri* -- String: URI to be converted to a native name.
-  * *baseUri* -- String: The initial part of _uri_ that indicates the host (and port) where _uri_ is hosted.  It does not include a trailing "/".  For example, if _uri_ is "http://example.com:8080/foo/bar" then _baseUri_ would be "http://example.com:8080".  
-  * *root* -- String: Root of the native name where _uri_ is hosted.  This is the substring or pattern from which _fUriToNativeName_ will create a native name from _uri_.
+  * *baseUri* -- String: $baseUri for _uri_'s host.  I.e., the initial part of _uri_ that indicates the host (and port) where _uri_ is hosted.  It does not include a trailing "/".  For example, if _uri_ is "http://example.com:8080/foo/bar" then _baseUri_ would be "http://example.com:8080". 
+  * *root* -- String: Root of the native name where _uri_ is hosted.  This is the substring or pattern from which _fUriToNativeName_ will create a native name from _uri_.  It is set from the hostRoot property of _uri_'s node type, or $DOCUMENT_ROOT (a/k/a $basePath) if that property is not set.
 *Returns:*
   * String: Native name corresponding to _uri_.
 
