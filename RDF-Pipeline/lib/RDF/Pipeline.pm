@@ -787,9 +787,11 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
   my $thisFUriToNativeName = $nmv->{$thisType}->{fUriToNativeName} || "";
   my $defaultOutUri = "$baseUri/cache/" . &QuickName($thisUri) . "/out";
   my $defaultOut = $defaultOutUri;
-  $defaultOut = &{$thisFUriToNativeName}($defaultOut) 
+  my $thisTypeHash = $nm->{hash}->{$thisType} || {};
+  my $hostRoot = $thisTypeHash->{$baseUri} || $basePath;
+  $defaultOut = &{$thisFUriToNativeName}($defaultOut, $baseUri, $hostRoot) 
 	if $thisFUriToNativeName;
-  my $thisName = $thisFUriToNativeName ? &{$thisFUriToNativeName}($thisUri) : $thisUri;
+  my $thisName = $thisFUriToNativeName ? &{$thisFUriToNativeName}($thisUri, $baseUri, $hostRoot) : $thisUri;
   $thisVHash->{out} ||= 
     $thisVHash->{updater} ? $defaultOut : $thisName;
   $thisVHash->{outUri} ||= 
@@ -893,7 +895,10 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
       my $cacheName = "$baseUri/cache/$thisType/$depUriEncoded/cache";
       $thisHHash->{dependsOnNameUri}->{$depUri} = $cacheName;
       # TODO: Add $baseUri and $root parameters:
-      $cacheName = &{$fUriToNativeName}($cacheName) if $fUriToNativeName;
+      my $thisTypeHash = $nm->{hash}->{$thisType} || {};
+      my $hostRoot = $thisTypeHash->{$baseUri} || $basePath;
+      $cacheName = &{$fUriToNativeName}($cacheName, $baseuri, $hostRoot) 
+		if $fUriToNativeName;
       $thisHHash->{dependsOnName}->{$depUri} = $cacheName;
       # warn "thisUri: $thisUri depUri: $depUri Path 2\n";
       }
@@ -1397,10 +1402,12 @@ return $uri;
 
 ########## UriToPath ############
 # Converts (possibly relative) URI to absolute file path (if local) 
-# or returns "".
+# or returns "".   Extra parameters ($baseUri and $hostRoot) are ignored
+# and globals $baseUriPattern and $basePath are used instead.
 sub UriToPath
 {
 my $uri = shift;
+### Ignore these parameters and use globals $baseUriPattern and $basePath:
 my $path = &AbsUri($uri);
 if ($path =~ s/\A$baseUriPattern\b/$basePath/e) {
 	return $path;
