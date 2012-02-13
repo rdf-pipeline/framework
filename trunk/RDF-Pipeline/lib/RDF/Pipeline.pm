@@ -783,13 +783,13 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
   # Save original out before setting it to a default value:
   $thisVHash->{outOriginal} = $thisVHash->{out};
   # Set out, outUri, serOut and serOutUri if not set.  
-  # out is a local name; serOut is a file path.
-  my $thisFUriToLocalName = $nmv->{$thisType}->{fUriToLocalName} || "";
+  # out is a native name; serOut is a file path.
+  my $thisFUriToNativeName = $nmv->{$thisType}->{fUriToNativeName} || "";
   my $defaultOutUri = "$baseUri/cache/" . &QuickName($thisUri) . "/out";
   my $defaultOut = $defaultOutUri;
-  $defaultOut = &{$thisFUriToLocalName}($defaultOut) 
-	if $thisFUriToLocalName;
-  my $thisName = $thisFUriToLocalName ? &{$thisFUriToLocalName}($thisUri) : $thisUri;
+  $defaultOut = &{$thisFUriToNativeName}($defaultOut) 
+	if $thisFUriToNativeName;
+  my $thisName = $thisFUriToNativeName ? &{$thisFUriToNativeName}($thisUri) : $thisUri;
   $thisVHash->{out} ||= 
     $thisVHash->{updater} ? $defaultOut : $thisName;
   $thisVHash->{outUri} ||= 
@@ -826,7 +826,7 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
   my $thisHHash = $nmh->{$thisUri};
   my $thisType = $thisVHash->{nodeType};
   # The dependsOnName hash is used for inputs from other environments
-  # and maps from dependsOn URIs (or inputs/parameter URIs) to the local names 
+  # and maps from dependsOn URIs (or inputs/parameter URIs) to the native names 
   # that will be used by $thisUri's updater when
   # it is invoked.  It will either use a new name (if the input is from
   # a different environment) or the input's out directly (if in the 
@@ -848,8 +848,8 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
   #     If so (and on same server) then the node's out can be accessed directly.
   #  D. Does $depType have a deserializer?
   #     If not, then 'cache' will be the same as serCache.
-  #  E. Does $depType have a fUriToLocalName function?
-  #     If so, then it will be used to generate a local name for 'cache'.
+  #  E. Does $depType have a fUriToNativeName function?
+  #     If so, then it will be used to generate a native name for 'cache'.
   $thisHHash->{dependsOnName} ||= {};
   $thisHHash->{dependsOnSerName} ||= {};
   $thisHHash->{dependsOnNameUri} ||= {};
@@ -888,12 +888,12 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
     elsif ($fDeserializer) {
       # There is a deserializer, so we must create a new {cache} name.
       # Create a URI and convert it
-      # (if necessary) to an appropriate local name.
-      my $fUriToLocalName = $nmv->{$depType}->{fUriToLocalName};
+      # (if necessary) to an appropriate native name.
+      my $fUriToNativeName = $nmv->{$depType}->{fUriToNativeName};
       my $cacheName = "$baseUri/cache/$thisType/$depUriEncoded/cache";
       $thisHHash->{dependsOnNameUri}->{$depUri} = $cacheName;
       # TODO: Add $baseUri and $root parameters:
-      $cacheName = &{$fUriToLocalName}($cacheName) if $fUriToLocalName;
+      $cacheName = &{$fUriToNativeName}($cacheName) if $fUriToNativeName;
       $thisHHash->{dependsOnName}->{$depUri} = $cacheName;
       # warn "thisUri: $thisUri depUri: $depUri Path 2\n";
       }
@@ -913,13 +913,13 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
     # Set the list of outputs (actually inverse dependsOn) for each node:
     $nmh->{$depUri}->{outputs}->{$thisUri} = 1 if $depType;
     }
-  # Set the list of input local names for this node.
+  # Set the list of input native names for this node.
   $thisLHash->{inputNames} ||= [];
   foreach my $inUri (@{$thisLHash->{inputs}}) {
     my $inName = $thisHHash->{dependsOnName}->{$inUri};
     push(@{$thisLHash->{inputNames}}, $inName);
     }
-  # Set the list of parameter local names for this node.
+  # Set the list of parameter native names for this node.
   $thisLHash->{parameterNames} ||= [];
   foreach my $pUri (@{$thisLHash->{parameters}}) {
     my $pName = $thisHHash->{dependsOnName}->{$pUri};
@@ -1216,7 +1216,7 @@ my ($nm) = @_;
 $nm->{value}->{FileNode} = {};
 $nm->{value}->{FileNode}->{fSerializer} = "";
 $nm->{value}->{FileNode}->{fDeserializer} = "";
-$nm->{value}->{FileNode}->{fUriToLocalName} = \&UriToPath;
+$nm->{value}->{FileNode}->{fUriToNativeName} = \&UriToPath;
 $nm->{value}->{FileNode}->{fRunUpdater} = \&FileNodeRunUpdater;
 $nm->{value}->{FileNode}->{fOutExists} = \&FileExists;
 $nm->{value}->{FileNode}->{defaultContentType} = "text/plain";
