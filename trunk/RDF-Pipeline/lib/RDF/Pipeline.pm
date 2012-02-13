@@ -294,8 +294,7 @@ if ($configLastModified != $cmtime
 	# %config || return Apache2::Const::SERVER_ERROR;
 	}
 
-my $thisVHash = $nm->{value}->{$thisUri} || {};
-my $subtype = $thisVHash->{nodeType} || "";
+my $subtype = $nm->{value}->{$thisUri}->{nodeType} || "";
 &Warn("NOTICE: $thisUri is not a Node.\n", $DEBUG_DETAILS) if !$subtype;
 &Warn("thisUri: $thisUri subtype: $subtype\n", $DEBUG_DETAILS);
 # Allow non-node files in the www/node/ dir to be served normally:
@@ -347,8 +346,7 @@ if ($depLM && $oldLM && $oldLM eq $depLM) {
 	}
 # This is only for prettier debugging output:
 $queryParams .= "&debugStackDepth=" . ($debugStackDepth + &CallStackDepth())
-	if $debug && $nm->{value}->{$depUri} 
-		&& $nm->{value}->{$depUri}->{nodeType}
+	if $debug && $nm->{value}->{$depUri}->{nodeType}
 		&& &IsSameServer($baseUri, $depUri);
 $requestUri =~ s/\#.*//;  # Strip any frag ID
 $queryParams =~ s/\A\&/\?/ if $queryParams || $requestUri =~ m/\?/;
@@ -407,18 +405,14 @@ sub DeserializeToLocalCache
 my ($nm, $thisUri, $depUri, $depLM) = @_;
 &Warn("DeserializeToLocalCache $thisUri In: $depUri\n", $DEBUG_DETAILS);
 &Warn("... with depLM: $depLM\n", $DEBUG_DETAILS);
-my $thisHHash = $nm->{hash}->{$thisUri} || {};
-my $thisDepSerNameHash = $thisHHash->{dependsOnSerName} || {};
-my $depSerName = $thisDepSerNameHash->{$depUri};
-my $thisDepNameHash = $thisHHash->{dependsOnName} || {};
-my $depName = $thisDepNameHash->{$depUri};
-my $thisDepNameUriHash = $thisHHash->{dependsOnNameUri} || {};
-my $depNameUri = $thisDepNameUriHash->{$depUri};
-my $depVHash = $nm->{value}->{$depUri} || {};
-my $depType = $depVHash->{nodeType} || "";
+my $depType = $nm->{value}->{$depUri}->{nodeType} || "";
 my $depTypeVHash = $nm->{value}->{$depType} || {};
 my $fDeserializer = $depTypeVHash->{fDeserializer} || "";
 return if !$fDeserializer;
+my $thisHHash = $nm->{hash}->{$thisUri} || {};
+my $depSerName = $thisHHash->{dependsOnSerName}->{$depUri} || "";
+my $depName = $thisHHash->{dependsOnName}->{$depUri} || "";
+my $depNameUri = $thisHHash->{dependsOnNameUri}->{$depUri} || "";
 my ($oldCacheLM) = &LookupLMs($depNameUri);
 $oldCacheLM ||= "";
 my $fExists = $depTypeVHash->{fExists} or die;
@@ -520,16 +514,19 @@ if (!$serOutLM || !-e $serOut || ($newThisLM && $newThisLM ne $serOutLM)) {
   ### Allow non-monotonic LM (because they could be checksums):
   ### die if $newThisLM && $serOutLM && $newThisLM lt $serOutLM;
   # TODO: Set $acceptHeader from $r, and use it to choose $contentType:
-  # This could be done by making {fSerialize} a hash from $contentType
+  # This could be done by making {fSerializer} a hash from $contentType
   # to the serialization function.
   # my $acceptHeader = $r->headers_in->get('Accept') || "";
   # warn "acceptHeader: $acceptHeader\n";
+  my $thisTypeVHash = $nm->{value}->{$thisType} || {};
   my $contentType = $thisVHash->{contentType}
-	|| $nm->{value}->{$thisType}->{defaultContentType}
+	|| $thisTypeVHash->{defaultContentType}
 	|| "text/plain";
-  my $fSerialize = $thisVHash->{fSerialize} || die;
+  # At this point there MUST be a serializer, because otherwise $outUri and 
+  # $serOutUri would have been the same, and we would have returned already.
+  my $fSerializer = $thisTypeVHash->{fSerializer} || die;
   &Warn("UPDATING $thisUri serOut: $serOut\n", $DEBUG_UPDATES); 
-  &{$fSerialize}($out, $serOut, $contentType) or die;
+  &{$fSerializer}($out, $serOut, $contentType) or die;
   $serOutLM = $newThisLM;
   &SaveLMs($serOutUri, $serOutLM);
   }
