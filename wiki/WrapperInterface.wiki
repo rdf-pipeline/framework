@@ -8,6 +8,7 @@ A wrapper must implement the following functions.
 
 == fDeserializer(...) -- OPTIONAL ==
 *Parameters:*
+  * *hostRoot* -- String: Native name root of the node's host.
   * *serFilename* -- String: Filename of the content to be deserialized.
   * *deserName* -- String: Native name for the resulting deserialized object.
   * *contentType* -- String: HTTP Content-Type of _serFilename_'s content.
@@ -20,6 +21,7 @@ A node type whose cached data is already in serialized form (suitable for HTTP t
 
 == fSerializer(...) -- OPTIONAL ==
 *Parameters:*
+  * *hostRoot* -- String: Native name root of the node's host.
   * *deserName* -- String: Native name of the object to be serialized.
   * *serFilename* -- String: Filename of the content to be deserialized.
   * *contentType* -- String: Desired HTTP Content-Type for _serFilename_'s content.
@@ -33,6 +35,7 @@ A node type whose cached data is already in serialized form (suitable for HTTP t
 == fRunUpdater(...) ==
 *Parameters:*
   * *nm* -- Hashmap: Node metadata.
+  * *hostRoot* -- String: Native name root of the node's host.
   * *thisUri* -- String: URI of the node to be updated.
   * *thisUpdater* -- String: Native name of the updater to be invoked.
   * *out* -- String: Native name of the output cache to be updated.
@@ -50,15 +53,15 @@ Run updater _thisUpdater_ on node _thisUri_ using inputs _thisInputs_ and parame
 *Parameters:*
   * *uri* -- String: URI to be converted to a native name.
   * *baseUri* -- String: $baseUri for _uri_'s host.  I.e., the initial part of _uri_ that indicates the host (and port) where _uri_ is hosted.  It does not include a trailing "/".  For example, if _uri_ is "http://example.com:8080/foo/bar" then _baseUri_ would be "http://example.com:8080". 
-  * *root* -- String: Root of the native name where _uri_ is hosted.  This is the substring or pattern from which _fUriToNativeName_ will create a native name from _uri_.  It is set from the hostRoot property of _uri_'s node type, or $DOCUMENT_ROOT (a/k/a $basePath) if that property is not set.
+  * *hostRoot* -- String: Native name root where _uri_ is hosted.  This is the substring or pattern from which _fUriToNativeName_ will create a native name from _uri_.  It is set from the hostRoot property of _uri_'s node type, or $DOCUMENT_ROOT (a/k/a $basePath) if that property is not set.
 *Returns:*
   * String: Native name corresponding to _uri_.
 
-Converts URI _uri_ to a native name based on _root_ as the root of the native name space.  
+Converts URI _uri_ to a native name based on _hostRoot_ as the root of the native name space.  
 
 (A "native name" is a name that is native to a particular node type.  For example, a filename in the case of !FileNode.)
 
-For example, for a !FileNode _fUriToNativeName_ will convert a URI to the corresponding full path filename on the current server.  In this case, _root_ will be the Apache $DOCUMENT_ROOT (synonym: $basePath -- not to be confused with $baseUri).  So if _uri_ is "http://example.com:8080/foo/bar" and _baseUri_ is "http://example.com:8080" and _root_ is "/a/www", then _fUriToNativeName_ will return "/a/www/foo/bar".
+For example, for a !FileNode _fUriToNativeName_ will convert a URI to the corresponding full path filename on the current server.  In this case, _hostRoot_ will be the Apache $DOCUMENT_ROOT (synonym: $basePath -- not to be confused with $baseUri).  So if _uri_ is "http://example.com:8080/foo/bar" and _baseUri_ is "http://example.com:8080" and _hostRoot_ is "/a/www", then _fUriToNativeName_ will return "/a/www/foo/bar".
 
 = Node metadata =
 In addition to specifying the functions listed above, the following properties must be set on the node type that the wrapper implements.
