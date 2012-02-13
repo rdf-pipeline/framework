@@ -1,7 +1,7 @@
 #summary Wrapper Interface
 
 = Introduction =
-The RDF Pipeline framework is designed to allow additional wrappers to be implemented for new node types.  A wrapper is provided by implementing a wrapper interface.  The mechanics of the interface depend on the programming language that is used (e.g., Java or Perl), but all interfaces involve the same kinds of functions.
+The RDF Pipeline framework is designed to allow additional wrappers to be implemented for new node types.  A wrapper is provided by implementing the wrapper interface and registering the wrapper, which sets appropriate node metadata.  The mechanics of the interface depend on the programming language that is used (e.g., Java or Perl), but all interfaces involve the same kinds of functions.
 
 = Wrapper Functions =
 A wrapper must implement the following functions.
