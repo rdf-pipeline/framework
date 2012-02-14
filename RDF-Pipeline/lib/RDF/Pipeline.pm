@@ -424,7 +424,8 @@ my $contentType = $thisVHash->{contentType}
 	|| $nm->{value}->{$thisType}->{defaultContentType}
 	|| "text/plain";
 &Warn("UPDATING $depUri local cache: $depName of $thisUri\n", $DEBUG_UPDATES); 
-&{$fDeserializer}($depSerName, $depName, $contentType) or die;
+&{$fDeserializer}($depSerName, $depName, $contentType) 
+    or die "ERROR: Failed to deserialize $depSerName to $depName with Content-Type: $contentType\n";
 &SaveLMs($depNameUri, $depLM);
 }
 
@@ -526,7 +527,8 @@ if (!$serOutLM || !-e $serOut || ($newThisLM && $newThisLM ne $serOutLM)) {
   # $serOutUri would have been the same, and we would have returned already.
   my $fSerializer = $thisTypeVHash->{fSerializer} || die;
   &Warn("UPDATING $thisUri serOut: $serOut\n", $DEBUG_UPDATES); 
-  &{$fSerializer}($out, $serOut, $contentType) or die;
+  &{$fSerializer}($out, $serOut, $contentType) 
+    or die "ERROR: Failed to serialize $out to $serOut with Content-Type: $contentType\n";
   $serOutLM = $newThisLM;
   &SaveLMs($serOutUri, $serOutLM);
   }
@@ -546,8 +548,6 @@ my ($oldThisLM, %oldDepLMs) = &LookupLMs($thisUri);
 $oldThisLM ||= "";
 return $oldThisLM if $method eq "GRAB";
 my $thisVHash = $nm->{value}->{$thisUri};
-my $thisLHash = $nm->{list}->{$thisUri};
-my $thisType = $thisVHash->{nodeType} or die;
 # Run thisUri's update policy for this event:
 my $fUpdatePolicy = $thisVHash->{fUpdatePolicy} or die;
 my $policySaysFreshen = 
@@ -555,19 +555,22 @@ my $policySaysFreshen =
 return $oldThisLM if !$policySaysFreshen;
 my ($thisIsStale, $newDepLMs) = 
 	&RequestLatestDependsOns($nm, $thisUri, $callerUri, $callerLM, \%oldDepLMs);
+my $thisType = $thisVHash->{nodeType} or die;
 my $out = $thisVHash->{out} or die;
-my $fOutExists = $nm->{value}->{$thisType}->{fOutExists} or die;
-$oldThisLM = "" if !&{$fOutExists}($out);
+my $thisTypeVHash = $nm->{value}->{$thisType} || {};
+my $fOutExists = $thisTypeVHash->{fOutExists} or die;
+$oldThisLM = "" if !&{$fOutExists}($out);	# out got deleted?
 $thisIsStale = 1 if !$oldThisLM;
 my $thisUpdater = $thisVHash->{updater} || "";
 return $oldThisLM if $thisUpdater && !$thisIsStale;
+my $thisLHash = $nm->{list}->{$thisUri};
 my $thisInputs = $thisLHash->{inputNames} || [];
 my $thisParameters = $thisLHash->{inputParameters} || [];
 # TODO: Figure out what to do if a node is STUCK, i.e., inputs
 # have changed but there is no updater.
 die "ERROR: Node $thisUri is STUCK: Inputs but no updater. " 
 	if @{$thisInputs} && !$thisUpdater;
-my $fRunUpdater = $nm->{value}->{$thisType}->{fRunUpdater} or die;
+my $fRunUpdater = $thisTypeVHash->{$thisType}->{fRunUpdater} or die;
 # If there is no updater then it is up to $fRunUpdater to generate
 # an LM for the static out.
 if ($thisUpdater) {
@@ -783,7 +786,7 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
   # out is a native name; serOut is a file path.
   my $thisFUriToNativeName = $nmv->{$thisType}->{fUriToNativeName} || "";
   my $defaultOutUri = "$baseUri/cache/" . &QuickName($thisUri) . "/out";
-  my $thisTypeHash = $nm->{hash}->{$thisType} || {};
+  my $thisTypeHash = $nmh->{$thisType} || {};
   my $hostRoot = $thisTypeHash->{$baseUri} || $basePath;
   my $defaultOut = $defaultOutUri;
   $defaultOut = &{$thisFUriToNativeName}($defaultOut, $baseUri, $hostRoot) 
@@ -891,11 +894,10 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
       # Create a URI and convert it
       # (if necessary) to an appropriate native name.
       my $fUriToNativeName = $nmv->{$depType}->{fUriToNativeName};
-      my $cacheName = "$baseUri/cache/$thisType/$depUriEncoded/cache";
-      $thisHHash->{dependsOnNameUri}->{$depUri} = $cacheName;
-      # TODO: Add $baseUri and $root parameters:
-      my $thisTypeHash = $nm->{hash}->{$thisType} || {};
-      my $hostRoot = $thisTypeHash->{$baseUri} || $basePath;
+      my $cacheNameUri = "$baseUri/cache/$thisType/$depUriEncoded/cache";
+      $thisHHash->{dependsOnNameUri}->{$depUri} = $cacheNameUri;
+      my $cacheName = $cacheNameUri;
+      my $hostRoot = $nm->{hash}->{$thisType}->{$baseUri} || $basePath;
       $cacheName = &{$fUriToNativeName}($cacheName, $baseUri, $hostRoot) 
 		if $fUriToNativeName;
       $thisHHash->{dependsOnName}->{$depUri} = $cacheName;
