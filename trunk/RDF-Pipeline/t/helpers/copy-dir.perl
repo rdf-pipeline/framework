@@ -31,6 +31,15 @@ if (@ARGV && $ARGV[0] eq "-s") {
 my $sourceDir = shift @ARGV;
 my $destDir = shift @ARGV;
 
+# Make them absolute paths:
+my $cwd = `/bin/pwd`;
+chomp $cwd;
+$cwd =~ s|\/\Z|| if length($cwd)>1;
+$sourceDir = "$cwd/$sourceDir" if $sourceDir !~ m|\A\/|;
+$destDir = "$cwd/$destDir" if $destDir !~ m|\A\/|;
+
+# warn "copy-dir.perl $sourceDir $destDir\n";
+
 -d $sourceDir || $sourceDir eq "/dev/null"
 	or die "$0: Source directory does not exist: $sourceDir\n";
 
@@ -58,7 +67,11 @@ if ($sourceDir ne "/dev/null") {
 	# underneath $destDir, as explained in Kaleb Pederson's comment here:
 	# http://stackoverflow.com/questions/2193584/copy-folder-recursively-excluding-some-folders
 	$sourceDir .= "/" if $sourceDir !~ m|\/\Z|;
-	my $copyCmd = "rsync -a '--exclude=.*' '$sourceDir' '$destDir'";
+	#### Cannot use rsync due to issue #29, 
+	#### but tar with --format=posix seems to work.
+	# my $copyCmd = "rsync -a '--exclude=.*' '$sourceDir' '$destDir'";
+	mkdir($destDir) || die if !-d $destDir;
+	my $copyCmd = "cd '$sourceDir' ; /bin/tar cf - '--format=posix' '--exclude-vcs' . | ( cd '$destDir' ; /bin/tar xf - )";
 	# warn "copyCmd: $copyCmd\n";
 	warn "Copying '$sourceDir' to '$destDir'\n" if $useSvn && $noisy;
 	!system($copyCmd) or die;
