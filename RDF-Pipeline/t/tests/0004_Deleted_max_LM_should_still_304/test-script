@@ -20,6 +20,11 @@ my $wwwDir = shift @ARGV || $ENV{RDF_PIPELINE_WWW_DIR} || die;
 $ENV{RDF_PIPELINE_WWW_DIR} = $wwwDir;	
 
 ############ CUSTOMIZE HERE ################
+# Delete max LM:
+my $maxLM = "$wwwDir/lm/http%3A%2F%2Flocalhost%2Fnode%2Fmax";
+-e $maxLM || die;
+unlink("$maxLM") || die;
+
 # Invoke the URL, concatenating its output to $wwwDir/test/testout :
 my $testUrl = 'http://localhost/node/addone';
 !system("../../helpers/pipeline-request.perl GET '$testUrl'") or die;

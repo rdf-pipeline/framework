@@ -570,7 +570,8 @@ my $thisParameters = $thisLHash->{inputParameters} || [];
 # have changed but there is no updater.
 die "ERROR: Node $thisUri is STUCK: Inputs but no updater. " 
 	if @{$thisInputs} && !$thisUpdater;
-my $fRunUpdater = $thisTypeVHash->{$thisType}->{fRunUpdater} or die;
+my $fRunUpdater = $thisTypeVHash->{fRunUpdater} 
+	or die "ERROR: no fRunUpdater for thisType: $thisType\n";
 # If there is no updater then it is up to $fRunUpdater to generate
 # an LM for the static out.
 if ($thisUpdater) {

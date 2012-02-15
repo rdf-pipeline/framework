@@ -35,7 +35,7 @@ my $setupCmd = "$moduleDir/t/helpers/copy-dir.perl -s '$wwwDir' '$setupFiles'";
 $setupCmd = "$moduleDir/t/helpers/copy-dir.perl -s '/dev/null' '$setupFiles/test'";
 !system($setupCmd) or die;
 
-warn "Running test $dir , which should fail because
+warn "Running test $dir , which should fail if
 expected-files have not yet been created/updated ...\n";
 my $runCmd = "$moduleDir/t/run-test.perl '$dir'";
 # warn "runCmd: $runCmd\n";

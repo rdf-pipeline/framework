@@ -20,6 +20,11 @@ my $wwwDir = shift @ARGV || $ENV{RDF_PIPELINE_WWW_DIR} || die;
 $ENV{RDF_PIPELINE_WWW_DIR} = $wwwDir;	
 
 ############ CUSTOMIZE HERE ################
+# Delete odds cache:
+my $oddsCache = "$wwwDir/cache/odds/out";
+-e $oddsCache || die;
+unlink("$oddsCache") || die;
+
 # Invoke the URL, concatenating its output to $wwwDir/test/testout :
 my $testUrl = 'http://localhost/node/addone';
 !system("../../helpers/pipeline-request.perl GET '$testUrl'") or die;
