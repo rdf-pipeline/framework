@@ -11,7 +11,7 @@ package RDF::Pipeline;
 # To restart apache (under root):
 #  apache2ctl stop ; sleep 5 ; truncate -s 0 /var/log/apache2/error.log ; apache2ctl start
 
-use 5.10.1; 	# It *may* work under lower versions, but has not been tested.
+use 5.10.1; 	# It has not been tested on other versions.
 use strict;
 use warnings;
 
@@ -110,6 +110,12 @@ my $subClassOf = "rdfs:subClassOf";
 my $configFile = "$nodeBasePath/pipeline.n3";
 my $ontFile = "$basePath/ont/ont.n3";
 my $internalsFile = "$basePath/ont/internals.n3";
+
+#### $nameType constants used by SaveLMs/LookupLMs:
+my $URI = 'URI';
+my $FILE = 'FILE';
+
+################### Runtime data ####################
 
 my $configLastModified = 0;
 my $ontLastModified = 0;
@@ -308,7 +314,7 @@ return &HandleHttpEvent($nm, $r, $thisUri, %args);
 # the stored LM of $thisUri's local serNameUri LM for $depLM.
 # The reason for checking $depLM here instead of checking it in
 # &RequestLatestDependsOns(...) is because the check requires a call to
-# &LookupLMHeaders($inSerNameUri), which needs to be done here anyway
+# &LookupLMHeaders($inSerName), which needs to be done here anyway
 # in order to look up the old LM headers.
 # Also remember that $depUri is not necessarily a node: it may be 
 # an arbitrary URI source.
@@ -337,7 +343,7 @@ elsif ($method eq "NOTIFY") {
 # Set If-Modified-Since and If-None-Match headers in request, if available.
 my $inSerName = $nm->{hash}->{$thisUri}->{dependsOnSerName}->{$depUri} || die;
 my $inSerNameUri = $nm->{hash}->{$thisUri}->{dependsOnSerNameUri}->{$depUri} || die;
-my ($oldLM, $oldLMHeader, $oldETagHeader) = &LookupLMHeaders($inSerNameUri);
+my ($oldLM, $oldLMHeader, $oldETagHeader) = &LookupLMHeaders($inSerName);
 $oldLM ||= "";
 $oldLMHeader ||= "";
 $oldETagHeader ||= "";
@@ -391,7 +397,7 @@ if ($code == RC_OK && $newLM && $newLM ne $oldLM) {
 	&MakeParentDirs( $inSerName );
 	&Warn("UPDATING $depUri inSerName: $inSerName of $thisUri\n", $DEBUG_UPDATES); 
 	$ua->save_content( $inSerName ) if $method ne 'HEAD';
-	&SaveLMHeaders($inSerNameUri, $newLM, $newLMHeader, $newETagHeader);
+	&SaveLMHeaders($inSerName, $newLM, $newLMHeader, $newETagHeader);
 	}
 return $newLM;
 }
@@ -399,34 +405,35 @@ return $newLM;
 ################### DeserializeToLocalCache ##################
 # Update $thisUri's local cache of $depUri's out, by deserializing
 # (if necessary) from $thisUri's local serCache of $depUri.
+# It is deserialized to $thisUri's node type, so that $thisUri can use it.
 sub DeserializeToLocalCache
 {
 @_ == 4 or die;
 my ($nm, $thisUri, $depUri, $depLM) = @_;
 &Warn("DeserializeToLocalCache $thisUri In: $depUri\n", $DEBUG_DETAILS);
 &Warn("... with depLM: $depLM\n", $DEBUG_DETAILS);
+my $thisVHash = $nm->{value}->{$thisUri} || {};
+my $thisType = $thisVHash->{nodeType} || "";
+my $fDeserializer = $nm->{value}->{$thisType}->{fDeserializer} || "";
+return if !$fDeserializer;
 my $depType = $nm->{value}->{$depUri}->{nodeType} || "";
 my $depTypeVHash = $nm->{value}->{$depType} || {};
-my $fDeserializer = $depTypeVHash->{fDeserializer} || "";
-return if !$fDeserializer;
 my $thisHHash = $nm->{hash}->{$thisUri} || {};
 my $depSerName = $thisHHash->{dependsOnSerName}->{$depUri} || "";
 my $depName = $thisHHash->{dependsOnName}->{$depUri} || "";
 my $depNameUri = $thisHHash->{dependsOnNameUri}->{$depUri} || "";
-my ($oldCacheLM) = &LookupLMs($depNameUri);
+my ($oldCacheLM) = &LookupLMs($depType, $depName);
 $oldCacheLM ||= "";
 my $fExists = $depTypeVHash->{fExists} or die;
 $oldCacheLM = "" if $oldCacheLM && !&{$fExists}($depName);
 return if (!$depLM || $depLM eq $oldCacheLM);
-my $thisVHash = $nm->{value}->{$thisUri} || {};
-my $thisType = $thisVHash->{nodeType} || "";
 my $contentType = $thisVHash->{contentType}
 	|| $nm->{value}->{$thisType}->{defaultContentType}
 	|| "text/plain";
 &Warn("UPDATING $depUri local cache: $depName of $thisUri\n", $DEBUG_UPDATES); 
 &{$fDeserializer}($depSerName, $depName, $contentType) 
     or die "ERROR: Failed to deserialize $depSerName to $depName with Content-Type: $contentType\n";
-&SaveLMs($depNameUri, $depLM);
+&SaveLMs($depType, $depName, $depLM);
 }
 
 ################### HandleHttpEvent ##################
@@ -509,7 +516,7 @@ if ($method eq 'HEAD' || $method eq 'NOTIFY' || $outUri eq $serOutUri) {
   return $newThisLM;
   }
 # Need to update serOut?
-my ($serOutLM) = &LookupLMs($serOutUri);
+my ($serOutLM) = &LookupLMs($FILE, $serOut);
 $serOutLM ||= "";
 if (!$serOutLM || !-e $serOut || ($newThisLM && $newThisLM ne $serOutLM)) {
   ### Allow non-monotonic LM (because they could be checksums):
@@ -530,7 +537,7 @@ if (!$serOutLM || !-e $serOut || ($newThisLM && $newThisLM ne $serOutLM)) {
   &{$fSerializer}($out, $serOut, $contentType) 
     or die "ERROR: Failed to serialize $out to $serOut with Content-Type: $contentType\n";
   $serOutLM = $newThisLM;
-  &SaveLMs($serOutUri, $serOutLM);
+  &SaveLMs($FILE, $serOut, $serOutLM);
   }
 &Warn("FreshenSerOut: Returning serOutLM: $serOutLM\n", $DEBUG_DETAILS);
 return $serOutLM
@@ -544,7 +551,7 @@ sub FreshenOut
 my ($nm, $method, $thisUri, $callerUri, $callerLM) = @_;
 &Warn("FreshenOut $method $thisUri From: $callerUri\n", $DEBUG_REQUESTS);
 &Warn("... callerLM: $callerLM\n", $DEBUG_DETAILS);
-my ($oldThisLM, %oldDepLMs) = &LookupLMs($thisUri);
+my ($oldThisLM, %oldDepLMs) = &LookupLMs($URI, $thisUri);
 $oldThisLM ||= "";
 return $oldThisLM if $method eq "GRAB";
 my $thisVHash = $nm->{value}->{$thisUri};
@@ -570,8 +577,7 @@ my $thisParameters = $thisLHash->{inputParameters} || [];
 # have changed but there is no updater.
 die "ERROR: Node $thisUri is STUCK: Inputs but no updater. " 
 	if @{$thisInputs} && !$thisUpdater;
-my $fRunUpdater = $thisTypeVHash->{fRunUpdater} 
-	or die "ERROR: no fRunUpdater for thisType: $thisType\n";
+my $fRunUpdater = $thisTypeVHash->{fRunUpdater} or die;
 # If there is no updater then it is up to $fRunUpdater to generate
 # an LM for the static out.
 if ($thisUpdater) {
@@ -583,7 +589,7 @@ else	{
 my $newThisLM = &{$fRunUpdater}($nm, $thisUri, $thisUpdater, $out, 
 	$thisInputs, $thisParameters, $oldThisLM, $callerUri, $callerLM);
 &Warn("WARNING: fRunUpdater on $thisUri $thisUpdater returned false LM") if !$newThisLM;
-&SaveLMs($thisUri, $newThisLM, %{$newDepLMs});
+&SaveLMs($URI, $thisUri, $newThisLM, %{$newDepLMs});
 return $newThisLM if $newThisLM eq $oldThisLM;
 ### Allow non-monotonic LM (because they could be checksums):
 ### $newThisLM gt $oldThisLM or die;
@@ -842,11 +848,12 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
   # inputs) that will be used to refresh the local cache if the
   # input is foreign.  However, since different node types within
   # the same server can share the serialized inputs, then 
-  # the dependsOnSerName may be set using the input's serOut.
+  # the dependsOnSerName may be set using the input's serOut, since
+  # both will be filenames.  (Serialized content is always in a file.)
   # The dependsOnNameUri and dependsOnSerNameUri hashes are URIs corresponding
   # to dependsOnName and dependsOnSerName, and are used as keys for LMs.
   # Factors that affect these settings:
-  #  A. Is $depUri a node?  It may be any other URI data source (http: or file:).
+  #  A. Is $depUri a node? It may be any other URI data source (http: or file:).
   #  B. Is $depUri on the same server (as $thisUri)?
   #     If so, its serCache can be shared with other nodes on this server.
   #  C. Is $depType the same node type $thisType?
@@ -1120,49 +1127,54 @@ close($fh) || die;
 return $all;
 }
 
-############# UriToLmFile #############
-# Convert $thisUri to a LM file path.
-sub UriToLmFile
+############# NameToLmFile #############
+# Convert $name to a LM file path.
+sub NameToLmFile
 {
-my $thisUri = shift;
+my $nameType = shift || die;
+my $name = shift || die;
 # Use cached LM file path if available:
-my $lmFile = $UriToLmFile::lmFile{$thisUri};
+my $lmFile = $RDF::Pipeline::NameToLmFile::lmFile{$nameType}->{$name} || "";
 if (!$lmFile) {
-	my $t = uri_escape($thisUri);
-	$lmFile = "$basePath/lm/$t";
-	$UriToLmFile::lmFile{$thisUri} = $lmFile;
+	my $t = uri_escape($nameType);
+	my $f = uri_escape($name);
+	$lmFile = "$basePath/lm/$t/$f";
+	$RDF::Pipeline::NameToLmFile::lmFile{$nameType}->{$name} = $lmFile;
 	}
 return $lmFile;
 }
 
 ############# SaveLMs ##############
-# Save Last-Modified times of $thisUri and its inputs (actually its dependsOns).
-# Called as: &SaveLMs($thisUri, $thisLM, %depLMs);
+# Save Last-Modified times of $thisName and its inputs (actually its dependsOns).
+# Called as: &SaveLMs($nameType, $thisName, $thisLM, %depLMs);
 sub SaveLMs
 {
-@_ >= 2 || die;
-my ($thisUri, $thisLM, @depLMs) = @_;
-my $f = &UriToLmFile($thisUri);
-my $s = join("\n", "# $thisUri", $thisLM, @depLMs) . "\n";
-&Warn("SaveLMs($thisUri ...) to file: $f\n", $DEBUG_DETAILS);
-foreach my $line ("# thisUri", @depLMs) {
+@_ >= 3 || die;
+my ($nameType, $thisName, $thisLM, @depLMs) = @_;
+my $f = &NameToLmFile($nameType, $thisName);
+my $s = join("\n", "# $nameType $thisName", $thisLM, @depLMs) . "\n";
+&Warn("SaveLMs($nameType, $thisName ...) to file: $f\n", $DEBUG_DETAILS);
+foreach my $line ("# $nameType $thisName", @depLMs) {
 	&Warn("... $line\n", $DEBUG_DETAILS);
 	}
 &WriteFile($f, $s);
 }
 
 ############# LookupLMs ##############
-# Lookup LM times of $thisUri and its inputs (actually its dependsOns).
-# Called as: my ($thisLM, %depLMs) = &LookupLMs($thisUri);
+# Lookup LM times of $thisName and its inputs (actually its dependsOns).
+# Called as: my ($thisLM, %depLMs) = &LookupLMs($nameType, $thisName);
 sub LookupLMs
 {
-@_ == 1 || die;
-my ($thisUri) = @_;
-my $f = &UriToLmFile($thisUri);
+@_ == 2 || die;
+my ($nameType, $thisName) = @_;
+my $f = &NameToLmFile($nameType, $thisName);
+### TODO: Remove extra "open" $oldf after passing & accepting regression tests:
+# my $oldf = "$basePath/lm/" . uri_escape($thisName);
+# open(my $fh, $f) || ($f=$oldf) || open($fh, $f) or return ("", ());
 open(my $fh, $f) or return ("", ());
 my ($cThisUri, $thisLM, @depLMs) = map {chomp; $_} <$fh>;
 close($fh) || die;
-&Warn("LookupLMs($thisUri) from file: $f\n", $DEBUG_DETAILS);
+&Warn("LookupLMs($nameType, $thisName) from file: $f\n", $DEBUG_DETAILS);
 foreach my $line ($thisLM, @depLMs) {
 	&Warn("... $line\n", $DEBUG_DETAILS);
 	}
@@ -1170,29 +1182,30 @@ return($thisLM, @depLMs);
 }
 
 ############# SaveLMHeaders ##############
-# Save LM and Last-Modified and ETag headers for a URI.
+# Save LM and Last-Modified and ETag headers for a serCache.
 sub SaveLMHeaders
 {
 @_ == 4 || die;
-my ($thisUri, $thisLM, $thisLMHeader, $thisETagHeader) = @_;
-&SaveLMs($thisUri, $thisLM, 
-	"Last-Modified: $thisLMHeader", 
-	"ETag: $thisETagHeader");
+my ($serCache, $serCacheLM, $serCacheLMHeader, $serCacheETagHeader) = @_;
+&SaveLMs($FILE, $serCache, $serCacheLM, 
+	"Last-Modified: $serCacheLMHeader", 
+	"ETag: $serCacheETagHeader");
 }
 
 ############# LookupLMHeaders ##############
-# Lookup LM and Last-Modified and ETag headers for a URI.
+# Lookup LM and Last-Modified and ETag headers for a serCache.
 sub LookupLMHeaders
 {
 @_ == 1 || die;
-my ($thisUri) = @_;
-my ($thisLM, $thisLMHeader, $thisETagHeader) = &LookupLMs($thisUri);
-$thisLM ||= "";
-$thisLMHeader ||= "";
-$thisETagHeader ||= "";
-$thisLMHeader =~ s/^Last\-Modified\:\s*//;
-$thisETagHeader =~ s/^ETag\:\s*//;
-return ($thisLM, $thisLMHeader, $thisETagHeader);
+my ($serCache) = @_;
+my ($serCacheLM, $serCacheLMHeader, $serCacheETagHeader) = 
+	&LookupLMs($FILE, $serCache);
+$serCacheLM ||= "";
+$serCacheLMHeader ||= "";
+$serCacheETagHeader ||= "";
+$serCacheLMHeader =~ s/^Last\-Modified\:\s*//;
+$serCacheETagHeader =~ s/^ETag\:\s*//;
+return ($serCacheLM, $serCacheLMHeader, $serCacheETagHeader);
 }
 
 ############# FileExists ##############
