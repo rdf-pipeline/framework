@@ -342,7 +342,6 @@ elsif ($method eq "NOTIFY") {
 	}
 # Set If-Modified-Since and If-None-Match headers in request, if available.
 my $inSerName = $nm->{hash}->{$thisUri}->{dependsOnSerName}->{$depUri} || die;
-my $inSerNameUri = $nm->{hash}->{$thisUri}->{dependsOnSerNameUri}->{$depUri} || die;
 my ($oldLM, $oldLMHeader, $oldETagHeader) = &LookupLMHeaders($inSerName);
 $oldLM ||= "";
 $oldLMHeader ||= "";
@@ -421,7 +420,6 @@ my $depTypeVHash = $nm->{value}->{$depType} || {};
 my $thisHHash = $nm->{hash}->{$thisUri} || {};
 my $depSerName = $thisHHash->{dependsOnSerName}->{$depUri} || "";
 my $depName = $thisHHash->{dependsOnName}->{$depUri} || "";
-my $depNameUri = $thisHHash->{dependsOnNameUri}->{$depUri} || "";
 my ($oldCacheLM) = &LookupLMs($depType, $depName);
 $oldCacheLM ||= "";
 my $fExists = $depTypeVHash->{fExists} or die;
@@ -461,7 +459,6 @@ return Apache2::Const::HTTP_METHOD_NOT_ALLOWED
 my $newThisLM = &FreshenSerOut($nm, $method, $thisUri, $callerUri, $callerLM);
 ####### Ready to generate the HTTP response. ########
 my $serOut = $thisVHash->{serOut} || die;
-my $serOutUri = $thisVHash->{serOutUri} || die;
 my $size = -s $serOut || 0;
 $r->set_content_length($size);
 # TODO: Should use Accept header in choosing contentType?
@@ -472,7 +469,15 @@ my $contentType = $thisVHash->{contentType}
 # $r->content_type('text/plain');
 # $r->content_type('application/rdf+xml');
 $r->content_type($contentType);
-$r->headers_out->set('Content-Location' => $serOutUri); 
+# Not sure if the Content-Location header should be set.  
+# It may help people with debugging (so that they can view the serOut
+# directly), but it could be misused if people start requesting 
+# directly from that instead of using the node name.
+# Based on my current reading of the HTTP 1.1. spec
+# http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.14
+# it sounds like it should be safe to return the Content-Location,
+# i.e., clients should know that the semantics are different.
+$r->headers_out->set('Content-Location' => &PathToUri($serOut)); 
 my ($lmHeader, $eTagHeader) = &LMToHeaders($newThisLM);
 # These work:
 # "W/" prefix on ETag means that it is weak.
@@ -504,14 +509,14 @@ my ($nm, $method, $thisUri, $callerUri, $callerLM) = @_;
 &Warn("... callerLM: $callerLM\n", $DEBUG_DETAILS);
 my $thisVHash = $nm->{value}->{$thisUri} || die;
 my $thisType = $thisVHash->{nodeType} || die;
+my $thisTypeVHash = $nm->{value}->{$thisType} || {};
+my $fSerializer = $thisTypeVHash->{fSerializer};
 my $out = $thisVHash->{out} || die;
 my $serOut = $thisVHash->{serOut} || die;
-my $outUri = $thisVHash->{outUri} || die;
-my $serOutUri = $thisVHash->{serOutUri} || die;
 my $newThisLM = &FreshenOut($nm, 'GET', $thisUri, $callerUri, $callerLM);
 &Warn("FreshenSerOut $thisUri returned newThisLM: $newThisLM\n", $DEBUG_DETAILS);
 # TODO: Is this correct? Why not serialize on a HEAD request?
-if ($method eq 'HEAD' || $method eq 'NOTIFY' || $outUri eq $serOutUri) {
+if ($method eq 'HEAD' || $method eq 'NOTIFY' || !$fSerializer) {
   &Warn("FreshenSerOut: No serialization needed. Returning newThisLM: $newThisLM\n", $DEBUG_DETAILS);
   return $newThisLM;
   }
@@ -526,13 +531,11 @@ if (!$serOutLM || !-e $serOut || ($newThisLM && $newThisLM ne $serOutLM)) {
   # to the serialization function.
   # my $acceptHeader = $r->headers_in->get('Accept') || "";
   # warn "acceptHeader: $acceptHeader\n";
-  my $thisTypeVHash = $nm->{value}->{$thisType} || {};
   my $contentType = $thisVHash->{contentType}
 	|| $thisTypeVHash->{defaultContentType}
 	|| "text/plain";
-  # At this point there MUST be a serializer, because otherwise $outUri and 
-  # $serOutUri would have been the same, and we would have returned already.
-  my $fSerializer = $thisTypeVHash->{fSerializer} || die;
+  # There MUST be a serializer or we would have returned already.
+  $fSerializer || die;
   &Warn("UPDATING $thisUri serOut: $serOut\n", $DEBUG_UPDATES); 
   &{$fSerializer}($out, $serOut, $contentType) 
     or die "ERROR: Failed to serialize $out to $serOut with Content-Type: $contentType\n";
@@ -761,7 +764,7 @@ return $nm;
 # before nodeType-specific defaults are set.  In particular, the
 # following are set for every node: nodeType.  Plus the following
 # are set for every node on this server:
-# outOriginal, out, outUri, serOut, serOutUri, stderr.
+# outOriginal, out, serOut, stderr.
 sub PresetGenericDefaults
 {
 @_ == 1 or die;
@@ -771,7 +774,7 @@ my $nml = $nm->{list};
 my $nmh = $nm->{hash};
 # &Warn("PresetGenericDefaults:\n");
 # First set defaults that are set directly on each node: 
-# nodeType, out, outUri, serOut, serOutUri, stderr, fUpdatePolicy.
+# nodeType, out, serOut, stderr, fUpdatePolicy.
 foreach my $thisUri (keys %{$nmh->{Node}->{member}}) 
   {
   # Make life easier in this loop:
@@ -789,7 +792,7 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
   next if !&IsSameServer($baseUri, $thisUri);
   # Save original out before setting it to a default value:
   $thisVHash->{outOriginal} = $thisVHash->{out};
-  # Set out, outUri, serOut and serOutUri if not set.  
+  # Set out and serOut if not set.  
   # out is a native name; serOut is a file path.
   my $thisFUriToNativeName = $nmv->{$thisType}->{fUriToNativeName} || "";
   my $defaultOutUri = "$baseUri/cache/" . &QuickName($thisUri) . "/out";
@@ -803,13 +806,10 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
 	if $thisFUriToNativeName;
   $thisVHash->{out} ||= 
     $thisVHash->{updater} ? $defaultOut : $thisName;
-  $thisVHash->{outUri} ||= 
-    $thisVHash->{updater} ? $defaultOutUri : $thisUri;
   $thisVHash->{serOut} ||= 
     $nmv->{$thisType}->{fSerializer} ?
       "$basePath/cache/" . &QuickName($thisUri) . "/serOut"
       : $thisVHash->{out};
-  $thisVHash->{serOutUri} ||= &PathToUri($thisVHash->{serOut});
   # For capturing stderr:
   $nmv->{$thisUri}->{stderr} ||= 
 	  "$basePath/cache/" . &QuickName($thisUri) . "/stderr";
@@ -850,8 +850,6 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
   # the same server can share the serialized inputs, then 
   # the dependsOnSerName may be set using the input's serOut, since
   # both will be filenames.  (Serialized content is always in a file.)
-  # The dependsOnNameUri and dependsOnSerNameUri hashes are URIs corresponding
-  # to dependsOnName and dependsOnSerName, and are used as keys for LMs.
   # Factors that affect these settings:
   #  A. Is $depUri a node? It may be any other URI data source (http: or file:).
   #  B. Is $depUri on the same server (as $thisUri)?
@@ -864,8 +862,6 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
   #     If so, then it will be used to generate a native name for 'cache'.
   $thisHHash->{dependsOnName} ||= {};
   $thisHHash->{dependsOnSerName} ||= {};
-  $thisHHash->{dependsOnNameUri} ||= {};
-  $thisHHash->{dependsOnSerNameUri} ||= {};
   foreach my $depUri (keys %{$thisHHash->{dependsOn}}) {
     # Ensure non-null hashrefs for all ins (because they may not be nodes):
     $nmv->{$depUri} = {} if !$nmv->{$depUri};
@@ -875,7 +871,7 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
     my $depUriEncoded = &QuickName($depUri);
     # $depType will be false if $depUri is not a node:
     my $depType = $nmv->{$depUri}->{nodeType} || "";
-    # First set dependsOnSerName and dependsOnSerNameUri.
+    # First set dependsOnSerName.
     if ($depType && &IsSameServer($baseUri, $depUri)) {
       # Same server, so re-use the input's serOut.
       $thisHHash->{dependsOnSerName}->{$depUri} = $nmv->{$depUri}->{serOut};
@@ -887,14 +883,11 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
       my $depSerName = "$basePath/cache/$depUriEncoded/serCache";
       $thisHHash->{dependsOnSerName}->{$depUri} = $depSerName;
       }
-    $thisHHash->{dependsOnSerNameUri}->{$depUri} ||= 
-	      &PathToUri($thisHHash->{dependsOnSerName}->{$depUri}) || die;
-    # Now set dependsOnName and dependsOnNameUri.
+    # Now set dependsOnName.
     my $fDeserializer = $depType ? $nmv->{$depType}->{fDeserializer} : "";
     if (&IsSameServer($baseUri, $depUri) && &IsSameType($thisType, $depType)) {
       # Same env.  Reuse the input's out.
       $thisHHash->{dependsOnName}->{$depUri} = $nmv->{$depUri}->{out};
-      $thisHHash->{dependsOnNameUri}->{$depUri} = $nmv->{$depUri}->{outUri};
       # warn "thisUri: $thisUri depUri: $depUri Path 1\n";
       }
     elsif ($fDeserializer) {
@@ -903,10 +896,9 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
       # (if necessary) to an appropriate native name.
       my $fUriToNativeName = $nmv->{$depType}->{fUriToNativeName};
       my $cacheNameUri = "$baseUri/cache/$thisType/$depUriEncoded/cache";
-      $thisHHash->{dependsOnNameUri}->{$depUri} = $cacheNameUri;
       my $cacheName = $cacheNameUri;
-      my $hostRoot = $nm->{hash}->{$thisType}->{$baseUri} || $basePath;
-      $cacheName = &{$fUriToNativeName}($cacheName, $baseUri, $hostRoot) 
+      my $hostRoot = $nm->{hash}->{$thisType}->{hostRoot}->{$baseUri} || $basePath;
+      $cacheName = &{$fUriToNativeName}($cacheNameUri, $baseUri, $hostRoot) 
 		if $fUriToNativeName;
       $thisHHash->{dependsOnName}->{$depUri} = $cacheName;
       # warn "thisUri: $thisUri depUri: $depUri Path 2\n";
@@ -915,14 +907,11 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
       # No deserializer, so dependsOnName will be the same as dependsOnSerName.
       my $path = $thisHHash->{dependsOnSerName}->{$depUri};
       $thisHHash->{dependsOnName}->{$depUri} = $path;
-      $thisHHash->{dependsOnNameUri}->{$depUri} = &PathToUri($path);
       # warn "thisUri: $thisUri depUri: $depUri Path 3\n";
       }
     # my $don = $thisHHash->{dependsOnName}->{$depUri};
     # my $dosn = $thisHHash->{dependsOnSerName}->{$depUri};
-    # my $donu = $thisHHash->{dependsOnNameUri}->{$depUri};
-    # my $dosnu = $thisHHash->{dependsOnSerNameUri}->{$depUri};
-    # warn "thisUri: $thisUri depUri: $depUri $depType $don $dosn $donu $dosnu\n";
+    # warn "thisUri: $thisUri depUri: $depUri $depType $don $dosn\n";
     #
     # Set the list of outputs (actually inverse dependsOn) for each node:
     $nmh->{$depUri}->{outputs}->{$thisUri} = 1 if $depType;
