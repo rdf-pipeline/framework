@@ -2,4 +2,4 @@
 
 = Introduction =
 
-Sorry, installation and configuration documentation have not yet been written.  :(   Contact david@dbooth.org directly if you wish to try out this software.
+Sorry, installation and configuration documentation have not yet been written.   Contact david@dbooth.org directly if you wish to try out this software.
