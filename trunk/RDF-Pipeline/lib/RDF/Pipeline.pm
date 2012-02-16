@@ -311,10 +311,10 @@ return &HandleHttpEvent($nm, $r, $thisUri, %args);
 
 ################### ForeignSendHttpRequest ##################
 # Send a remote GET, GRAB or HEAD to $depUri if $depLM is newer than 
-# the stored LM of $thisUri's local serNameUri LM for $depLM.
+# the stored LM of $thisUri's local serCache LM for $depLM.
 # The reason for checking $depLM here instead of checking it in
 # &RequestLatestDependsOns(...) is because the check requires a call to
-# &LookupLMHeaders($inSerName), which needs to be done here anyway
+# &LookupLMHeaders($inSerCache), which needs to be done here anyway
 # in order to look up the old LM headers.
 # Also remember that $depUri is not necessarily a node: it may be 
 # an arbitrary URI source.
@@ -341,8 +341,8 @@ elsif ($method eq "NOTIFY") {
 	$queryParams .= "&method=$method";
 	}
 # Set If-Modified-Since and If-None-Match headers in request, if available.
-my $inSerName = $nm->{hash}->{$thisUri}->{dependsOnSerName}->{$depUri} || die;
-my ($oldLM, $oldLMHeader, $oldETagHeader) = &LookupLMHeaders($inSerName);
+my $inSerCache = $nm->{hash}->{$thisUri}->{dependsOnSerCache}->{$depUri} || die;
+my ($oldLM, $oldLMHeader, $oldETagHeader) = &LookupLMHeaders($inSerCache);
 $oldLM ||= "";
 $oldLMHeader ||= "";
 $oldETagHeader ||= "";
@@ -386,17 +386,17 @@ my $newLM = &HeadersToLM($newLMHeader, $newETagHeader);
 if ($code == RC_OK && $newLM && $newLM ne $oldLM) {
 	### Allow non-monotonic LM (because they could be checksums):
 	### $newLM gt $oldLM || die; # Verify monotonic LM
-	# Need to save the content to file $inSerName.
+	# Need to save the content to file $inSerCache.
 	# TODO: Figure out whether the content should be decoded first.  
 	# If not, should the Content-Type and Content-Encoding headers 
 	# be saved with the LM perhaps? Or is there a more efficient way 
-	# to save the content to file $inSerName, such as using 
+	# to save the content to file $inSerCache, such as using 
 	# $ua->get($url, ':content_file'=>$filename) ?  See
 	# http://search.cpan.org/~gaas/libwww-perl-6.03/lib/LWP/UserAgent.pm
-	&MakeParentDirs( $inSerName );
-	&Warn("UPDATING $depUri inSerName: $inSerName of $thisUri\n", $DEBUG_UPDATES); 
-	$ua->save_content( $inSerName ) if $method ne 'HEAD';
-	&SaveLMHeaders($inSerName, $newLM, $newLMHeader, $newETagHeader);
+	&MakeParentDirs( $inSerCache );
+	&Warn("UPDATING $depUri inSerCache: $inSerCache of $thisUri\n", $DEBUG_UPDATES); 
+	$ua->save_content( $inSerCache ) if $method ne 'HEAD';
+	&SaveLMHeaders($inSerCache, $newLM, $newLMHeader, $newETagHeader);
 	}
 return $newLM;
 }
@@ -418,20 +418,20 @@ return if !$fDeserializer;
 my $depType = $nm->{value}->{$depUri}->{nodeType} || "";
 my $depTypeVHash = $nm->{value}->{$depType} || {};
 my $thisHHash = $nm->{hash}->{$thisUri} || {};
-my $depSerName = $thisHHash->{dependsOnSerName}->{$depUri} || "";
-my $depName = $thisHHash->{dependsOnName}->{$depUri} || "";
-my ($oldCacheLM) = &LookupLMs($depType, $depName);
+my $depSerCache = $thisHHash->{dependsOnSerCache}->{$depUri} || "";
+my $depCache = $thisHHash->{dependsOnCache}->{$depUri} || "";
+my ($oldCacheLM) = &LookupLMs($depType, $depCache);
 $oldCacheLM ||= "";
 my $fExists = $depTypeVHash->{fExists} or die;
-$oldCacheLM = "" if $oldCacheLM && !&{$fExists}($depName);
+$oldCacheLM = "" if $oldCacheLM && !&{$fExists}($depCache);
 return if (!$depLM || $depLM eq $oldCacheLM);
 my $contentType = $thisVHash->{contentType}
 	|| $nm->{value}->{$thisType}->{defaultContentType}
 	|| "text/plain";
-&Warn("UPDATING $depUri local cache: $depName of $thisUri\n", $DEBUG_UPDATES); 
-&{$fDeserializer}($depSerName, $depName, $contentType) 
-    or die "ERROR: Failed to deserialize $depSerName to $depName with Content-Type: $contentType\n";
-&SaveLMs($depType, $depName, $depLM);
+&Warn("UPDATING $depUri local cache: $depCache of $thisUri\n", $DEBUG_UPDATES); 
+&{$fDeserializer}($depSerCache, $depCache, $contentType) 
+    or die "ERROR: Failed to deserialize $depSerCache to $depCache with Content-Type: $contentType\n";
+&SaveLMs($depType, $depCache, $depLM);
 }
 
 ################### HandleHttpEvent ##################
@@ -574,8 +574,8 @@ $thisIsStale = 1 if !$oldThisLM;
 my $thisUpdater = $thisVHash->{updater} || "";
 return $oldThisLM if $thisUpdater && !$thisIsStale;
 my $thisLHash = $nm->{list}->{$thisUri};
-my $thisInputs = $thisLHash->{inputNames} || [];
-my $thisParameters = $thisLHash->{inputParameters} || [];
+my $thisInputs = $thisLHash->{inputCaches} || [];
+my $thisParameters = $thisLHash->{parameterCaches} || [];
 # TODO: Figure out what to do if a node is STUCK, i.e., inputs
 # have changed but there is no updater.
 die "ERROR: Node $thisUri is STUCK: Inputs but no updater. " 
@@ -794,16 +794,16 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
   $thisVHash->{outOriginal} = $thisVHash->{out};
   # Set out and serOut if not set.  
   # out is a native name; serOut is a file path.
-  my $thisFUriToNativeName = $nmv->{$thisType}->{fUriToNativeName} || "";
+  my $fUriToNativeName = $nmv->{$thisType}->{fUriToNativeName} || "";
   my $defaultOutUri = "$baseUri/cache/" . &QuickName($thisUri) . "/out";
   my $thisTypeHash = $nmh->{$thisType} || {};
   my $hostRoot = $thisTypeHash->{$baseUri} || $basePath;
   my $defaultOut = $defaultOutUri;
-  $defaultOut = &{$thisFUriToNativeName}($defaultOut, $baseUri, $hostRoot) 
-	if $thisFUriToNativeName;
+  $defaultOut = &{$fUriToNativeName}($defaultOut, $baseUri, $hostRoot) 
+	if $fUriToNativeName;
   my $thisName = $thisUri;
-  $thisName = &{$thisFUriToNativeName}($thisUri, $baseUri, $hostRoot)
-	if $thisFUriToNativeName;
+  $thisName = &{$fUriToNativeName}($thisUri, $baseUri, $hostRoot)
+	if $fUriToNativeName;
   $thisVHash->{out} ||= 
     $thisVHash->{updater} ? $defaultOut : $thisName;
   $thisVHash->{serOut} ||= 
@@ -836,19 +836,19 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
   my $thisLHash = $nml->{$thisUri};
   my $thisHHash = $nmh->{$thisUri};
   my $thisType = $thisVHash->{nodeType};
-  # The dependsOnName hash is used for inputs from other environments
+  # The dependsOnCache hash is used for inputs from other environments
   # and maps from dependsOn URIs (or inputs/parameter URIs) to the native names 
   # that will be used by $thisUri's updater when
   # it is invoked.  It will either use a new name (if the input is from
   # a different environment) or the input's out directly (if in the 
   # same env).  A non-node dependsOn is treated like a foreign
   # node with no serializer.  
-  # The dependsOnSerName hash similarly maps
-  # from dependsOn URIs to the local serNames (i.e., file names of 
+  # The dependsOnSerCache hash similarly maps
+  # from dependsOn URIs to the local serCaches (i.e., file names of 
   # inputs) that will be used to refresh the local cache if the
   # input is foreign.  However, since different node types within
   # the same server can share the serialized inputs, then 
-  # the dependsOnSerName may be set using the input's serOut, since
+  # the dependsOnSerCache may be set using the input's serOut, since
   # both will be filenames.  (Serialized content is always in a file.)
   # Factors that affect these settings:
   #  A. Is $depUri a node? It may be any other URI data source (http: or file:).
@@ -860,8 +860,8 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
   #     If not, then 'cache' will be the same as serCache.
   #  E. Does $depType have a fUriToNativeName function?
   #     If so, then it will be used to generate a native name for 'cache'.
-  $thisHHash->{dependsOnName} ||= {};
-  $thisHHash->{dependsOnSerName} ||= {};
+  $thisHHash->{dependsOnCache} ||= {};
+  $thisHHash->{dependsOnSerCache} ||= {};
   foreach my $depUri (keys %{$thisHHash->{dependsOn}}) {
     # Ensure non-null hashrefs for all ins (because they may not be nodes):
     $nmv->{$depUri} = {} if !$nmv->{$depUri};
@@ -871,23 +871,23 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
     my $depUriEncoded = &QuickName($depUri);
     # $depType will be false if $depUri is not a node:
     my $depType = $nmv->{$depUri}->{nodeType} || "";
-    # First set dependsOnSerName.
+    # First set dependsOnSerCache.
     if ($depType && &IsSameServer($baseUri, $depUri)) {
       # Same server, so re-use the input's serOut.
-      $thisHHash->{dependsOnSerName}->{$depUri} = $nmv->{$depUri}->{serOut};
+      $thisHHash->{dependsOnSerCache}->{$depUri} = $nmv->{$depUri}->{serOut};
       }
     else {
       # Different servers, so make up a new file path.
-      # dependsOnSerName file path does not need to contain $thisType, because 
+      # dependsOnSerCache file path does not need to contain $thisType, because 
       # different node types on the same server can share the same serCache's.
-      my $depSerName = "$basePath/cache/$depUriEncoded/serCache";
-      $thisHHash->{dependsOnSerName}->{$depUri} = $depSerName;
+      my $depSerCache = "$basePath/cache/$depUriEncoded/serCache";
+      $thisHHash->{dependsOnSerCache}->{$depUri} = $depSerCache;
       }
-    # Now set dependsOnName.
+    # Now set dependsOnCache.
     my $fDeserializer = $depType ? $nmv->{$depType}->{fDeserializer} : "";
     if (&IsSameServer($baseUri, $depUri) && &IsSameType($thisType, $depType)) {
       # Same env.  Reuse the input's out.
-      $thisHHash->{dependsOnName}->{$depUri} = $nmv->{$depUri}->{out};
+      $thisHHash->{dependsOnCache}->{$depUri} = $nmv->{$depUri}->{out};
       # warn "thisUri: $thisUri depUri: $depUri Path 1\n";
       }
     elsif ($fDeserializer) {
@@ -895,38 +895,38 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
       # Create a URI and convert it
       # (if necessary) to an appropriate native name.
       my $fUriToNativeName = $nmv->{$depType}->{fUriToNativeName};
-      my $cacheNameUri = "$baseUri/cache/$thisType/$depUriEncoded/cache";
-      my $cacheName = $cacheNameUri;
       my $hostRoot = $nm->{hash}->{$thisType}->{hostRoot}->{$baseUri} || $basePath;
-      $cacheName = &{$fUriToNativeName}($cacheNameUri, $baseUri, $hostRoot) 
+      # Default to a URI if there is no fUriToNativeName:
+      my $cache = "$baseUri/cache/$thisType/$depUriEncoded/cache";
+      $cache = &{$fUriToNativeName}($cache, $baseUri, $hostRoot) 
 		if $fUriToNativeName;
-      $thisHHash->{dependsOnName}->{$depUri} = $cacheName;
+      $thisHHash->{dependsOnCache}->{$depUri} = $cache;
       # warn "thisUri: $thisUri depUri: $depUri Path 2\n";
       }
     else {
-      # No deserializer, so dependsOnName will be the same as dependsOnSerName.
-      my $path = $thisHHash->{dependsOnSerName}->{$depUri};
-      $thisHHash->{dependsOnName}->{$depUri} = $path;
+      # No deserializer, so dependsOnCache will be the same as dependsOnSerCache.
+      my $path = $thisHHash->{dependsOnSerCache}->{$depUri};
+      $thisHHash->{dependsOnCache}->{$depUri} = $path;
       # warn "thisUri: $thisUri depUri: $depUri Path 3\n";
       }
-    # my $don = $thisHHash->{dependsOnName}->{$depUri};
-    # my $dosn = $thisHHash->{dependsOnSerName}->{$depUri};
+    # my $don = $thisHHash->{dependsOnCache}->{$depUri};
+    # my $dosn = $thisHHash->{dependsOnSerCache}->{$depUri};
     # warn "thisUri: $thisUri depUri: $depUri $depType $don $dosn\n";
     #
     # Set the list of outputs (actually inverse dependsOn) for each node:
     $nmh->{$depUri}->{outputs}->{$thisUri} = 1 if $depType;
     }
   # Set the list of input native names for this node.
-  $thisLHash->{inputNames} ||= [];
+  $thisLHash->{inputCaches} ||= [];
   foreach my $inUri (@{$thisLHash->{inputs}}) {
-    my $inName = $thisHHash->{dependsOnName}->{$inUri};
-    push(@{$thisLHash->{inputNames}}, $inName);
+    my $inCache = $thisHHash->{dependsOnCache}->{$inUri};
+    push(@{$thisLHash->{inputCaches}}, $inCache);
     }
   # Set the list of parameter native names for this node.
-  $thisLHash->{parameterNames} ||= [];
+  $thisLHash->{parameterCaches} ||= [];
   foreach my $pUri (@{$thisLHash->{parameters}}) {
-    my $pName = $thisHHash->{dependsOnName}->{$pUri};
-    push(@{$thisLHash->{parameterNames}}, $pName);
+    my $pCache = $thisHHash->{dependsOnCache}->{$pUri};
+    push(@{$thisLHash->{parameterCaches}}, $pCache);
     }
   }
 }
@@ -1255,10 +1255,10 @@ if (!-x $updater) {
 # The FileNode updater args are local filenames for all
 # inputs and parameters.
 my $inputFiles = join(" ", map {quotemeta($_)} 
-	@{$nm->{list}->{$thisUri}->{inputNames}});
+	@{$nm->{list}->{$thisUri}->{inputCaches}});
 &Warn("inputFiles: $inputFiles\n", $DEBUG_DETAILS);
 my $parameterFiles = join(" ", map {quotemeta($_)} 
-	@{$nm->{list}->{$thisUri}->{parameterNames}});
+	@{$nm->{list}->{$thisUri}->{parameterCaches}});
 &Warn("parameterFiles: $parameterFiles\n", $DEBUG_DETAILS);
 my $ipFiles = "$inputFiles $parameterFiles";
 my $stderr = $nm->{value}->{$thisUri}->{stderr};
