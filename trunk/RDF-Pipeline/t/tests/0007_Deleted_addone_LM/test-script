@@ -21,7 +21,7 @@ $ENV{RDF_PIPELINE_WWW_DIR} = $wwwDir;
 
 ############ CUSTOMIZE HERE ################
 # Delete addone LM:
-my $addoneLM = "$wwwDir/lm/http%3A%2F%2Flocalhost%2Fnode%2Faddone";
+my $addoneLM = "$wwwDir/lm/URI/http%3A%2F%2Flocalhost%2Fnode%2Faddone";
 -e $addoneLM || die;
 unlink("$addoneLM") || die;
 
