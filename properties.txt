@@ -18,10 +18,8 @@ date
 defaultContentType	value	Subject is $nodeType.  Default HTTP Content-Type for serialized output.
 defaultContentEncoding	value	Subject is $nodeType.  Default HTTP Content-Encoding for serialized output.
 dependsOn	list/hash	URIs of inputs, parameters and anything else this node depends on.
-dependsOnName	hash	Maps a dependsOn URI to the native name for that input.  I.e., points to local "cache".
-dependsOnSerName	hash	Maps a dependsOn URI to the local file name for that serialized input.  I.e., points to local "serCache".
-dependsOnNameUri	hash	Maps a dependsOn URI to the URI corresponding to dependsOnName. (Used as key for saving LM.)
-dependsOnSerNameUri	hash	Maps a dependsOn URI to the URI corresponding to dependsOnSerName. (Used as key for saving LM.)
+dependsOnCache	hash	Maps a dependsOn URI to the native name for that input.  I.e., points to local "cache".
+dependsOnSerCache	hash	Maps a dependsOn URI to the local file name for that serialized input.  I.e., points to local "serCache".
 fOutExists	value	Subject is $nodeType.  Function that returns 1 iff the given out or local cache exists.
 fSetNodeDefaults	value	Subject is $nodeType.  @@ Is this used? @@
 fSerializer	value	Subject is $nodeType.
@@ -29,14 +27,14 @@ fDeserializer	value	Subject is $nodeType.
 fRunUpdater	value	Subject is $nodeType.
 fUpdatePolicy	value	Update policy function for this node.
 fUriToNativeName	value	Subject is $nodeType.  Converts a URI to a native name.
-inputNames list	Native input names for this node.
+inputCaches list	Native input names for this node -- either outs our caches, depending on whether the input is local or foreign.
 inputs	list/hash	URIs of this node's inputs.
 lmFile	value	File name of node's last modified timestamps: (output and all inputs)
 member	hash	Inverse of rdf:type (aka "a")
 Node
 nodeType	value	Most specific node type -- a leaf class.
 outputs	hash	URIs of this node's outputs.  Derived from inputs & parameters.
-parameterNames list	Native parameter names for this node.
+parameterCaches list	Native parameter names for this node -- either outs our caches, depending on whether the input is local or foreign.
 parameters	list/hash	URIs of this node's parameters.
 rdfs:subClassOf	hash	Inverse is subClass
 hostRoot	hash	Subject is $nodeType.  Maps the server prefix (such as "http://localhost/") of node URIs of that $nodeType to the root location (as native name) of the server that implements the wrapper for for that $nodeType.  Analogous to $DOCUMENT_ROOT.  $DOCUMENT_ROOT (a/k/a $basePath) is used by default if this property is not set.
