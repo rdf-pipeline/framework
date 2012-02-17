@@ -28,14 +28,14 @@ fRunUpdater	value	Subject is $nodeType.
 fUpdatePolicy	value	Update policy function for this node.
 fUriToNativeName	value	Subject is $nodeType.  Converts a URI to a native name.
 inputCaches list	Native input names for this node -- either outs our caches, depending on whether the input is local or foreign.
-inputs	list/hash	URIs of this node's inputs.
+inputs	list/multi	URIs of this node's inputs.
 lmFile	value	File name of node's last modified timestamps: (output and all inputs)
 member	hash	Inverse of rdf:type (aka "a")
 Node
 nodeType	value	Most specific node type -- a leaf class.
-outputs	hash	URIs of this node's outputs.  Derived from inputs & parameters.
+outputs	multi	URIs of this node's outputs.  Derived from inputs & parameters.
 parameterCaches list	Native parameter names for this node -- either outs our caches, depending on whether the input is local or foreign.
-parameters	list/hash	URIs of this node's parameters.
+parameters	list/multi	URIs of this node's parameters.
 rdfs:subClassOf	hash	Inverse is subClass
 hostRoot	hash	Subject is $nodeType.  Maps the server prefix (such as "http://localhost/") of node URIs of that $nodeType to the root location (as native name) of the server that implements the wrapper for for that $nodeType.  Analogous to $DOCUMENT_ROOT.  $DOCUMENT_ROOT (a/k/a $basePath) is used by default if this property is not set.
 # Obsolete?

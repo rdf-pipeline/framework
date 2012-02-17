@@ -81,7 +81,9 @@ my $DEBUG_OFF = 0;	# No debug output.  Warnings/errors only.
 my $DEBUG_UPDATES = 1; 	# Show what was updated.  This verbosity should be good for testing.
 my $DEBUG_REQUESTS = 2;	# Show updates plus requests.
 my $DEBUG_DETAILS = 3;	# Show requests plus more detail.
+
 my $debug = $DEBUG_UPDATES;
+# $debug = $DEBUG_DETAILS;
 
 my $debugStackDepth = 0;	# Used for indenting debug messages.
 
@@ -136,13 +138,17 @@ my %configValues = ();		# Maps: "?s ?p" --> {v1 => 1, v2 => 1, ...}
 #    my $nml = $nm->{list};	
 #    my $listRef = $nml->{$subject}->{$predicate};
 #    my @list = @{$listRef};
-#  For hash or multi-valued predicates:
+#  For hash-valued predicates:
 #    my $nmh = $nm->{hash};	
 #    my $hashRef = $nmh->{$subject}->{$predicate};
-#    # Multi-valued (maps to 1 if present):
-#    if ($hashRef->{$someValue}) { ... }
-#    # Hash valued (maps a key to a value):
 #    my $value = $hashRef->{$key};
+#  For multi-valued predicates:
+#    my $nmm = $nm->{multi};	
+#    my $hashRef = $nmm->{$subject}->{$predicate};
+#      For list of unique values (for non-unique use {list} instead):
+#    my @values = keys %{$hashRef};
+#      To see if a particular value exists (each $value is mapped to 1):
+#    if ($hashRef->{$value}) ...
 my $nm;
 
 &Warn("********** NEW APACHE THREAD INSTANCE **********\n", $DEBUG_DETAILS);
@@ -269,7 +275,7 @@ if ($configLastModified != $cmtime
 		|| $ontLastModified != $omtime
 		|| $internalsLastModified != $imtime) {
 	# Initialize node metadata:
-	$nm = {"value"=>{}, "list"=>{}, "hash"=>{}};
+	$nm = {"value"=>{}, "list"=>{}, "hash"=>{}, "multi"=>{}};
 	&RegisterWrappers($nm);
 	# Reload config file.
 	&Warn("Reloading config file: $configFile\n", $DEBUG_DETAILS);
@@ -597,7 +603,7 @@ return $newThisLM if $newThisLM eq $oldThisLM;
 ### Allow non-monotonic LM (because they could be checksums):
 ### $newThisLM gt $oldThisLM or die;
 # Notify outputs of change:
-my @outputs = sort keys %{$thisVHash->{outputs}};
+my @outputs = sort keys %{$nm->{multi}->{$thisUri}->{outputs}};
 foreach my $outUri (@outputs) {
 	next if $outUri eq $callerUri;
 	&Notify($nm, $outUri, $thisUri, $newThisLM);
@@ -648,11 +654,14 @@ my ($nm, $thisUri, $callerUri, $callerLM, $oldDepLMs) = @_;
 # Thus, they are not used when this was called because of a GET.
 my $thisVHash = $nm->{value}->{$thisUri};
 my $thisHHash = $nm->{hash}->{$thisUri};
+my $thisMHash = $nm->{multi}->{$thisUri};
+my $thisMHashInputs = $thisMHash->{inputs};
+my $thisMHashParameters = $thisMHash->{parameters};
+my $thisMHashDependsOn = $thisMHash->{dependsOn};
 my $thisType = $thisVHash->{nodeType};
 my $thisIsStale = 0;
-my $thisDependsOn = $thisHHash->{dependsOn};
 my $newDepLMs = {};
-foreach my $depUri (sort keys %{$thisDependsOn}) {
+foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
   # Bear in mind that a node may dependsOn a non-node arbitrary http 
   # or file:// source, so $depVHash may be undef.
   my $depVHash = $nm->{value}->{$depUri} || {};
@@ -660,8 +669,8 @@ foreach my $depUri (sort keys %{$thisDependsOn}) {
   my $newDepLM;
   my $method = 'GET';
   my $depLM = "";
-  my $isInput = $thisHHash->{inputs}->{$depUri} 
-	|| $thisHHash->{parameters}->{$depUri} || 0;
+  my $isInput = $thisMHashInputs->{$depUri} 
+	|| $thisMHashParameters->{$depUri} || 0;
   # TODO: Future optimization: if depUri is in %knownFresh ...
   my $knownFresh = ($depUri eq $callerUri) && $callerLM && 1;
   $knownFresh ||= 0;	# Nicer for logs if false.
@@ -674,11 +683,7 @@ foreach my $depUri (sort keys %{$thisDependsOn}) {
     }
   my $isSameServer = &IsSameServer($thisUri, $depUri) || 0;
   my $isSameType   = &IsSameType($thisType, $depType) || 0;
-  if (0 && $thisUri eq "http://localhost/odds" && $depUri eq "http://localhost/max") {
-	&Warn("REMOVE AFTER TESTING!!!\n");
-	$isSameType = 1;
-	}
-  &Warn("depUri: $depUri depType: $depType method: $method depLM: $depLM\n", $DEBUG_DETAILS);
+  &Warn("$thisUri depUri: $depUri depType: $depType method: $method depLM: $depLM\n", $DEBUG_DETAILS);
   &Warn("... isSameServer: $isSameServer isSameType: $isSameType knownFresh: $knownFresh isInput: $isInput\n", $DEBUG_DETAILS);
   if ($knownFresh && !$isInput) {
     # Nothing to do, because we don't need $depUri's content.
@@ -729,28 +734,33 @@ my %config = &CheatLoadN3($ontFile, $configFile);
 my $nmv = $nm->{value};
 my $nml = $nm->{list};
 my $nmh = $nm->{hash};
+my $nmm = $nm->{multi};
 foreach my $k (sort keys %config) {
 	# &Warn("LoadNodeMetadata key: $k\n", $DEBUG_DETAILS);
 	my ($s, $p) = split(/\s+/, $k) or die;
 	my $v = $config{$k};
 	die if !defined($v);
 	my @vList = split(/\s+/, $v); 
-	my %vHash = map { ($_, 1) } @vList;
+	# If there is an odd number of items, then it cannot be a hash.
+	my %hHash = ();
+	%hHash = @vList if (scalar(@vList) % 2 == 0);
+	my %mHash = map { ($_, 1) } @vList;
 	$nmv->{$s}->{$p} = $v;
 	$nml->{$s}->{$p} = \@vList;
-	$nmh->{$s}->{$p} = \%vHash;
+	$nmh->{$s}->{$p} = \%hHash;
+	$nmm->{$s}->{$p} = \%mHash;
 	# &Warn("  $s -> $p -> $v\n", $DEBUG_DETAILS);
 	}
 &PresetGenericDefaults($nm);
 # Run the initialization function to set defaults for each node type 
 # (i.e., wrapper type), starting with leaf nodes and working up the hierarchy.
-my @leaves = &LeafClasses($nm, keys %{$nmh->{Node}->{subClass}});
+my @leaves = &LeafClasses($nm, keys %{$nmm->{Node}->{subClass}});
 my %done = ();
 while(@leaves) {
 	my $nodeType = shift @leaves;
 	next if $done{$nodeType};
 	$done{$nodeType} = 1;
-	my @superClasses = keys %{$nmh->{$nodeType}->{$subClassOf}};
+	my @superClasses = keys %{$nmm->{$nodeType}->{$subClassOf}};
 	push(@leaves, @superClasses);
 	my $fSetNodeDefaults = $nmv->{$nodeType}->{fSetNodeDefaults};
 	next if !$fSetNodeDefaults;
@@ -772,17 +782,19 @@ my ($nm) = @_;
 my $nmv = $nm->{value};
 my $nml = $nm->{list};
 my $nmh = $nm->{hash};
+my $nmm = $nm->{multi};
 # &Warn("PresetGenericDefaults:\n");
 # First set defaults that are set directly on each node: 
 # nodeType, out, serOut, stderr, fUpdatePolicy.
-foreach my $thisUri (keys %{$nmh->{Node}->{member}}) 
+my @allNodes = keys %{$nmm->{Node}->{member}};
+foreach my $thisUri (@allNodes) 
   {
   # Make life easier in this loop:
   my $thisVHash = $nmv->{$thisUri} or die;
   my $thisLHash = $nml->{$thisUri} or die;
-  my $thisHHash = $nmh->{$thisUri} or die;
+  my $thisMHash = $nmm->{$thisUri} or die;
   # Set nodeType, which should be most specific node type.
-  my @types = keys %{$thisHHash->{a}};
+  my @types = keys %{$thisMHash->{a}};
   my @nodeTypes = LeafClasses($nm, @types);
   die if @nodeTypes > 1;
   die if @nodeTypes < 1;
@@ -796,13 +808,12 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
   # out is a native name; serOut is a file path.
   my $fUriToNativeName = $nmv->{$thisType}->{fUriToNativeName} || "";
   my $defaultOutUri = "$baseUri/cache/" . &QuickName($thisUri) . "/out";
-  my $thisTypeHash = $nmh->{$thisType} || {};
-  my $hostRoot = $thisTypeHash->{$baseUri} || $basePath;
+  my $thisHostRoot = $nmh->{$thisType}->{hostRoot}->{$baseUri} || $basePath;
   my $defaultOut = $defaultOutUri;
-  $defaultOut = &{$fUriToNativeName}($defaultOut, $baseUri, $hostRoot) 
+  $defaultOut = &{$fUriToNativeName}($defaultOut, $baseUri, $thisHostRoot) 
 	if $fUriToNativeName;
   my $thisName = $thisUri;
-  $thisName = &{$fUriToNativeName}($thisUri, $baseUri, $hostRoot)
+  $thisName = &{$fUriToNativeName}($thisUri, $baseUri, $thisHostRoot)
 	if $fUriToNativeName;
   $thisVHash->{out} ||= 
     $thisVHash->{updater} ? $defaultOut : $thisName;
@@ -815,19 +826,19 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
 	  "$basePath/cache/" . &QuickName($thisUri) . "/stderr";
   $thisVHash->{fUpdatePolicy} ||= \&LazyUpdatePolicy;
   # Simplify later code:
-  &MakeValuesAbsoluteUris($nmv, $nml, $nmh, $thisUri, "inputs");
-  &MakeValuesAbsoluteUris($nmv, $nml, $nmh, $thisUri, "parameters");
-  &MakeValuesAbsoluteUris($nmv, $nml, $nmh, $thisUri, "dependsOn");
+  &MakeValuesAbsoluteUris($nmv, $nml, $nmh, $nmm, $thisUri, "inputs");
+  &MakeValuesAbsoluteUris($nmv, $nml, $nmh, $nmm, $thisUri, "parameters");
+  &MakeValuesAbsoluteUris($nmv, $nml, $nmh, $nmm, $thisUri, "dependsOn");
   &Warn("WARNING: Node $thisUri has inputs but no updater ")
 	if !$thisVHash->{updater} && @{$thisLHash->{inputs}};
   # Initialize the list of outputs (actually inverse dependsOn) for each node:
-  $nmh->{$thisUri}->{outputs} = {};
+  $nmm->{$thisUri}->{outputs} = {};
   }
 
 # Now go through each node again, setting values related to each
 # node's dependsOns, which may make use of properties that were
 # set in the previous loop.
-foreach my $thisUri (keys %{$nmh->{Node}->{member}}) 
+foreach my $thisUri (@allNodes) 
   {
   # Nothing to do if $thisUri is not hosted on this server:
   next if !&IsSameServer($baseUri, $thisUri);
@@ -835,6 +846,7 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
   my $thisVHash = $nmv->{$thisUri};
   my $thisLHash = $nml->{$thisUri};
   my $thisHHash = $nmh->{$thisUri};
+  my $thisMHash = $nmm->{$thisUri};
   my $thisType = $thisVHash->{nodeType};
   # The dependsOnCache hash is used for inputs from other environments
   # and maps from dependsOn URIs (or inputs/parameter URIs) to the native names 
@@ -862,11 +874,12 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
   #     If so, then it will be used to generate a native name for 'cache'.
   $thisHHash->{dependsOnCache} ||= {};
   $thisHHash->{dependsOnSerCache} ||= {};
-  foreach my $depUri (keys %{$thisHHash->{dependsOn}}) {
-    # Ensure non-null hashrefs for all ins (because they may not be nodes):
-    $nmv->{$depUri} = {} if !$nmv->{$depUri};
-    $nml->{$depUri} = {} if !$nml->{$depUri};
-    $nmh->{$depUri} = {} if !$nmh->{$depUri};
+  foreach my $depUri (keys %{$thisMHash->{dependsOn}}) {
+    # Ensure non-null hashrefs for all deps (because they may not be nodes):
+    $nmv->{$depUri} ||= {};
+    $nml->{$depUri} ||= {};
+    $nmh->{$depUri} ||= {};
+    $nmm->{$depUri} ||= {};
     # my $depUriEncoded = uri_escape($depUri);
     my $depUriEncoded = &QuickName($depUri);
     # $depType will be false if $depUri is not a node:
@@ -895,10 +908,10 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
       # Create a URI and convert it
       # (if necessary) to an appropriate native name.
       my $fUriToNativeName = $nmv->{$depType}->{fUriToNativeName};
-      my $hostRoot = $nm->{hash}->{$thisType}->{hostRoot}->{$baseUri} || $basePath;
+      my $thisHostRoot = $nmh->{$thisType}->{hostRoot}->{$baseUri} || $basePath;
       # Default to a URI if there is no fUriToNativeName:
       my $cache = "$baseUri/cache/$thisType/$depUriEncoded/cache";
-      $cache = &{$fUriToNativeName}($cache, $baseUri, $hostRoot) 
+      $cache = &{$fUriToNativeName}($cache, $baseUri, $thisHostRoot) 
 		if $fUriToNativeName;
       $thisHHash->{dependsOnCache}->{$depUri} = $cache;
       # warn "thisUri: $thisUri depUri: $depUri Path 2\n";
@@ -914,15 +927,15 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
     # warn "thisUri: $thisUri depUri: $depUri $depType $don $dosn\n";
     #
     # Set the list of outputs (actually inverse dependsOn) for each node:
-    $nmh->{$depUri}->{outputs}->{$thisUri} = 1 if $depType;
+    $nmm->{$depUri}->{outputs}->{$thisUri} = 1 if $depType;
     }
-  # Set the list of input native names for this node.
+  # For convenience, Set the list of input native names for this node.
   $thisLHash->{inputCaches} ||= [];
   foreach my $inUri (@{$thisLHash->{inputs}}) {
     my $inCache = $thisHHash->{dependsOnCache}->{$inUri};
     push(@{$thisLHash->{inputCaches}}, $inCache);
     }
-  # Set the list of parameter native names for this node.
+  # For convenience, Set the list of parameter native names for this node.
   $thisLHash->{parameterCaches} ||= [];
   foreach my $pUri (@{$thisLHash->{parameters}}) {
     my $pCache = $thisHHash->{dependsOnCache}->{$pUri};
@@ -934,18 +947,21 @@ foreach my $thisUri (keys %{$nmh->{Node}->{member}})
 ################# MakeValuesAbsoluteUris ####################
 sub MakeValuesAbsoluteUris 
 {
-@_ == 5 or die;
-my ($nmv, $nml, $nmh, $thisUri, $predicate) = @_;
+@_ == 6 or die;
+my ($nmv, $nml, $nmh, $nmm, $thisUri, $predicate) = @_;
 my $oldV = $nmv->{$thisUri}->{$predicate} || "";
 my $oldL = $nml->{$thisUri}->{$predicate} || [];
 my $oldH = $nmh->{$thisUri}->{$predicate} || {};
+my $oldM = $nmm->{$thisUri}->{$predicate} || {};
 # In the case of a hash, it is the key that is made absolute:
-my %hash = map {(&NodeAbsUri($_), $oldH->{$_})} keys %{$oldH};
+my %hhash = map {(&NodeAbsUri($_), $oldH->{$_})} keys %{$oldH};
+my %mhash = map {(&NodeAbsUri($_), $oldM->{$_})} keys %{$oldM};
 my @list = map {&NodeAbsUri($_)} @{$oldL};
 my $value = join(" ", @list);
 $nmv->{$thisUri}->{$predicate} = $value;
 $nml->{$thisUri}->{$predicate} = \@list;
-$nmh->{$thisUri}->{$predicate} = \%hash;
+$nmh->{$thisUri}->{$predicate} = \%hhash;
+$nmm->{$thisUri}->{$predicate} = \%mhash;
 return;
 }
 
@@ -978,16 +994,16 @@ sub LeafClasses
 {
 @_ >= 1 or die;
 my ($nm, @classes) = @_;
-my $nmh = $nm->{hash};
+my $nmm = $nm->{multi};
 my @leaves = ();
 # Simple n-squared algorithm should be okay for small numbers of classes:
 foreach my $t (@classes) {
 	my $isSuperclass = 0;
 	foreach my $subType (@classes) {
 		next if $t eq $subType;
-		next if !$nmh->{$subType};
-		next if !$nmh->{$subType}->{$subClassOf};
-		next if !$nmh->{$subType}->{$subClassOf}->{$t};
+		next if !$nmm->{$subType};
+		next if !$nmm->{$subType}->{$subClassOf};
+		next if !$nmm->{$subType}->{$subClassOf}->{$t};
 		$isSuperclass = 1;
 		last;
 		}
@@ -1651,33 +1667,49 @@ return $lm;
 sub PrintNodeMetadata
 {
 my $nm = shift || die;
-my $nmv = $nm->{value};
-my $nml = $nm->{list};
-my $nmh = $nm->{hash};
+my $nmv = $nm->{value} || {};
+my $nml = $nm->{list}  || {};
+my $nmh = $nm->{hash}  || {};
+my $nmm = $nm->{multi} || {};
 &PrintLog("Node Metadata:\n") if $debug;
-my %allSubjects = (%{$nmv}, %{$nml}, %{$nmh});
+my %allSubjects = (%{$nmv}, %{$nml}, %{$nmh}, %{$nmm});
 foreach my $s (sort keys %allSubjects) {
 	last if !$debug;
 	my %allPredicates = ();
 	%allPredicates = (%allPredicates, %{$nmv->{$s}}) if $nmv->{$s};
 	%allPredicates = (%allPredicates, %{$nml->{$s}}) if $nml->{$s};
 	%allPredicates = (%allPredicates, %{$nmh->{$s}}) if $nmh->{$s};
+	%allPredicates = (%allPredicates, %{$nmm->{$s}}) if $nmm->{$s};
 	foreach my $p (sort keys %allPredicates) {
-		if ($nmv && $nmv->{$s} && $nmv->{$s}->{$p}) {
+		if ($nmv->{$s} && $nmv->{$s}->{$p}) {
 		  my $v = $nmv->{$s}->{$p};
 		  &PrintLog("  $s -> $p -> $v\n");
 		  }
-		if ($nml && $nml->{$s} && $nml->{$s}->{$p}) {
+		if ($nml->{$s} && $nml->{$s}->{$p}) {
 		  my @vList = @{$nml->{$s}->{$p}};
 		  my $vl = join(" ", @vList);
 		  &PrintLog("  $s -> $p -> ($vl)\n");
 		  }
-		if ($nmh && $nmh->{$s} && $nmh->{$s}->{$p}) {
+		if ($nmh->{$s} && $nmh->{$s}->{$p}) {
 		  my %vHash = %{$nmh->{$s}->{$p}};
 		  my @vHash = map {($_,$vHash{$_})} sort keys %vHash;
 		  # @vHash = map {defined($_) ? $_ : '*undef*'} @vHash;
 		  my $vh = join(" ", @vHash);
 		  &PrintLog("  $s -> $p -> {$vh}\n");
+		  }
+		if ($nmm->{$s} && $nmm->{$s}->{$p}) {
+		  my %vHash = %{$nmm->{$s}->{$p}};
+		  my @vHash = sort keys %vHash;
+		  grep { 
+			my $v=$vHash{$_}; 
+			if ($v != 1) { 
+			  &Warn("BAD nmm value \$vHash{$_}: $v\n");
+			  die;
+			  } 
+			} @vHash;
+		  # @vHash = map {defined($_) ? $_ : '*undef*'} @vHash;
+		  my $vh = join(" ", @vHash);
+		  &PrintLog("  $s -> $p -> [$vh]\n");
 		  }
 		}
 	}
