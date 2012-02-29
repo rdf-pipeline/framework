@@ -825,7 +825,9 @@ foreach my $thisUri (@allNodes)
   $nmv->{$thisUri}->{stderr} ||= 
 	  "$basePath/cache/" . &QuickName($thisUri) . "/stderr";
   $thisVHash->{fUpdatePolicy} ||= \&LazyUpdatePolicy;
-  # Simplify later code:
+  #### TODO: If we change to use the node name as the updater name, then
+  #### MakeValuesAbsoluteUris will no longer be needed.
+  # Simplify later code (needed because upaters are strings -- see issue 30):
   &MakeValuesAbsoluteUris($nmv, $nml, $nmh, $nmm, $thisUri, "inputs");
   &MakeValuesAbsoluteUris($nmv, $nml, $nmh, $nmm, $thisUri, "parameters");
   &MakeValuesAbsoluteUris($nmv, $nml, $nmh, $nmm, $thisUri, "dependsOn");
