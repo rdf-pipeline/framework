@@ -19,10 +19,10 @@ p:inputs 	rdfs:domain p:Node .
 p:parameters 	rdfs:domain p:Node .
 p:dependsOn 	rdfs:domain p:Node .
  
-# p:output specifies the output cache for a node.
+# p:state specifies the "state" cache for a node.
 # It is node-type-specific, e.g., filename for FileNode .
 # It may be set explicitly, otherwise a default will be used.
-p:output	rdfs:domain p:Node .
+p:state	rdfs:domain p:Node .
  
 # p:updater specifies the updater method for a Node.
 # It is node-type-specific, e.g., a script for FileNode .
