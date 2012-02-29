@@ -2,6 +2,6 @@
                 Generating LM of static node: http://localhost/node/max
               UPDATED depUri http://localhost/node/max of http://localhost/node/odds
               NO CHANGE to depUri http://localhost/node/odds-updater of http://localhost/node/odds
-            UPDATING http://localhost/node/odds {odds-updater} out: /home/dbooth/rdf-pipeline/trunk/www/cache/odds/out
+            UPDATING http://localhost/node/odds {odds-updater} state: /home/dbooth/rdf-pipeline/trunk/www/cache/odds/state
           UPDATED depUri http://localhost/node/odds of http://localhost/node/addone
-        UPDATING http://localhost/node/addone {addone-updater} out: /home/dbooth/rdf-pipeline/trunk/www/cache/addone/out
+        UPDATING http://localhost/node/addone {addone-updater} state: /home/dbooth/rdf-pipeline/trunk/www/cache/addone/state
