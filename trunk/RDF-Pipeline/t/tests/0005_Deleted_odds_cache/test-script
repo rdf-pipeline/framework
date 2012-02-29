@@ -21,7 +21,7 @@ $ENV{RDF_PIPELINE_WWW_DIR} = $wwwDir;
 
 ############ CUSTOMIZE HERE ################
 # Delete odds cache:
-my $oddsCache = "$wwwDir/cache/odds/out";
+my $oddsCache = "$wwwDir/cache/odds/state";
 -e $oddsCache || die;
 unlink("$oddsCache") || die;
 

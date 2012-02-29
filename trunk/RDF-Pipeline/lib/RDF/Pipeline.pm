@@ -18,7 +18,7 @@ use warnings;
 require Exporter;
 our @ISA = qw(Exporter);
 
-# Items to export into callers namespace by default. Note: do not export
+# Items to export into caller's namespace by default. Note: do not export
 # names by default without a very good reason. Use EXPORT_OK instead.
 # Do not simply export all your public functions/methods/constants.
 
@@ -408,7 +408,7 @@ return $newLM;
 }
 
 ################### DeserializeToLocalCache ##################
-# Update $thisUri's local cache of $depUri's out, by deserializing
+# Update $thisUri's local cache of $depUri's state, by deserializing
 # (if necessary) from $thisUri's local serCache of $depUri.
 # It is deserialized to $thisUri's node type, so that $thisUri can use it.
 sub DeserializeToLocalCache
@@ -461,11 +461,11 @@ return Apache2::Const::HTTP_METHOD_NOT_ALLOWED
 # TODO: If $r has fresh content, then store it.
 &Warn("HandleHttpEvent $method $thisUri From: $callerUri\n", $DEBUG_REQUESTS);
 &Warn("... callerLM: $callerLM\n", $DEBUG_DETAILS);
-# TODO: Issue #12: Make FreshenSerOut return the serOut that was just freshened.
-my $newThisLM = &FreshenSerOut($nm, $method, $thisUri, $callerUri, $callerLM);
+# TODO: Issue #12: Make FreshenSerState return the serState that was just freshened.
+my $newThisLM = &FreshenSerState($nm, $method, $thisUri, $callerUri, $callerLM);
 ####### Ready to generate the HTTP response. ########
-my $serOut = $thisVHash->{serOut} || die;
-my $size = -s $serOut || 0;
+my $serState = $thisVHash->{serState} || die;
+my $size = -s $serState || 0;
 $r->set_content_length($size);
 # TODO: Should use Accept header in choosing contentType?
 my $contentType = $thisVHash->{contentType}
@@ -476,14 +476,14 @@ my $contentType = $thisVHash->{contentType}
 # $r->content_type('application/rdf+xml');
 $r->content_type($contentType);
 # Not sure if the Content-Location header should be set.  
-# It may help people with debugging (so that they can view the serOut
+# It may help people with debugging (so that they can view the serState
 # directly), but it could be misused if people start requesting 
 # directly from that instead of using the node name.
 # Based on my current reading of the HTTP 1.1. spec
 # http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.14
 # it sounds like it should be safe to return the Content-Location,
 # i.e., clients should know that the semantics are different.
-$r->headers_out->set('Content-Location' => &PathToUri($serOut)); 
+$r->headers_out->set('Content-Location' => &PathToUri($serState)); 
 my ($lmHeader, $eTagHeader) = &LMToHeaders($newThisLM);
 # These work:
 # "W/" prefix on ETag means that it is weak.
@@ -502,36 +502,36 @@ if($status != Apache2::Const::OK || $r->header_only) {
   return $status;
   }
 # sendfile seems to want a full file system path:
-$r->sendfile($serOut);
+$r->sendfile($serState);
 return Apache2::Const::OK;
 }
 
-################### FreshenSerOut ##################
-sub FreshenSerOut
+################### FreshenSerState ##################
+sub FreshenSerState
 {
 @_ == 5 or die;
 my ($nm, $method, $thisUri, $callerUri, $callerLM) = @_;
-&Warn("FreshenSerOut $method $thisUri From: $callerUri\n", $DEBUG_REQUESTS);
+&Warn("FreshenSerState $method $thisUri From: $callerUri\n", $DEBUG_REQUESTS);
 &Warn("... callerLM: $callerLM\n", $DEBUG_DETAILS);
 my $thisVHash = $nm->{value}->{$thisUri} || die;
 my $thisType = $thisVHash->{nodeType} || die;
 my $thisTypeVHash = $nm->{value}->{$thisType} || {};
 my $fSerializer = $thisTypeVHash->{fSerializer};
-my $out = $thisVHash->{out} || die;
-my $serOut = $thisVHash->{serOut} || die;
-my $newThisLM = &FreshenOut($nm, 'GET', $thisUri, $callerUri, $callerLM);
-&Warn("FreshenSerOut $thisUri returned newThisLM: $newThisLM\n", $DEBUG_DETAILS);
+my $state = $thisVHash->{state} || die;
+my $serState = $thisVHash->{serState} || die;
+my $newThisLM = &FreshenState($nm, 'GET', $thisUri, $callerUri, $callerLM);
+&Warn("FreshenSerState $thisUri returned newThisLM: $newThisLM\n", $DEBUG_DETAILS);
 # TODO: Is this correct? Why not serialize on a HEAD request?
 if ($method eq 'HEAD' || $method eq 'NOTIFY' || !$fSerializer) {
-  &Warn("FreshenSerOut: No serialization needed. Returning newThisLM: $newThisLM\n", $DEBUG_DETAILS);
+  &Warn("FreshenSerState: No serialization needed. Returning newThisLM: $newThisLM\n", $DEBUG_DETAILS);
   return $newThisLM;
   }
-# Need to update serOut?
-my ($serOutLM) = &LookupLMs($FILE, $serOut);
-$serOutLM ||= "";
-if (!$serOutLM || !-e $serOut || ($newThisLM && $newThisLM ne $serOutLM)) {
+# Need to update serState?
+my ($serStateLM) = &LookupLMs($FILE, $serState);
+$serStateLM ||= "";
+if (!$serStateLM || !-e $serState || ($newThisLM && $newThisLM ne $serStateLM)) {
   ### Allow non-monotonic LM (because they could be checksums):
-  ### die if $newThisLM && $serOutLM && $newThisLM lt $serOutLM;
+  ### die if $newThisLM && $serStateLM && $newThisLM lt $serStateLM;
   # TODO: Set $acceptHeader from $r, and use it to choose $contentType:
   # This could be done by making {fSerializer} a hash from $contentType
   # to the serialization function.
@@ -542,23 +542,23 @@ if (!$serOutLM || !-e $serOut || ($newThisLM && $newThisLM ne $serOutLM)) {
 	|| "text/plain";
   # There MUST be a serializer or we would have returned already.
   $fSerializer || die;
-  &Warn("UPDATING $thisUri serOut: $serOut\n", $DEBUG_UPDATES); 
-  &{$fSerializer}($out, $serOut, $contentType) 
-    or die "ERROR: Failed to serialize $out to $serOut with Content-Type: $contentType\n";
-  $serOutLM = $newThisLM;
-  &SaveLMs($FILE, $serOut, $serOutLM);
+  &Warn("UPDATING $thisUri serState: $serState\n", $DEBUG_UPDATES); 
+  &{$fSerializer}($state, $serState, $contentType) 
+    or die "ERROR: Failed to serialize $state to $serState with Content-Type: $contentType\n";
+  $serStateLM = $newThisLM;
+  &SaveLMs($FILE, $serState, $serStateLM);
   }
-&Warn("FreshenSerOut: Returning serOutLM: $serOutLM\n", $DEBUG_DETAILS);
-return $serOutLM
+&Warn("FreshenSerState: Returning serStateLM: $serStateLM\n", $DEBUG_DETAILS);
+return $serStateLM
 }
 
-################### FreshenOut ################### 
+################### FreshenState ################### 
 # $callerUri and $callerLM are only used if $method is NOTIFY
-sub FreshenOut
+sub FreshenState
 {
 @_ == 5 or die;
 my ($nm, $method, $thisUri, $callerUri, $callerLM) = @_;
-&Warn("FreshenOut $method $thisUri From: $callerUri\n", $DEBUG_REQUESTS);
+&Warn("FreshenState $method $thisUri From: $callerUri\n", $DEBUG_REQUESTS);
 &Warn("... callerLM: $callerLM\n", $DEBUG_DETAILS);
 my ($oldThisLM, %oldDepLMs) = &LookupLMs($URI, $thisUri);
 $oldThisLM ||= "";
@@ -572,10 +572,10 @@ return $oldThisLM if !$policySaysFreshen;
 my ($thisIsStale, $newDepLMs) = 
 	&RequestLatestDependsOns($nm, $thisUri, $callerUri, $callerLM, \%oldDepLMs);
 my $thisType = $thisVHash->{nodeType} or die;
-my $out = $thisVHash->{out} or die;
+my $state = $thisVHash->{state} or die;
 my $thisTypeVHash = $nm->{value}->{$thisType} || {};
-my $fOutExists = $thisTypeVHash->{fOutExists} or die;
-$oldThisLM = "" if !&{$fOutExists}($out);	# out got deleted?
+my $fStateExists = $thisTypeVHash->{fStateExists} or die;
+$oldThisLM = "" if !&{$fStateExists}($state);	# state got deleted?
 $thisIsStale = 1 if !$oldThisLM;
 my $thisUpdater = $thisVHash->{updater} || "";
 return $oldThisLM if $thisUpdater && !$thisIsStale;
@@ -588,14 +588,14 @@ die "ERROR: Node $thisUri is STUCK: Inputs but no updater. "
 	if @{$thisInputs} && !$thisUpdater;
 my $fRunUpdater = $thisTypeVHash->{fRunUpdater} or die;
 # If there is no updater then it is up to $fRunUpdater to generate
-# an LM for the static out.
+# an LM for the static state.
 if ($thisUpdater) {
-	&Warn("UPDATING $thisUri {$thisUpdater} out: $out\n", $DEBUG_UPDATES); 
+	&Warn("UPDATING $thisUri {$thisUpdater} state: $state\n", $DEBUG_UPDATES); 
 	}
 else	{
 	&Warn("Generating LM of static node: $thisUri\n", $DEBUG_UPDATES); 
 	}
-my $newThisLM = &{$fRunUpdater}($nm, $thisUri, $thisUpdater, $out, 
+my $newThisLM = &{$fRunUpdater}($nm, $thisUri, $thisUpdater, $state, 
 	$thisInputs, $thisParameters, $oldThisLM, $callerUri, $callerLM);
 &Warn("WARNING: fRunUpdater on $thisUri $thisUpdater returned false LM") if !$newThisLM;
 &SaveLMs($URI, $thisUri, $newThisLM, %{$newDepLMs});
@@ -699,7 +699,7 @@ foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
   elsif (!$isSameType) {
     # Neighbor: Same server but different type.
     &Warn("Same server, different type.\n", $DEBUG_DETAILS);
-    $newDepLM = &FreshenSerOut($nm, $method, $thisUri, $callerUri, $callerLM);
+    $newDepLM = &FreshenSerState($nm, $method, $thisUri, $callerUri, $callerLM);
     &DeserializeToLocalCache($nm, $thisUri, $depUri, $newDepLM);
     }
   elsif ($knownFresh) {
@@ -710,8 +710,8 @@ foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
   else {
     # Local: Same server and type, but not known fresh.  When local, GET==HEAD.
     &Warn("Same server and type.\n", $DEBUG_DETAILS);
-    $newDepLM = &FreshenOut($nm, 'GET', $depUri, "", "");
-    &Warn("FreshenOut $depUri returned newDepLM: $newDepLM\n", $DEBUG_DETAILS);
+    $newDepLM = &FreshenState($nm, 'GET', $depUri, "", "");
+    &Warn("FreshenState $depUri returned newDepLM: $newDepLM\n", $DEBUG_DETAILS);
     }
   my $oldDepLM = $oldDepLMs->{$depUri} || "";
   my $depChanged = !$oldDepLM || ($newDepLM && $newDepLM ne $oldDepLM);
@@ -774,7 +774,7 @@ return $nm;
 # before nodeType-specific defaults are set.  In particular, the
 # following are set for every node: nodeType.  Plus the following
 # are set for every node on this server:
-# outOriginal, out, serOut, stderr.
+# stateOriginal, state, serState, stderr.
 sub PresetGenericDefaults
 {
 @_ == 1 or die;
@@ -785,7 +785,7 @@ my $nmh = $nm->{hash};
 my $nmm = $nm->{multi};
 # &Warn("PresetGenericDefaults:\n");
 # First set defaults that are set directly on each node: 
-# nodeType, out, serOut, stderr, fUpdatePolicy.
+# nodeType, state, serState, stderr, fUpdatePolicy.
 my @allNodes = keys %{$nmm->{Node}->{member}};
 foreach my $thisUri (@allNodes) 
   {
@@ -802,25 +802,25 @@ foreach my $thisUri (@allNodes)
   $thisVHash->{nodeType} = $thisType;
   # Nothing more to do if $thisUri is not hosted on this server:
   next if !&IsSameServer($baseUri, $thisUri);
-  # Save original out before setting it to a default value:
-  $thisVHash->{outOriginal} = $thisVHash->{out};
-  # Set out and serOut if not set.  
-  # out is a native name; serOut is a file path.
+  # Save original state before setting it to a default value:
+  $thisVHash->{stateOriginal} = $thisVHash->{state};
+  # Set state and serState if not set.  
+  # state is a native name; serState is a file path.
   my $fUriToNativeName = $nmv->{$thisType}->{fUriToNativeName} || "";
-  my $defaultOutUri = "$baseUri/cache/" . &QuickName($thisUri) . "/out";
+  my $defaultStateUri = "$baseUri/cache/" . &QuickName($thisUri) . "/state";
   my $thisHostRoot = $nmh->{$thisType}->{hostRoot}->{$baseUri} || $basePath;
-  my $defaultOut = $defaultOutUri;
-  $defaultOut = &{$fUriToNativeName}($defaultOut, $baseUri, $thisHostRoot) 
+  my $defaultState = $defaultStateUri;
+  $defaultState = &{$fUriToNativeName}($defaultState, $baseUri, $thisHostRoot) 
 	if $fUriToNativeName;
   my $thisName = $thisUri;
   $thisName = &{$fUriToNativeName}($thisUri, $baseUri, $thisHostRoot)
 	if $fUriToNativeName;
-  $thisVHash->{out} ||= 
-    $thisVHash->{updater} ? $defaultOut : $thisName;
-  $thisVHash->{serOut} ||= 
+  $thisVHash->{state} ||= 
+    $thisVHash->{updater} ? $defaultState : $thisName;
+  $thisVHash->{serState} ||= 
     $nmv->{$thisType}->{fSerializer} ?
-      "$basePath/cache/" . &QuickName($thisUri) . "/serOut"
-      : $thisVHash->{out};
+      "$basePath/cache/" . &QuickName($thisUri) . "/serState"
+      : $thisVHash->{state};
   # For capturing stderr:
   $nmv->{$thisUri}->{stderr} ||= 
 	  "$basePath/cache/" . &QuickName($thisUri) . "/stderr";
@@ -852,7 +852,7 @@ foreach my $thisUri (@allNodes)
   # and maps from dependsOn URIs (or inputs/parameter URIs) to the native names 
   # that will be used by $thisUri's updater when
   # it is invoked.  It will either use a new name (if the input is from
-  # a different environment) or the input's out directly (if in the 
+  # a different environment) or the input's state directly (if in the 
   # same env).  A non-node dependsOn is treated like a foreign
   # node with no serializer.  
   # The dependsOnSerCache hash similarly maps
@@ -860,14 +860,14 @@ foreach my $thisUri (@allNodes)
   # inputs) that will be used to refresh the local cache if the
   # input is foreign.  However, since different node types within
   # the same server can share the serialized inputs, then 
-  # the dependsOnSerCache may be set using the input's serOut, since
+  # the dependsOnSerCache may be set using the input's serState, since
   # both will be filenames.  (Serialized content is always in a file.)
   # Factors that affect these settings:
   #  A. Is $depUri a node? It may be any other URI data source (http: or file:).
   #  B. Is $depUri on the same server (as $thisUri)?
   #     If so, its serCache can be shared with other nodes on this server.
   #  C. Is $depType the same node type $thisType?
-  #     If so (and on same server) then the node's out can be accessed directly.
+  #     If so (and on same server) then the node's state can be accessed directly.
   #  D. Does $depType have a deserializer?
   #     If not, then 'cache' will be the same as serCache.
   #  E. Does $depType have a fUriToNativeName function?
@@ -886,8 +886,8 @@ foreach my $thisUri (@allNodes)
     my $depType = $nmv->{$depUri}->{nodeType} || "";
     # First set dependsOnSerCache.
     if ($depType && &IsSameServer($baseUri, $depUri)) {
-      # Same server, so re-use the input's serOut.
-      $thisHHash->{dependsOnSerCache}->{$depUri} = $nmv->{$depUri}->{serOut};
+      # Same server, so re-use the input's serState.
+      $thisHHash->{dependsOnSerCache}->{$depUri} = $nmv->{$depUri}->{serState};
       }
     else {
       # Different servers, so make up a new file path.
@@ -899,8 +899,8 @@ foreach my $thisUri (@allNodes)
     # Now set dependsOnCache.
     my $fDeserializer = $depType ? $nmv->{$depType}->{fDeserializer} : "";
     if (&IsSameServer($baseUri, $depUri) && &IsSameType($thisType, $depType)) {
-      # Same env.  Reuse the input's out.
-      $thisHHash->{dependsOnCache}->{$depUri} = $nmv->{$depUri}->{out};
+      # Same env.  Reuse the input's state.
+      $thisHHash->{dependsOnCache}->{$depUri} = $nmv->{$depUri}->{state};
       # warn "thisUri: $thisUri depUri: $depUri Path 1\n";
       }
     elsif ($fDeserializer) {
@@ -1048,7 +1048,7 @@ return %args;
 # Not proper n3 parsing, but good enough for simple POC.
 # Returns a hash map that maps: "$s $p" --> $o
 # Global $pipelinePrefix is also stripped off from terms.
-# Example: "http://localhost/a out" --> "c/cp-out.txt"
+# Example: "http://localhost/a state" --> "c/cp-state.txt"
 sub CheatLoadN3
 {
 my $ontFile = shift;
@@ -1243,27 +1243,27 @@ $nm->{value}->{FileNode}->{fSerializer} = "";
 $nm->{value}->{FileNode}->{fDeserializer} = "";
 $nm->{value}->{FileNode}->{fUriToNativeName} = \&UriToPath;
 $nm->{value}->{FileNode}->{fRunUpdater} = \&FileNodeRunUpdater;
-$nm->{value}->{FileNode}->{fOutExists} = \&FileExists;
+$nm->{value}->{FileNode}->{fStateExists} = \&FileExists;
 $nm->{value}->{FileNode}->{defaultContentType} = "text/plain";
 }
 
 ############# FileNodeRunUpdater ##############
 # Run the updater.
-# If there is no updater (i.e., static out) then we must generate
-# an LM from the out.
+# If there is no updater (i.e., static state) then we must generate
+# an LM from the state.
 sub FileNodeRunUpdater
 {
 @_ == 9 || die;
-my ($nm, $thisUri, $updater, $out, $thisInputs, $thisParameters, 
+my ($nm, $thisUri, $updater, $state, $thisInputs, $thisParameters, 
 	$oldThisLM, $callerUri, $callerLM) = @_;
 # Avoid unused var warning:
-($nm, $thisUri, $updater, $out, $thisInputs, $thisParameters, 
+($nm, $thisUri, $updater, $state, $thisInputs, $thisParameters, 
 	$oldThisLM, $callerUri, $callerLM) = @_;
-($nm, $thisUri, $updater, $out, $thisInputs, $thisParameters, 
+($nm, $thisUri, $updater, $state, $thisInputs, $thisParameters, 
 	$oldThisLM, $callerUri, $callerLM) = @_;
-&Warn("FileNodeRunUpdater(nm, $thisUri, $updater, $out, ...) called.\n", $DEBUG_DETAILS);
+&Warn("FileNodeRunUpdater(nm, $thisUri, $updater, $state, ...) called.\n", $DEBUG_DETAILS);
 $updater = &NodeAbsPath($updater) if $updater;
-return &TimeToLM(&MTime($out)) if !$updater;
+return &TimeToLM(&MTime($state)) if !$updater;
 # TODO: Move this warning to when the metadata is loaded?
 if (!-x $updater) {
 	die "ERROR: $thisUri updater $updater is not executable by web server!";
@@ -1278,19 +1278,19 @@ my $parameterFiles = join(" ", map {quotemeta($_)}
 &Warn("parameterFiles: $parameterFiles\n", $DEBUG_DETAILS);
 my $ipFiles = "$inputFiles $parameterFiles";
 my $stderr = $nm->{value}->{$thisUri}->{stderr};
-# Make sure parent dirs exist for $stderr and $out:
-&MakeParentDirs($stderr, $out);
+# Make sure parent dirs exist for $stderr and $state:
+&MakeParentDirs($stderr, $state);
 # Ensure no unsafe chars before invoking $cmd:
 my $qThisUri = quotemeta($thisUri);
-my $qOut = quotemeta($out);
+my $qState = quotemeta($state);
 my $qUpdater = quotemeta($updater);
 my $qStderr = quotemeta($stderr);
 my $useStdout = 0;
-my $outOriginal = $nm->{value}->{$thisUri}->{outOriginal} || "";
-&Warn("outOriginal: $outOriginal\n", $DEBUG_DETAILS);
-$useStdout = 1 if $updater && !$nm->{value}->{$thisUri}->{outOriginal};
-my $cmd = "( export $THIS_URI=$qThisUri ; $qUpdater $qOut $ipFiles > $qStderr 2>&1 )";
-$cmd =    "( export $THIS_URI=$qThisUri ; $qUpdater         $ipFiles > $qOut 2> $qStderr )"
+my $stateOriginal = $nm->{value}->{$thisUri}->{stateOriginal} || "";
+&Warn("stateOriginal: $stateOriginal\n", $DEBUG_DETAILS);
+$useStdout = 1 if $updater && !$nm->{value}->{$thisUri}->{stateOriginal};
+my $cmd = "( export $THIS_URI=$qThisUri ; $qUpdater $qState $ipFiles > $qStderr 2>&1 )";
+$cmd =    "( export $THIS_URI=$qThisUri ; $qUpdater         $ipFiles > $qState 2> $qStderr )"
 	if $useStdout;
 &Warn("cmd: $cmd\n", $DEBUG_DETAILS);
 my $result = (system($cmd) >> 8);

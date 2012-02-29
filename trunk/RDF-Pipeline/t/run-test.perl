@@ -89,7 +89,7 @@ foreach my $tDir (@tDirs) {
   !system("$moduleDir/t/helpers/copy-dir.perl '$wwwDir' '$actualFilteredDir'") || die;
 
   # Filter all actual-files
-  my $aFindCmd = "find '$actualFilteredDir' -type f -exec '$moduleDir/t/helpers/run-filter.perl' '$moduleDir/t/helpers/filter-actual.perl' '{}' \\;";
+  my $aFindCmd = "find '$actualFilteredDir' -type f -exec '$moduleDir/t/helpers/filter-actual.perl' '{}' \\;";
   # warn "aFindCmd: $aFindCmd\n";
   !system($aFindCmd) || die;
 
@@ -112,7 +112,7 @@ foreach my $tDir (@tDirs) {
   !system("$moduleDir/t/helpers/copy-dir.perl '$tDir/expected-files' '$expectedFilteredDir'") || die;
 
   # Filter all expected-files
-  my $eFindCmd = "find '$expectedFilteredDir' -type f -exec '$moduleDir/t/helpers/run-filter.perl' '$moduleDir/t/helpers/filter-expected.perl' '{}' \\;";
+  my $eFindCmd = "find '$expectedFilteredDir' -type f -exec '$moduleDir/t/helpers/filter-expected.perl' '{}' \\;";
   # warn "eFindCmd: $eFindCmd\n";
   !system($eFindCmd) || die;
 

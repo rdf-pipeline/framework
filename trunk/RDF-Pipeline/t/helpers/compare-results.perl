@@ -16,7 +16,7 @@ my $resultFiles = shift @ARGV || die;
 
 # -d $expectedFiles or exit 1;
 # -d $resultFiles or exit 1;
-my $cmd = "diff -r -b $quiet -x lm -x ont -x '.*' '$expectedFiles' '$resultFiles'";
+my $cmd = "diff -r -b -w $quiet -x lm -x ont -x '.*' '$expectedFiles' '$resultFiles'";
 # warn "cmd: $cmd\n";
 if (system($cmd)) {
 	exit 1;
