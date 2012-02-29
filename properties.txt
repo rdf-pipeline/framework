@@ -8,9 +8,8 @@ Perhaps we should standardize internal naming, something like:
   fooName	-- A native name (i.e., node-type specific).
 
 a	hash	Inverse is {member}
-out	value	Native name of node output
-outOriginal	value	Value of out predicate before setting defaults
-outUri	value	URI of out (used as key for LM)
+state	value	Native name of node output
+stateOriginal	value	Value of state predicate before setting defaults
 command
 contentType	value	HTTP Content-Type for this node's serialized output.  Defaults to defaultContentType of the $nodeType if not specified.
 cache
@@ -20,30 +19,29 @@ defaultContentEncoding	value	Subject is $nodeType.  Default HTTP Content-Encodin
 dependsOn	list/hash	URIs of inputs, parameters and anything else this node depends on.
 dependsOnCache	hash	Maps a dependsOn URI to the native name for that input.  I.e., points to local "cache".
 dependsOnSerCache	hash	Maps a dependsOn URI to the local file name for that serialized input.  I.e., points to local "serCache".
-fOutExists	value	Subject is $nodeType.  Function that returns 1 iff the given out or local cache exists.
+fStateExists	value	Subject is $nodeType.  Function that returns 1 iff the given state or local cache exists.
 fSetNodeDefaults	value	Subject is $nodeType.  @@ Is this used? @@
 fSerializer	value	Subject is $nodeType.
 fDeserializer	value	Subject is $nodeType.
 fRunUpdater	value	Subject is $nodeType.
 fUpdatePolicy	value	Update policy function for this node.
 fUriToNativeName	value	Subject is $nodeType.  Converts a URI to a native name.
-inputCaches list	Native input names for this node -- either outs our caches, depending on whether the input is local or foreign.
+inputCaches list	Native input names for this node -- either states our caches, depending on whether the input is local or foreign.
 inputs	list/multi	URIs of this node's inputs.
-lmFile	value	File name of node's last modified timestamps: (output and all inputs)
+lmFile	value	File name of node's last modified timestamps: (state and all inputs)
 member	hash	Inverse of rdf:type (aka "a")
 Node
 nodeType	value	Most specific node type -- a leaf class.
-outputs	multi	URIs of this node's outputs.  Derived from inputs & parameters.
-parameterCaches list	Native parameter names for this node -- either outs our caches, depending on whether the input is local or foreign.
+outputs	multi	URIs of this node's outputs (actually inverse dependsOns).  Derived from dependsOns.
+parameterCaches list	Native parameter names for this node -- either states or caches, depending on whether the input is local or foreign.
 parameters	list/multi	URIs of this node's parameters.
 rdfs:subClassOf	hash	Inverse is subClass
 hostRoot	hash	Subject is $nodeType.  Maps the server prefix (such as "http://localhost/") of node URIs of that $nodeType to the root location (as native name) of the server that implements the wrapper for for that $nodeType.  Analogous to $DOCUMENT_ROOT.  $DOCUMENT_ROOT (a/k/a $basePath) is used by default if this property is not set.
-# Obsolete?
+#### Obsolete?
 # scope	value	URI prefix without trailing "/".  Env = scope + node type
 # scopePath	value	File path corresponding to scope (under DOCUMENT_ROOT)
-serOut	value	File name of serialized out (under DOCUMENT_ROOT).  Same as out if the node has no fSerializer.
-serOutUri	value	URI of serOut
-serCache	value	File name of cache of serialized out.
+serState	value	File name of serialized state (under DOCUMENT_ROOT).  Same as state if the node has no fSerializer.
+serCache	value	File name of cache of serialized state.
 stderr	value	File name of stderr from last update.
 subClass	hash	Inverse of rdfs:subClassOf
 updater	value	Native name of updater function

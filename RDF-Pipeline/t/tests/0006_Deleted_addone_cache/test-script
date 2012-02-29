@@ -21,7 +21,7 @@ $ENV{RDF_PIPELINE_WWW_DIR} = $wwwDir;
 
 ############ CUSTOMIZE HERE ################
 # Delete addone cache:
-my $addoneCache = "$wwwDir/cache/addone/out";
+my $addoneCache = "$wwwDir/cache/addone/state";
 -e $addoneCache || die;
 unlink("$addoneCache") || die;
 

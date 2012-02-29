@@ -11,10 +11,10 @@
 :max a p:FileNode . # No updater -- update manually.
 
 :odds a p:FileNode ;
-p:inputs ( :max ) ;
-p:updater "odds-updater" .
+  p:inputs ( :max ) ;
+  p:updater "odds-updater" .
 
 :addone a p:FileNode ;
-p:inputs ( :odds ) ;
-p:updater "addone-updater" .
+  p:inputs ( :odds ) ;
+  p:updater "addone-updater" .
 
