@@ -21,14 +21,14 @@ A node type whose cached data is already in serialized form (suitable for HTTP t
 
 == fSerializer(...) -- OPTIONAL ==
 *Parameters:*
-  * *deserName* -- String: Native name of the object to be serialized.
   * *serFilename* -- String: Filename of the content to be deserialized.
+  * *deserName* -- String: Native name of the object to be serialized.
   * *contentType* -- String: Desired HTTP Content-Type for _serFilename_'s content.
   * *hostRoot* -- String: Native name root of the node's host.
 *Returns:*
   * Boolean: true (1) iff the serialization succeeded.
 
-Serializes the object named by _deserName_ to the file named by _serFilename_.  Inverse of _fDeserializer_.  The 
+Serializes the object named by _deserName_ to the file named by _serFilename_.  Inverse of _fDeserializer_.  
 
 A node type whose cached data is already in serialized form (suitable for HTTP transmission) does not need to implement _fSerializer_.
 
