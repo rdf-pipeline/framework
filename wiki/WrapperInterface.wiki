@@ -6,6 +6,15 @@ The RDF Pipeline framework is designed to allow new wrappers to be implemented f
 = Wrapper Functions =
 A wrapper must implement the following functions.
 
+== fExists(...) -- REQUIRED ==
+*Parameters:*
+  * *name* -- String: Native name of a state or local cache.
+  * *hostRoot* -- String: Native name root of hosting environment of _name_.
+*Returns:*
+  * Boolean: true (1) iff _name_ exists in _hostRoot_ .
+
+Tests whether a state or local cache exists.
+
 == fDeserializer(...) -- OPTIONAL ==
 *Parameters:*
   * *serFilename* -- String: Filename of the content to be deserialized.
