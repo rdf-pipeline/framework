@@ -239,6 +239,17 @@ if (0 && $debug) {
 	&Warn("\n", $DEBUG_DETAILS);
 	}
 
+my $args = $r->args() || "";
+&Warn("Query string args unparsed: $args\n", $DEBUG_DETAILS);
+&Warn("Query string args parsed:\n", $DEBUG_DETAILS);
+foreach my $k (sort keys %args) {
+	last if $debug < $DEBUG_DETAILS;
+	my $dk = defined($k) ? $k : "(undef)";
+	my $v = $args{$k};
+	my $dv = defined($v) ? $v : "(undef)";
+	&Warn("  $dk=$dv\n", $DEBUG_DETAILS);
+	}
+
 # Reload config file?
 my $cmtime = &MTime($configFile) || die "ERROR: File not found: $configFile\n";
 my $omtime = &MTime($ontFile) || die "ERROR: File not found: $ontFile\n";
@@ -1005,7 +1016,11 @@ sub BuildQueryString
 {
 my %args = @_;
 my $args = join("&", 
-	map { uri_escape($_) . "=" . uri_escape($args{$_}) }
+	map 	{ 
+		die if !defined($_);
+		die if !defined($args{$_});
+		uri_escape($_) . "=" . uri_escape($args{$_}) 
+		}
 	keys %args);
 return $args;
 }
@@ -1024,7 +1039,8 @@ my $args = shift || "";
 my %args = map { 
 	my ($k,$v) = split(/\=/, $_); 
 	$v = "" if !defined($v); 
-	$k ? (uri_unescape($k), uri_unescape($v)) : ()
+	$k = "" if !defined($k); 
+	(uri_unescape($k), uri_unescape($v))
 	} split(/\&/, $args);
 return %args;
 }
