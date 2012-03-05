@@ -94,8 +94,9 @@ foreach my $tDir (@tDirs) {
   !system($aFindCmd) || die;
 
   # Fail if the result files contain the word "error" or "died":
-  if (!system("grep -r -m 1 -i '\\berror\\b' '$actualFilteredDir'")
-	    || !system("grep -r -m 1 -i '\\bdied\\b' '$actualFilteredDir'"))
+  if (!-e "$tDir/IgnoreErrors.txt"
+	&& (!system("grep -r -m 1 -i '\\berror\\b' '$actualFilteredDir'")
+	    || !system("grep -r -m 1 -i '\\bdied\\b' '$actualFilteredDir'")))
         {
 	warn "Failed 'error' or 'died' check: $tDir\n";
 	$allPassed = 0;
