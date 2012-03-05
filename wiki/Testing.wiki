@@ -86,6 +86,9 @@ A few useful approaches:
   * View `/tmp/rdfp/diffs.txt` after running the failed test.
   * View the `/tmp/rdfp/nnnn/actual-filtered/test/*` files.
 
+= Ignoring "error" or "died" messages =
+Normally run-test.perl will check each actual result file for the word "error" or "died" (case insensitive) and the test will fail if one of those words occurs.  However, in some cases, the test _should_ contain one of those words.  To skip this check, place a file called *"IgnoreErrors.txt"* in the nnnn test directory.
+
 = Accepting test results =
 If you need to update the expected-files for one or more tests (e.g., because a code change has caused the result files to no longer match the expected-files), then *once you are certain that the current result files are correct*, you can do
 {{{
