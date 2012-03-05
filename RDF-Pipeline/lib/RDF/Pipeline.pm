@@ -75,6 +75,10 @@ use Time::HiRes ();
 use File::Path qw(make_path remove_tree);
 use WWW::Mechanize;
 
+################## Node Types ###################
+# use lib qw( /home/dbooth/rdf-pipeline/trunk/RDF-Pipeline/lib );
+use RDF::Pipeline::HtmlFileNode;
+
 ##################  Debugging and testing ##################
 # $debug verbosity:
 my $DEBUG_OFF = 0;	# No debug output.  Warnings/errors only.
@@ -154,38 +158,6 @@ my $nm;
 &Warn("********** NEW APACHE THREAD INSTANCE **********\n", $DEBUG_DETAILS);
 my $hasHiResTime = &Time::HiRes::d_hires_stat()>0;
 $hasHiResTime || die;
-
-if (0)
-	{
-	# Code for testing shared session data:
-	  use Apache::Session::File;
-	my $sessionsDir = '/tmp/rdf-pipeline-sessions';
-	my $locksDir = '/tmp/rdf-pipeline-locks';
-
-	-d $sessionsDir || mkdir($sessionsDir) || die;
-	-d $locksDir || mkdir($locksDir) || die;
-
-	  my %session;
-	  my $sessionIdFile = "/tmp/rdf-pipeline-sessionID";
-	  my $sessionId = &ReadFile($sessionIdFile);
-	  $sessionId = undef if !$sessionId;
-	  my $isNewSessionId = !$sessionId;
-	  #make a fresh session for a first-time visitor
-	 tie %session, 'Apache::Session::File', $sessionId, {
-	    Directory => $sessionsDir,
-	    LockDirectory   => $locksDir,
-	 };
-	$sessionId ||= $session{_session_id};
-
-	&WriteFile($sessionIdFile, $sessionId) if $isNewSessionId;
-	&Warn("sessionId: $sessionId\n", $DEBUG_DETAILS);
-
-	  #...time passes...
-
-	$session{date} ||= `date`;
-	my $testShared = $session{date};
-	&Warn("testShared: $testShared\n", $DEBUG_DETAILS);
-	}
 
 use Getopt::Long;
 
@@ -277,6 +249,8 @@ if ($configLastModified != $cmtime
 	# Initialize node metadata:
 	$nm = {"value"=>{}, "list"=>{}, "hash"=>{}, "multi"=>{}};
 	&RegisterWrappers($nm);
+	&Warn("--------- NodeMetadata after RegisterWrappers -------\n", $DEBUG_DETAILS); 
+	&PrintNodeMetadata($nm) if $debug;
 	# Reload config file.
 	&Warn("Reloading config file: $configFile\n", $DEBUG_DETAILS);
 	$configLastModified = $cmtime;
@@ -410,34 +384,36 @@ return $newLM;
 ################### DeserializeToLocalCache ##################
 # Update $thisUri's local cache of $depUri's state, by deserializing
 # (if necessary) from $thisUri's local serCache of $depUri.
-# It is deserialized to $thisUri's node type, so that $thisUri can use it.
+# It is deserialized to $thisUri's node type -- NOT $depUri's node
+# type -- so that $thisUri can use it.
 sub DeserializeToLocalCache
 {
 @_ == 4 or die;
 my ($nm, $thisUri, $depUri, $depLM) = @_;
 &Warn("DeserializeToLocalCache $thisUri In: $depUri\n", $DEBUG_DETAILS);
 &Warn("... with depLM: $depLM\n", $DEBUG_DETAILS);
-my $thisVHash = $nm->{value}->{$thisUri} || {};
+my $nmv = $nm->{value};
+my $thisVHash = $nmv->{$thisUri} || {};
 my $thisType = $thisVHash->{nodeType} || "";
-my $fDeserializer = $nm->{value}->{$thisType}->{fDeserializer} || "";
+my $fDeserializer = $nmv->{$thisType}->{fDeserializer} || "";
 return if !$fDeserializer;
-my $depType = $nm->{value}->{$depUri}->{nodeType} || "";
-my $depTypeVHash = $nm->{value}->{$depType} || {};
-my $thisHHash = $nm->{hash}->{$thisUri} || {};
+my $nmh = $nm->{hash};
+my $thisHHash = $nmh->{$thisUri} || {};
 my $depSerCache = $thisHHash->{dependsOnSerCache}->{$depUri} || "";
 my $depCache = $thisHHash->{dependsOnCache}->{$depUri} || "";
-my ($oldCacheLM) = &LookupLMs($depType, $depCache);
+my ($oldCacheLM) = &LookupLMs($thisType, $depCache);
 $oldCacheLM ||= "";
-my $fExists = $depTypeVHash->{fExists} or die;
-$oldCacheLM = "" if $oldCacheLM && !&{$fExists}($depCache);
+my $fExists = $nmv->{$thisType}->{fExists} or confess;
+my $thisHostRoot = $nmh->{$thisType}->{hostRoot}->{$baseUri} || $basePath;
+$oldCacheLM = "" if $oldCacheLM && !&{$fExists}($depCache, $thisHostRoot);
 return if (!$depLM || $depLM eq $oldCacheLM);
 my $contentType = $thisVHash->{contentType}
-	|| $nm->{value}->{$thisType}->{defaultContentType}
+	|| $nmv->{$thisType}->{defaultContentType}
 	|| "text/plain";
 &Warn("UPDATING $depUri local cache: $depCache of $thisUri\n", $DEBUG_UPDATES); 
-&{$fDeserializer}($depSerCache, $depCache, $contentType) 
+&{$fDeserializer}($depSerCache, $depCache, $contentType, $thisHostRoot) 
     or die "ERROR: Failed to deserialize $depSerCache to $depCache with Content-Type: $contentType\n";
-&SaveLMs($depType, $depCache, $depLM);
+&SaveLMs($thisType, $depCache, $depLM);
 }
 
 ################### HandleHttpEvent ##################
@@ -543,7 +519,8 @@ if (!$serStateLM || !-e $serState || ($newThisLM && $newThisLM ne $serStateLM)) 
   # There MUST be a serializer or we would have returned already.
   $fSerializer || die;
   &Warn("UPDATING $thisUri serState: $serState\n", $DEBUG_UPDATES); 
-  &{$fSerializer}($state, $serState, $contentType) 
+  my $thisHostRoot = $nm->{hash}->{$thisType}->{hostRoot}->{$baseUri} || $basePath;
+  &{$fSerializer}($serState, $state, $contentType, $thisHostRoot) 
     or die "ERROR: Failed to serialize $state to $serState with Content-Type: $contentType\n";
   $serStateLM = $newThisLM;
   &SaveLMs($FILE, $serState, $serStateLM);
@@ -574,8 +551,9 @@ my ($thisIsStale, $newDepLMs) =
 my $thisType = $thisVHash->{nodeType} or die;
 my $state = $thisVHash->{state} or die;
 my $thisTypeVHash = $nm->{value}->{$thisType} || {};
-my $fStateExists = $thisTypeVHash->{fStateExists} or die;
-$oldThisLM = "" if !&{$fStateExists}($state);	# state got deleted?
+my $fExists = $thisTypeVHash->{fExists} or die;
+my $thisHostRoot = $nm->{hash}->{$thisType}->{hostRoot}->{$baseUri} || $basePath;
+$oldThisLM = "" if !&{$fExists}($state, $thisHostRoot);	# state got deleted?
 $thisIsStale = 1 if !$oldThisLM;
 my $thisUpdater = $thisVHash->{updater} || "";
 return $oldThisLM if $thisUpdater && !$thisIsStale;
@@ -726,6 +704,7 @@ return( $thisIsStale, $newDepLMs )
 }
 
 ################### LoadNodeMetadata #################
+#
 sub LoadNodeMetadata
 {
 @_ == 3 or die;
@@ -766,6 +745,10 @@ while(@leaves) {
 	next if !$fSetNodeDefaults;
 	&{$fSetNodeDefaults}($nm);
 	}
+# Error check: make sure there is no nodeType $FILE or $URI,
+# otherwise there will be a name clash in NameToLmFile.
+die "INTERNAL ERROR: $FILE $subClassOf Node\n" if $nmm->{$FILE}->{$subClassOf}->{Node};
+die "INTERNAL ERROR: $URI $subClassOf Node\n" if $nmm->{$URI}->{$subClassOf}->{Node};
 return $nm;
 }
 
@@ -870,9 +853,9 @@ foreach my $thisUri (@allNodes)
   #     If so, its serCache can be shared with other nodes on this server.
   #  C. Is $depType the same node type $thisType?
   #     If so (and on same server) then the node's state can be accessed directly.
-  #  D. Does $depType have a deserializer?
+  #  D. Does $thisType have a deserializer?
   #     If not, then 'cache' will be the same as serCache.
-  #  E. Does $depType have a fUriToNativeName function?
+  #  E. Does $thisType have a fUriToNativeName function?
   #     If so, then it will be used to generate a native name for 'cache'.
   $thisHHash->{dependsOnCache} ||= {};
   $thisHHash->{dependsOnSerCache} ||= {};
@@ -899,7 +882,7 @@ foreach my $thisUri (@allNodes)
       $thisHHash->{dependsOnSerCache}->{$depUri} = $depSerCache;
       }
     # Now set dependsOnCache.
-    my $fDeserializer = $depType ? $nmv->{$depType}->{fDeserializer} : "";
+    my $fDeserializer = $nmv->{$thisType}->{fDeserializer} || "";
     if (&IsSameServer($baseUri, $depUri) && &IsSameType($thisType, $depType)) {
       # Same env.  Reuse the input's state.
       $thisHHash->{dependsOnCache}->{$depUri} = $nmv->{$depUri}->{state};
@@ -909,7 +892,7 @@ foreach my $thisUri (@allNodes)
       # There is a deserializer, so we must create a new {cache} name.
       # Create a URI and convert it
       # (if necessary) to an appropriate native name.
-      my $fUriToNativeName = $nmv->{$depType}->{fUriToNativeName};
+      my $fUriToNativeName = $nmv->{$thisType}->{fUriToNativeName};
       my $thisHostRoot = $nmh->{$thisType}->{hostRoot}->{$baseUri} || $basePath;
       # Default to a URI if there is no fUriToNativeName:
       my $cache = "$baseUri/cache/$thisType/$depUriEncoded/cache";
@@ -1138,7 +1121,7 @@ return $all;
 # Convert $name to a LM file path.
 sub NameToLmFile
 {
-my $nameType = shift || die;
+my $nameType = shift || confess;
 my $name = shift || die;
 # Use cached LM file path if available:
 my $lmFile = $RDF::Pipeline::NameToLmFile::lmFile{$nameType}->{$name} || "";
@@ -1218,8 +1201,9 @@ return ($serCacheLM, $serCacheLMHeader, $serCacheETagHeader);
 ############# FileExists ##############
 sub FileExists
 {
-@_ == 1 || die;
-my ($f) = @_;
+@_ == 2 || die;
+my ($f, $hostRoot) = @_;
+$hostRoot = $hostRoot;  # Avoid unused var warning
 return -e $f;
 }
 
@@ -1233,6 +1217,7 @@ my ($nm) = @_;
 # a new node type, and issue a warning if not.  Somehow, the framework
 # needs to know what node types are being registered.
 &FileNodeRegister($nm);
+&RDF::Pipeline::HtmlFileNode::HtmlFileNodeRegister($nm);
 }
 
 ############# FileNodeRegister ##############
@@ -1245,7 +1230,7 @@ $nm->{value}->{FileNode}->{fSerializer} = "";
 $nm->{value}->{FileNode}->{fDeserializer} = "";
 $nm->{value}->{FileNode}->{fUriToNativeName} = \&UriToPath;
 $nm->{value}->{FileNode}->{fRunUpdater} = \&FileNodeRunUpdater;
-$nm->{value}->{FileNode}->{fStateExists} = \&FileExists;
+$nm->{value}->{FileNode}->{fExists} = \&FileExists;
 $nm->{value}->{FileNode}->{defaultContentType} = "text/plain";
 }
 

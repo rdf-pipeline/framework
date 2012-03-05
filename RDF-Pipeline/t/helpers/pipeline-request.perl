@@ -61,7 +61,7 @@ my $curlResult = system($curlCmd);
 die "ERROR: curl failed: $curlCmd\n" if $curlResult;
 
 # [Wed Jan 25 15:33:03 2012] [notice] Apache/2.2.14 (Ubuntu) DAV/2 mod_perl/2.0.4 Perl/v5.10.1 configured -- resuming normal operations
-my $filterErr = "grep -v '\\[notice\\] *Apache'";
+my $filterErr = "grep -v '\\[notice\\] *Apache' | '$stripDates'";
 my $errCmd = "tail -n +'$apacheErrorStart' '$apacheError' | $filterErr >> '$wwwDir/test/apacheError.log'";
 # warn "errCmd: $errCmd\n";
 my $errResult = system($errCmd);

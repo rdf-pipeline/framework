@@ -22,13 +22,7 @@
 	p:inputs ( :mult ) ;
 	p:updater "addone-updater" .
 
-##### Testing serialization/deserialization #####
+####### Test for FILE nodeType:
 
-:ab a p:HtmlFileNode ;
-	p:inputs ( <http://localhost/node/a.html> <http://localhost/node/b.html> ) ;
-	p:updater "cat-updater" .
-
-:aba a p:HtmlFileNode ;
-	p:inputs ( :ab <http://localhost/node/a.html> ) ;
-	p:updater "cat-updater" .
+p:FILE <http://www.w3.org/2000/01/rdf-schema#subClassOf> p:Node .
 
