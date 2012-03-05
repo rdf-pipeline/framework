@@ -72,7 +72,7 @@ In more detail, run-test.perl does the following for each test directory given a
   * The test-script is run as `cd '$TESTDIR' ; ./test-script '$RDF_PIPELINE_WWW_DIR'` , where $TESTDIR is the full path of the current test directory nnnn.  If it fails, the test fails.
   * The contents of $RDF_PIPELINE_WWW_DIR are copied to `/tmp/rdfp/nnnn/actual-files` and `/tmp/rdfp/nnnn/actual-filtered, and the contents of $TESTDIR/expected-files are copied to /tmp/rdfp/nnnn/expected-filtered.
   * The files in /tmp/rdfp/nnnn/expected-filtered and /tmp/rdfp/nnnn/actual-filtered are filtered through helpers/filter-expected.perl and helpers/filter-actual.perl (respectively).  (See "Filtering global output changes" below.)
-  * The contents of /tmp/rdfp/nnnn/actual-filtered are searched for the word "error" or "died" (case insensitively), and the test fails if either word is present.
+  * The contents of /tmp/rdfp/nnnn/actual-filtered are searched for the word "error" or "died" (case insensitively), and the test fails if either word is present and there is no file called `IgnoreErrors.txt` in $TESTDIR.
   * The contents of /tmp/rdfp/nnnn/expected-filtered and /tmp/rdfp/nnnn/actual-filtered are compared using helpers/compare-results.perl, which ignores "lm", "ont" and hidden files/directories.  If they do not match, the test fails.
 
 Finally, run-test.perl prints an error and exits with non-zero status if any test fails.  Otherwise it silently exits with 0 status to indicate that the test(s) passed.
