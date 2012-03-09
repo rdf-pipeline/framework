@@ -696,6 +696,7 @@ my $thisMHashInputs = $thisMHash->{inputs};
 my $thisMHashParameters = $thisMHash->{parameters};
 my $thisMHashDependsOn = $thisMHash->{dependsOn};
 my $thisType = $thisVHash->{nodeType};
+my $thisTypeVHash = $nm->{value}->{$thisType} || {};
 my $thisIsStale = 0;
 my $newDepLMs = {};
 #### TODO QUERY: lookup this node's query parameters and filter them 
@@ -715,12 +716,13 @@ my $status = $pChanged ? "UPDATED" : "NO CHANGE to";
 &Warn("$status query parameters of $thisUri\n", $DEBUG_UPDATES);
 &Warn("... oldParametersLM: $oldParametersLM parametersLM: $parametersLM\n", $DEBUG_DETAILS);
 $newDepLMs->{$parametersFileUri} = $parametersLM;
-#### TODO QUERY: Make this call the user's fParameterFilter
-# my $fParameterFilter = &NoopParameterFilter;
-my @thisInputs = sort keys %{$thisMHashInputs};
-my %upstreamQueries =
-	map {($_, $latestQuery)} @thisInputs;
-	# &{$fParameterFilter}(\@thisInputs, $latestRequester, $latestQuery, %requesterQueries);
+#### TODO QUERY: Make this call the user's parameterFilter
+my $fRunParametersFilter = $thisTypeVHash->{fRunParametersFilter} or die;
+my $parametersFilter = $thisVHash->{parametersFilter} || "";
+$fRunParametersFilter = \&LatestRunParametersFilter if !$parametersFilter;
+my $pThisInputs = $nm->{list}->{$thisUri}->{inputs} || [];
+my @requesterQueries = sort values %requesterQueries;
+my $pUpstreamQueries = &{$fRunParametersFilter}($nm, $thisUri, $parametersFilter, $pThisInputs, $latestQuery, \@requesterQueries);
 ####
 foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
   # Bear in mind that a node may dependsOn a non-node arbitrary http 
@@ -730,7 +732,7 @@ foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
   my $newDepLM;
   my $method = 'GET';
   my $depLM = "";
-  my $depQuery = $upstreamQueries{$depUri} || "";
+  my $depQuery = $pUpstreamQueries->{$depUri} || "";
   # confess "INTERNAL ERROR: depUri: $depUri depQuery: $depQuery\n" if $depQuery =~ m/\Ahttp:/;
   my $isInput = $thisMHashInputs->{$depUri} 
 	|| $thisMHashParameters->{$depUri} || 0;
@@ -1109,7 +1111,7 @@ my %args = @_;
 # URI::Escape's default $cRange: "^A-Za-z0-9\-\._~"
 # but we want to allow more characters in the query strings if they
 # are not harmful
-my $cRange = "^A-Za-z0-9" . quotemeta("-._~!$()+,;");
+my $cRange = "^A-Za-z0-9" . quotemeta('-._~!$()+,;');
 my $args = join("&", 
 	map 	{ 
 		die if !defined($_);
@@ -1342,8 +1344,93 @@ $nm->{value}->{FileNode}->{fSerializer} = "";
 $nm->{value}->{FileNode}->{fDeserializer} = "";
 $nm->{value}->{FileNode}->{fUriToNativeName} = \&UriToPath;
 $nm->{value}->{FileNode}->{fRunUpdater} = \&FileNodeRunUpdater;
+$nm->{value}->{FileNode}->{fRunParametersFilter} = \&FileNodeRunParametersFilter;
 $nm->{value}->{FileNode}->{fExists} = \&FileExists;
 $nm->{value}->{FileNode}->{defaultContentType} = "text/plain";
+}
+
+############# FileNodeRunParametersFilter ##############
+# Run the parametersFilter, returning a listRef of input queryStrings.
+sub FileNodeRunParametersFilter
+{
+@_ == 6 || die;
+my ($nm, $thisUri, $parametersFilter, $pInputUris, 
+	$latestQuery, $pOutputQueries) = @_;
+# Avoid unused var warning:
+($nm, $thisUri, $parametersFilter, $pInputUris, 
+	$latestQuery, $pOutputQueries) = 
+($nm, $thisUri, $parametersFilter, $pInputUris, 
+	$latestQuery, $pOutputQueries);
+&Warn("FileNodeRunParametersFilter(nm, $thisUri, $parametersFilter, ..., $latestQuery, ...) called.\n", $DEBUG_DETAILS);
+$parametersFilter or die;
+$parametersFilter = &NodeAbsPath($parametersFilter) if $parametersFilter;
+# TODO: Move this warning to when the metadata is loaded?
+if (!-x $parametersFilter) {
+	die "ERROR: $thisUri parametersFilter $parametersFilter is not executable by web server!";
+	}
+my $qInputUris = join(" ", map {quotemeta($_)} @{$pInputUris});
+&Warn("qInputUris: $qInputUris\n", $DEBUG_DETAILS);
+my $qLatestQuery = quotemeta($latestQuery);
+my $exportqs = "export QUERY_STRING=$qLatestQuery";
+my $qss = quotemeta(join(" ", @{$pOutputQueries}));
+my $exportqss = "export QUERY_STRINGS=$qss";
+my $tmp = "/tmp/parametersFilterOut" . &GenerateNewLM() . ".txt";
+my $stderr = $nm->{value}->{$thisUri}->{stderr};
+# Make sure parent dirs exist for $stderr and $tmp:
+&MakeParentDirs($stderr, $tmp);
+# Ensure no unsafe chars before invoking $cmd:
+my $qThisUri = quotemeta($thisUri);
+my $qTmp = quotemeta($tmp);
+my $qUpdater = quotemeta($parametersFilter);
+my $qStderr = quotemeta($stderr);
+my $useStdout = 1;
+#### TODO QUERY:
+my $cmd = "( cd '$nodeBasePath' ; export THIS_URI=$qThisUri ; $exportqs ; $exportqss ; $qUpdater $qInputUris > $qTmp 2> $qStderr )";
+####
+&Warn("cmd: $cmd\n", $DEBUG_DETAILS);
+my $result = (system($cmd) >> 8);
+my $saveError = $?;
+&Warn("FileNodeRunParametersFilter: Updater returned " . ($result ? "error code:" : "success:") . " $result.\n", $DEBUG_DETAILS);
+if (-s $stderr) {
+	&Warn("FileNodeRunParametersFilter: Updater stderr" . ($useStdout ? "" : " and stdout") . ":\n[[\n", $DEBUG_DETAILS);
+	&Warn(&ReadFile("<$stderr"), $DEBUG_DETAILS);
+	&Warn("]]\n", $DEBUG_DETAILS);
+	}
+if ($result) {
+	&Warn("FileNodeRunParametersFilter: UPDATER ERROR: $saveError\n");
+	# return [ map {$latestQuery} @{pInputUris} ];
+	die;
+	}
+open(my $fh, "<$tmp") || die;
+my $pInputQueries = { map {chomp; split(/\?/, $_, 2)} <$fh> };
+close($fh) || die;
+unlink $tmp || die;
+my $nq = scalar(keys %{$pInputQueries});
+my $ni = scalar(@{$pInputUris});
+$nq == $ni or die "ERROR: $thisUri parametersFilter $parametersFilter returned $nq query strings for $ni inputs.\n";
+&Warn("FileNodeRunParametersFilter returning InputQueries:\n", $DEBUG_DETAILS);
+foreach my $inUri (sort keys %{$pInputQueries}) {
+	my $q = $pInputQueries->{$inUri};
+	&Warn("  $inUri?$q\n", $DEBUG_DETAILS);
+	}
+return $pInputQueries;
+}
+
+############# LatestRunParametersFilter ##############
+# This is the default way of filtering parameters.  It simply passes
+# the latest queryString to each input.
+sub LatestRunParametersFilter 
+{
+@_ == 6 || die;
+my ($nm, $thisUri, $parametersFilter, $pInputUris, 
+	$latestQuery, $pOutputQueries) = @_;
+# Avoid unused var warning:
+($nm, $thisUri, $parametersFilter, $pInputUris, 
+	$latestQuery, $pOutputQueries) = 
+($nm, $thisUri, $parametersFilter, $pInputUris, 
+	$latestQuery, $pOutputQueries);
+&Warn("LatestRunParametersFilter called.\n", $DEBUG_DETAILS);
+return { map {($_, $latestQuery)} @{$pInputUris} };
 }
 
 ############# FileNodeRunUpdater ##############
@@ -1437,7 +1524,7 @@ return $newLM;
 # appending a counter to the lower order digits of the current time.
 # The counter is stored in $lmCounterFile and flock is used to
 # ensure that it is accessed by only one thread at a time.
-# As of 23-Jan-2012 on dbooth's laptop &GenerateNewLM() takes
+# As of 23-Jan-2012 on dbooth's laptop &GenerateNewLM() took
 # about 200-300 microseconds per call, so the counter will always 
 # be 1 unless this is run on a machine that is much faster or that
 # has substantially lower clock resolution.
