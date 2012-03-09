@@ -564,28 +564,62 @@ return $serStateLM
 }
 
 ################### UpdateQueries ###################
+# Update the queryStrings received by this node if the $latestQuery
+# differs from what was previously requested by $latestUri.
+# All $latestUris that are not outputs will be treated as the same
+# anonymous $latestUri.
+# Also generate a new LM if either the $latestQuery changed or
+# the set of output queries changed.
 sub UpdateQueries
 {
 @_ == 4 or die;
-my ($nm, $thisUri, $callerUri, $callerQuery) = @_;
+my ($nm, $thisUri, $latestUri, $latestQuery) = @_;
 defined($thisUri) || die;
-defined($callerUri) || die;
-defined($callerQuery) || die;
-&Warn("UpdateQueries(nm, $thisUri, $callerUri, $callerQuery)\n", $DEBUG_DETAILS);
+defined($latestUri) || die;
+defined($latestQuery) || die;
+&Warn("UpdateQueries(nm, $thisUri, $latestUri, $latestQuery)\n", $DEBUG_DETAILS);
+my $pOutputs = $nm->{multi}->{$thisUri}->{outputs} || {};
+$latestUri = "" if !$pOutputs->{$latestUri};	# Treat as anonymous requester?
 my $thisVHash = $nm->{value}->{$thisUri} or die;
 my $parametersFile = $thisVHash->{parametersFile} or die;
-my ($lm, $oldLatestRequester, $oldLatestQuery, %oldRequesterQueries) = 
+my ($lm, $oldLatestQuery, %oldRequesterQueries) = 
 	&LookupLMs($FILE, $parametersFile);
-$oldLatestRequester = $oldLatestRequester;	# Avoid unused var warning
 $oldLatestQuery = $oldLatestQuery;		# Avoid unused var warning
 $lm ||= "";
-if (!$lm	|| !defined($oldRequesterQueries{$callerUri})
-		|| $callerQuery ne $oldRequesterQueries{$callerUri}) {
-	$oldRequesterQueries{$callerUri} = $callerQuery;
-	$lm = &GenerateNewLM();
-	&SaveLMs($FILE, $parametersFile, $lm, $callerUri, $callerQuery, %oldRequesterQueries);
+my $isNewLatest = !defined($oldLatestQuery) || $latestQuery ne $oldLatestQuery || 0;
+my $isNewOutQuery = !defined($oldRequesterQueries{$latestUri})
+		|| $latestQuery ne $oldRequesterQueries{$latestUri} || 0;
+&Warn("... lm: $lm isNewLatest: $isNewLatest isNewOutQuery: $isNewOutQuery\n", $DEBUG_DETAILS);
+if (!$lm || $isNewLatest || $isNewOutQuery) {
+	# Save the change.  Gen new LM only if the $latestQuery changed
+	# or the set of output queries changed.
+	my %newRequesterQueries = %oldRequesterQueries;
+	$newRequesterQueries{$latestUri} = $latestQuery;
+	my %oldUniqOutQueries = map {($_,1)} values %oldRequesterQueries;
+	my %newUniqOutQueries = map {($_,1)} values %newRequesterQueries;
+	my $sameQueries = &SameKeys(\%oldUniqOutQueries, \%newUniqOutQueries);
+	&Warn("... sameQueries: $sameQueries\n", $DEBUG_DETAILS);
+	$lm = &GenerateNewLM() if !$lm || $isNewLatest || !$sameQueries;
+	&SaveLMs($FILE, $parametersFile, $lm, $latestQuery, %newRequesterQueries);
 	}
 return $lm;
+}
+
+################### SameKeys ################### 
+# Return true (1) iff the two hashRefs have the same keys.
+sub SameKeys
+{
+@_ == 2 or die;
+my ($pa, $pb) = @_;
+defined($pa) && defined($pb) or die;
+return 0 if scalar(keys %{$pa}) != scalar(keys %{$pb});
+foreach my $k (keys %{$pa}) {
+	return 0 if !exists($pb->{$k});
+	}
+foreach my $k (keys %{$pb}) {
+	return 0 if !exists($pa->{$k});
+	}
+return 1;
 }
 
 ################### FreshenState ################### 
@@ -702,7 +736,7 @@ my $newDepLMs = {};
 #### TODO QUERY: lookup this node's query parameters and filter them 
 #### so that they can be passed upstream.
 my $parametersFile = $thisVHash->{parametersFile} or die;
-my ($parametersLM, $latestRequester, $latestQuery, %requesterQueries) = 
+my ($parametersLM, $latestQuery, %requesterQueries) = 
 	&LookupLMs($FILE, $parametersFile);
 $parametersLM ||= "";
 my $parametersFileUri = $thisVHash->{parametersFileUri} or die;
@@ -1397,8 +1431,8 @@ if (-s $stderr) {
 	&Warn("]]\n", $DEBUG_DETAILS);
 	}
 if ($result) {
-	&Warn("FileNodeRunParametersFilter: UPDATER ERROR: $saveError\n");
-	# return [ map {$latestQuery} @{pInputUris} ];
+	&Warn("FileNodeRunParametersFilter: parametersFilter ERROR: $saveError\n");
+	# return { map {"$_?$latestQuery"} @{pInputUris} };
 	die;
 	}
 open(my $fh, "<$tmp") || die;
@@ -1466,10 +1500,9 @@ my $ipFiles = "$inputFiles $parameterFiles";
 #### TODO QUERY:
 my $thisVHash = $nm->{value}->{$thisUri} or die;
 my $parametersFile = $thisVHash->{parametersFile} or die;
-my ($lm, $latestRequester, $latestQuery, %requesterQueries) = 
+my ($lm, $latestQuery, %requesterQueries) = 
 	&LookupLMs($FILE, $parametersFile);
 $lm = $lm;				# Avoid unused var warning
-$latestRequester = $latestRequester;	# Avoid unused var warning
 my $qLatestQuery = quotemeta($latestQuery);
 my $exportqs = "export QUERY_STRING=$qLatestQuery";
 # my $qss = quotemeta(&BuildQueryString(%requesterQueries));
