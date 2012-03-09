@@ -121,6 +121,8 @@ my $internalsFile = "$basePath/ont/internals.n3";
 my $URI = 'URI';
 my $FILE = 'FILE';
 
+my @systemArgs = qw(debug debugStackDepth callerUri callerLM method);
+
 ################### Runtime data ####################
 
 my $configLastModified = 0;
@@ -214,12 +216,24 @@ $debugStackDepth = $args{debugStackDepth} || 0;
 &Warn("" . `date`, $DEBUG_DETAILS);
 &Warn("SERVER_NAME: $ENV{SERVER_NAME}\n", $DEBUG_DETAILS);
 &Warn("DOCUMENT_ROOT: $ENV{DOCUMENT_ROOT}\n", $DEBUG_DETAILS);
-&Warn("Query string: $args\n", $DEBUG_DETAILS);
+my @args = %args;
+my $nArgs = scalar(@args);
+&Warn("Query string (elements $nArgs): $args\n", $DEBUG_DETAILS);
 # &Warn("-"x20 . "handler" . "-"x20 . "\n", $DEBUG_DETAILS);
 my $ret = &RealHandler($r, $thisUri, %args);
 &Warn("RealHandler returned: $ret\n", $DEBUG_DETAILS);
 &Warn("="x60 . "\n", $DEBUG_DETAILS);
 return $ret;
+}
+
+##################### FilterArgs ######################
+# Remove internal args from query parameter args.
+sub FilterArgs
+{
+my ($pargs, @toRemove) = @_;
+my %toRemove = map {($_, 1)} @toRemove;
+my %result = map {($_, $pargs->{$_})} grep {!$toRemove{$_}} keys %{$pargs};
+return(%result);
 }
 
 ##################### RealHandler #######################
@@ -243,7 +257,6 @@ my $args = $r->args() || "";
 &Warn("Query string args unparsed: $args\n", $DEBUG_DETAILS);
 &Warn("Query string args parsed:\n", $DEBUG_DETAILS);
 foreach my $k (sort keys %args) {
-	last if $debug < $DEBUG_DETAILS;
 	my $dk = defined($k) ? $k : "(undef)";
 	my $v = $args{$k};
 	my $dv = defined($v) ? $v : "(undef)";
@@ -313,16 +326,18 @@ return &HandleHttpEvent($nm, $r, $thisUri, %args);
 # checksums or such.
 sub ForeignSendHttpRequest
 {
-@_ == 5 or die;
-my ($nm, $method, $thisUri, $depUri, $depLM) = @_;
-&Warn("ForeignSendHttpRequest(nm, $method, $thisUri, $depUri, $depLM) called\n", $DEBUG_DETAILS);
+@_ == 6 or die;
+my ($nm, $method, $thisUri, $depUri, $depLM, $depQuery) = @_;
+&Warn("ForeignSendHttpRequest(nm, $method, $thisUri, $depUri, $depLM, $depQuery) called\n", $DEBUG_DETAILS);
 # Send conditional GET, GRAB or HEAD to depUri with depUri*/serCacheLM
 # my $ua = LWP::UserAgent->new;
 my $ua = WWW::Mechanize->new();
 $ua->agent("$0/0.01 " . $ua->agent);
 my $requestUri = $depUri;
 my $httpMethod = $method;
-my $queryParams = "";
+#### TODO QUERY: include $depQuery:
+my $queryParams = "\&$depQuery" || "";
+####
 if ($method eq "GRAB") {
 	$httpMethod = "GET";
 	$queryParams .= "&method=$method";
@@ -360,6 +375,7 @@ my $reqString = $req->as_string;
 ############# Sending the HTTP request ##############
 my $res = $ua->request($req) or die;
 my $code = $res->code;
+&Warn("Code: $code\n", $DEBUG_DETAILS);
 $code == RC_NOT_MODIFIED || $code == RC_OK or die "ERROR: Unexpected HTTP response code $code ";
 my $newLMHeader = $res->header('Last-Modified') || "";
 my $newETagHeader = $res->header('ETag') || "";
@@ -445,6 +461,13 @@ my $method = $args{method} || $r->method;
 return Apache2::Const::HTTP_METHOD_NOT_ALLOWED 
   if $method ne "HEAD" && $method ne "GET" && $method ne "GRAB" 
 	&& $method ne "NOTIFY";
+#### TODO QUERY: Update this node's query strings:
+%args = &FilterArgs(\%args, @systemArgs);
+my $query = &BuildQueryString(%args);
+&Warn("HandleHttpEvent query: $query\n", $DEBUG_DETAILS);
+&UpdateQueries($nm, $thisUri, $callerUri, $query) 
+	if $method eq "GET" || $method eq "HEAD";
+####
 # TODO: If $r has fresh content, then store it.
 &Warn("HandleHttpEvent $method $thisUri From: $callerUri\n", $DEBUG_REQUESTS);
 &Warn("... callerLM: $callerLM\n", $DEBUG_DETAILS);
@@ -540,6 +563,31 @@ if (!$serStateLM || !-e $serState || ($newThisLM && $newThisLM ne $serStateLM)) 
 return $serStateLM
 }
 
+################### UpdateQueries ###################
+sub UpdateQueries
+{
+@_ == 4 or die;
+my ($nm, $thisUri, $callerUri, $callerQuery) = @_;
+defined($thisUri) || die;
+defined($callerUri) || die;
+defined($callerQuery) || die;
+&Warn("UpdateQueries(nm, $thisUri, $callerUri, $callerQuery)\n", $DEBUG_DETAILS);
+my $thisVHash = $nm->{value}->{$thisUri} or die;
+my $parametersFile = $thisVHash->{parametersFile} or die;
+my ($lm, $oldLatestRequester, $oldLatestQuery, %oldRequesterQueries) = 
+	&LookupLMs($FILE, $parametersFile);
+$oldLatestRequester = $oldLatestRequester;	# Avoid unused var warning
+$oldLatestQuery = $oldLatestQuery;		# Avoid unused var warning
+$lm ||= "";
+if (!$lm	|| !defined($oldRequesterQueries{$callerUri})
+		|| $callerQuery ne $oldRequesterQueries{$callerUri}) {
+	$oldRequesterQueries{$callerUri} = $callerQuery;
+	$lm = &GenerateNewLM();
+	&SaveLMs($FILE, $parametersFile, $lm, $callerUri, $callerQuery, %oldRequesterQueries);
+	}
+return $lm;
+}
+
 ################### FreshenState ################### 
 # $callerUri and $callerLM are only used if $method is NOTIFY
 sub FreshenState
@@ -548,10 +596,10 @@ sub FreshenState
 my ($nm, $method, $thisUri, $callerUri, $callerLM) = @_;
 &Warn("FreshenState $method $thisUri From: $callerUri\n", $DEBUG_REQUESTS);
 &Warn("... callerLM: $callerLM\n", $DEBUG_DETAILS);
+my $thisVHash = $nm->{value}->{$thisUri};
 my ($oldThisLM, %oldDepLMs) = &LookupLMs($URI, $thisUri);
 $oldThisLM ||= "";
 return $oldThisLM if $method eq "GRAB";
-my $thisVHash = $nm->{value}->{$thisUri};
 # Run thisUri's update policy for this event:
 my $fUpdatePolicy = $thisVHash->{fUpdatePolicy} or die;
 my $policySaysFreshen = 
@@ -650,6 +698,30 @@ my $thisMHashDependsOn = $thisMHash->{dependsOn};
 my $thisType = $thisVHash->{nodeType};
 my $thisIsStale = 0;
 my $newDepLMs = {};
+#### TODO QUERY: lookup this node's query parameters and filter them 
+#### so that they can be passed upstream.
+my $parametersFile = $thisVHash->{parametersFile} or die;
+my ($parametersLM, $latestRequester, $latestQuery, %requesterQueries) = 
+	&LookupLMs($FILE, $parametersFile);
+$parametersLM ||= "";
+my $parametersFileUri = $thisVHash->{parametersFileUri} or die;
+my $oldParametersLM = $oldDepLMs->{$parametersFileUri};
+# Treat first time as changed:
+my $pChanged = !defined($oldParametersLM) || 0;
+$oldParametersLM ||= "";
+$pChanged = 1 if ($parametersLM ne $oldParametersLM);
+$thisIsStale = 1 if $pChanged;
+my $status = $pChanged ? "UPDATED" : "NO CHANGE to";
+&Warn("$status query parameters of $thisUri\n", $DEBUG_UPDATES);
+&Warn("... oldParametersLM: $oldParametersLM parametersLM: $parametersLM\n", $DEBUG_DETAILS);
+$newDepLMs->{$parametersFileUri} = $parametersLM;
+#### TODO QUERY: Make this call the user's fParameterFilter
+# my $fParameterFilter = &NoopParameterFilter;
+my @thisInputs = sort keys %{$thisMHashInputs};
+my %upstreamQueries =
+	map {($_, $latestQuery)} @thisInputs;
+	# &{$fParameterFilter}(\@thisInputs, $latestRequester, $latestQuery, %requesterQueries);
+####
 foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
   # Bear in mind that a node may dependsOn a non-node arbitrary http 
   # or file:// source, so $depVHash may be undef.
@@ -658,6 +730,8 @@ foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
   my $newDepLM;
   my $method = 'GET';
   my $depLM = "";
+  my $depQuery = $upstreamQueries{$depUri} || "";
+  # confess "INTERNAL ERROR: depUri: $depUri depQuery: $depQuery\n" if $depQuery =~ m/\Ahttp:/;
   my $isInput = $thisMHashInputs->{$depUri} 
 	|| $thisMHashParameters->{$depUri} || 0;
   # TODO: Future optimization: if depUri is in %knownFresh ...
@@ -672,6 +746,9 @@ foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
     }
   my $isSameServer = &IsSameServer($thisUri, $depUri) || 0;
   my $isSameType   = &IsSameType($thisType, $depType) || 0;
+  #### TODO QUERY: Update local $depUri's requester queries:
+  &UpdateQueries($nm, $depUri, $thisUri, $depQuery) if $isSameServer && $isSameType;
+  ####
   &Warn("$thisUri depUri: $depUri depType: $depType method: $method depLM: $depLM\n", $DEBUG_DETAILS);
   &Warn("... isSameServer: $isSameServer isSameType: $isSameType knownFresh: $knownFresh isInput: $isInput\n", $DEBUG_DETAILS);
   if ($knownFresh && !$isInput) {
@@ -682,7 +759,8 @@ foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
   elsif (!$depType || !$isSameServer) {
     # Foreign node or non-node.
     &Warn("Foreign or non-node.\n", $DEBUG_DETAILS);
-    $newDepLM = &ForeignSendHttpRequest($nm, $method, $thisUri, $depUri, $depLM);
+    #### TODO QUERY: Update $depUri's requester queries also:
+    $newDepLM = &ForeignSendHttpRequest($nm, $method, $thisUri, $depUri, $depLM, $depQuery);
     &DeserializeToLocalCache($nm, $thisUri, $depUri, $newDepLM);
     }
   elsif (!$isSameType) {
@@ -789,8 +867,8 @@ foreach my $thisUri (@allNodes)
   my $thisMHash = $nmm->{$thisUri} or die;
   # Set nodeType, which should be most specific node type.
   my @types = keys %{$thisMHash->{a}};
-  my @nodeTypes = LeafClasses($nm, @types);
-  die if @nodeTypes > 1;
+  my @nodeTypes = &LeafClasses($nm, @types);
+  die "INTERNAL ERROR: Multiple nodeTypes: @nodeTypes\n" if @nodeTypes > 1;
   die if @nodeTypes < 1;
   my $thisType = $nodeTypes[0];
   $thisVHash->{nodeType} = $thisType;
@@ -815,6 +893,12 @@ foreach my $thisUri (@allNodes)
     $nmv->{$thisType}->{fSerializer} ?
       "$basePath/cache/" . &QuickName($thisUri) . "/serState"
       : $thisVHash->{state};
+  #### TODO QUERY: Add parametersFile as an implicit input:
+  $nmv->{$thisUri}->{parametersFile} ||= 
+	  "$basePath/cache/" . &QuickName($thisUri) . "/parametersFile";
+  $nmv->{$thisUri}->{parametersFileUri} ||= 
+	  "file://$basePath/cache/" . &QuickName($thisUri) . "/parametersFile";
+  ####
   # For capturing stderr:
   $nmv->{$thisUri}->{stderr} ||= 
 	  "$basePath/cache/" . &QuickName($thisUri) . "/stderr";
@@ -1015,13 +1099,24 @@ return @leaves;
 sub BuildQueryString
 {
 my %args = @_;
+# From http://www.ietf.org/rfc/rfc3986.txt
+# query         = *( pchar / "/" / "?" )
+# pchar         = unreserved / pct-encoded / sub-delims / ":" / "@"
+# unreserved    = ALPHA / DIGIT / "-" / "." / "_" / "~"
+# sub-delims    = "!" / "$" / "&" / "'" / "(" / ")"
+#                / "*" / "+" / "," / ";" / "="
+# 
+# URI::Escape's default $cRange: "^A-Za-z0-9\-\._~"
+# but we want to allow more characters in the query strings if they
+# are not harmful
+my $cRange = "^A-Za-z0-9" . quotemeta("-._~!$()+,;");
 my $args = join("&", 
 	map 	{ 
 		die if !defined($_);
 		die if !defined($args{$_});
-		uri_escape($_) . "=" . uri_escape($args{$_}) 
+		uri_escape($_, $cRange) . "=" . uri_escape($args{$_}, $cRange) 
 		}
-	keys %args);
+	sort keys %args);
 return $args;
 }
 
@@ -1153,13 +1248,15 @@ return $lmFile;
 ############# SaveLMs ##############
 # Save Last-Modified times of $thisName and its inputs (actually its dependsOns).
 # Called as: &SaveLMs($nameType, $thisName, $thisLM, %depLMs);
+# Actually, this can be used to save/load any lines of data, using
+# $nameType and $thisName as the composite key.
 sub SaveLMs
 {
 @_ >= 3 || die;
 my ($nameType, $thisName, $thisLM, @depLMs) = @_;
 my $f = &NameToLmFile($nameType, $thisName);
 my $s = join("\n", "# $nameType $thisName", $thisLM, @depLMs) . "\n";
-&Warn("SaveLMs($nameType, $thisName ...) to file: $f\n", $DEBUG_DETAILS);
+&Warn("SaveLMs($nameType, $thisName, $thisLM, ...) to file: $f\n", $DEBUG_DETAILS);
 foreach my $line ("# $nameType $thisName", @depLMs) {
 	&Warn("... $line\n", $DEBUG_DETAILS);
 	}
@@ -1169,14 +1266,13 @@ foreach my $line ("# $nameType $thisName", @depLMs) {
 ############# LookupLMs ##############
 # Lookup LM times of $thisName and its inputs (actually its dependsOns).
 # Called as: my ($thisLM, %depLMs) = &LookupLMs($nameType, $thisName);
+# Actually, this can be used to save/load any lines of data, using
+# $nameType and $thisName as the composite key.
 sub LookupLMs
 {
 @_ == 2 || die;
 my ($nameType, $thisName) = @_;
 my $f = &NameToLmFile($nameType, $thisName);
-### TODO: Remove extra "open" $oldf after passing & accepting regression tests:
-# my $oldf = "$basePath/lm/" . uri_escape($thisName);
-# open(my $fh, $f) || ($f=$oldf) || open($fh, $f) or return ("", ());
 open(my $fh, $f) or return ("", ());
 my ($cThisUri, $thisLM, @depLMs) = map {chomp; $_} <$fh>;
 close($fh) || die;
@@ -1280,6 +1376,19 @@ my $parameterFiles = join(" ", map {quotemeta($_)}
 	@{$nm->{list}->{$thisUri}->{parameterCaches}});
 &Warn("parameterFiles: $parameterFiles\n", $DEBUG_DETAILS);
 my $ipFiles = "$inputFiles $parameterFiles";
+#### TODO QUERY:
+my $thisVHash = $nm->{value}->{$thisUri} or die;
+my $parametersFile = $thisVHash->{parametersFile} or die;
+my ($lm, $latestRequester, $latestQuery, %requesterQueries) = 
+	&LookupLMs($FILE, $parametersFile);
+$lm = $lm;				# Avoid unused var warning
+$latestRequester = $latestRequester;	# Avoid unused var warning
+my $qLatestQuery = quotemeta($latestQuery);
+my $exportqs = "export QUERY_STRING=$qLatestQuery";
+# my $qss = quotemeta(&BuildQueryString(%requesterQueries));
+my $qss = quotemeta(join(" ", sort values %requesterQueries));
+my $exportqss = "export QUERY_STRINGS=$qss";
+####
 my $stderr = $nm->{value}->{$thisUri}->{stderr};
 # Make sure parent dirs exist for $stderr and $state:
 &MakeParentDirs($stderr, $state);
@@ -1292,9 +1401,14 @@ my $useStdout = 0;
 my $stateOriginal = $nm->{value}->{$thisUri}->{stateOriginal} || "";
 &Warn("stateOriginal: $stateOriginal\n", $DEBUG_DETAILS);
 $useStdout = 1 if $updater && !$nm->{value}->{$thisUri}->{stateOriginal};
-my $cmd = "( export $THIS_URI=$qThisUri ; $qUpdater $qState $ipFiles > $qStderr 2>&1 )";
-$cmd =    "( export $THIS_URI=$qThisUri ; $qUpdater         $ipFiles > $qState 2> $qStderr )"
+my $cmd = "( cd '$nodeBasePath' ; export $THIS_URI=$qThisUri ; $qUpdater $qState $ipFiles > $qStderr 2>&1 )";
+$cmd =    "( cd '$nodeBasePath' ; export $THIS_URI=$qThisUri ; $qUpdater         $ipFiles > $qState 2> $qStderr )"
 	if $useStdout;
+#### TODO QUERY:
+$cmd = "( cd '$nodeBasePath' ; export $THIS_URI=$qThisUri ; $exportqs ; $exportqss ; $qUpdater $qState $ipFiles > $qStderr 2>&1 )";
+$cmd = "( cd '$nodeBasePath' ; export $THIS_URI=$qThisUri ; $exportqs ; $exportqss ; $qUpdater         $ipFiles > $qState 2> $qStderr )"
+	if $useStdout;
+####
 &Warn("cmd: $cmd\n", $DEBUG_DETAILS);
 my $result = (system($cmd) >> 8);
 my $saveError = $?;
