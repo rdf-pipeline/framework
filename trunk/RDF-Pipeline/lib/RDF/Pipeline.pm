@@ -108,7 +108,6 @@ my $nodeBaseUriPattern = quotemeta($nodeBaseUri);
 my $nodeBasePath = "$basePath/node";
 my $nodeBasePathPattern = quotemeta($nodeBasePath);
 my $lmCounterFile = "$basePath/lm/lmCounter.txt";
-my $THIS_URI = "THIS_URI"; # Env var name to use
 my $rdfsPrefix = "http://www.w3.org/2000/01/rdf-schema#";
 # my $subClassOf = $rdfsPrefix . "subClassOf";
 my $subClassOf = "rdfs:subClassOf";
@@ -336,7 +335,8 @@ $ua->agent("$0/0.01 " . $ua->agent);
 my $requestUri = $depUri;
 my $httpMethod = $method;
 #### TODO QUERY: include $depQuery:
-my $queryParams = "\&$depQuery" || "";
+my $queryParams = "";
+$queryParams .= "\&$depQuery" if $depQuery;
 ####
 if ($method eq "GRAB") {
 	$httpMethod = "GET";
@@ -360,7 +360,7 @@ $queryParams .= "&debugStackDepth=" . ($debugStackDepth + &CallStackDepth())
 	if $debug && $nm->{value}->{$depUri}->{nodeType}
 		&& &IsSameServer($baseUri, $depUri);
 $requestUri =~ s/\#.*//;  # Strip any frag ID
-$queryParams =~ s/\A\&/\?/ if $queryParams || $requestUri =~ m/\?/;
+$queryParams =~ s/\A\&/\?/ if $queryParams && $requestUri !~ m/\?/;
 $requestUri .= $queryParams;
 &Warn("ForeignSendHttpRequest: Setting req L-MH: $oldLMHeader If-N-M: $oldETagHeader\n", $DEBUG_REQUESTS);
 my $req = HTTP::Request->new($httpMethod => $requestUri);
@@ -1401,12 +1401,12 @@ my $useStdout = 0;
 my $stateOriginal = $nm->{value}->{$thisUri}->{stateOriginal} || "";
 &Warn("stateOriginal: $stateOriginal\n", $DEBUG_DETAILS);
 $useStdout = 1 if $updater && !$nm->{value}->{$thisUri}->{stateOriginal};
-my $cmd = "( cd '$nodeBasePath' ; export $THIS_URI=$qThisUri ; $qUpdater $qState $ipFiles > $qStderr 2>&1 )";
-$cmd =    "( cd '$nodeBasePath' ; export $THIS_URI=$qThisUri ; $qUpdater         $ipFiles > $qState 2> $qStderr )"
+my $cmd = "( cd '$nodeBasePath' ; export THIS_URI=$qThisUri ; $qUpdater $qState $ipFiles > $qStderr 2>&1 )";
+$cmd =    "( cd '$nodeBasePath' ; export THIS_URI=$qThisUri ; $qUpdater         $ipFiles > $qState 2> $qStderr )"
 	if $useStdout;
 #### TODO QUERY:
-$cmd = "( cd '$nodeBasePath' ; export $THIS_URI=$qThisUri ; $exportqs ; $exportqss ; $qUpdater $qState $ipFiles > $qStderr 2>&1 )";
-$cmd = "( cd '$nodeBasePath' ; export $THIS_URI=$qThisUri ; $exportqs ; $exportqss ; $qUpdater         $ipFiles > $qState 2> $qStderr )"
+$cmd = "( cd '$nodeBasePath' ; export THIS_URI=$qThisUri ; $exportqs ; $exportqss ; $qUpdater $qState $ipFiles > $qStderr 2>&1 )";
+$cmd = "( cd '$nodeBasePath' ; export THIS_URI=$qThisUri ; $exportqs ; $exportqss ; $qUpdater         $ipFiles > $qState 2> $qStderr )"
 	if $useStdout;
 ####
 &Warn("cmd: $cmd\n", $DEBUG_DETAILS);
