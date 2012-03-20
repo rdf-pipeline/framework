@@ -19,7 +19,7 @@
 
 use strict;
 
-my $noisy = 1;
+my $noisy = 0;
 
 my $svnOption = 0;
 if (@ARGV && $ARGV[0] eq "-s") {
