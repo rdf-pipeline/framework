@@ -13,3 +13,4 @@
             UPDATING http://localhost/node/mult {mult-updater} state: /home/dbooth/rdf-pipeline/trunk/www/cache/mult/state
           UPDATED depUri http://localhost/node/mult of http://localhost/node/addone
         UPDATING http://localhost/node/addone {addone-updater} state: /home/dbooth/rdf-pipeline/trunk/www/cache/addone/state
+----------------------------------------------------------------------

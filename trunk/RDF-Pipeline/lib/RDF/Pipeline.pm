@@ -8,6 +8,9 @@ package RDF::Pipeline;
 
 # Command line test (cannot currently be used, due to bug #9 fix):
 #  MyApache2/Chain.pm --test --debug http://localhost/hello
+# Maybe command line test could be made to work again using:
+#   https://metacpan.org/module/Test::Mock::Apache2
+#
 # To restart apache (under root):
 #  apache2ctl stop ; sleep 5 ; truncate -s 0 /var/log/apache2/error.log ; apache2ctl start
 
@@ -400,9 +403,11 @@ if ($code == RC_OK && $newLM && $newLM ne $oldLM) {
 	# to save the content to file $inSerCache, such as using 
 	# $ua->get($url, ':content_file'=>$filename) ?  See
 	# http://search.cpan.org/~gaas/libwww-perl-6.03/lib/LWP/UserAgent.pm
-	&MakeParentDirs( $inSerCache );
-	&Warn("UPDATING $depUri inSerCache: $inSerCache of $thisUri\n", $DEBUG_UPDATES); 
-	$ua->save_content( $inSerCache ) if $method ne 'HEAD';
+	if ($method ne 'HEAD') {
+		&Warn("UPDATING $depUri inSerCache: $inSerCache of $thisUri\n", $DEBUG_UPDATES); 
+		&MakeParentDirs( $inSerCache );
+		$ua->save_content( $inSerCache );
+		}
 	&SaveLMHeaders($inSerCache, $newLM, $newLMHeader, $newETagHeader);
 	}
 return $newLM;
@@ -413,12 +418,19 @@ return $newLM;
 # (if necessary) from $thisUri's local serCache of $depUri.
 # It is deserialized to $thisUri's node type -- NOT $depUri's node
 # type -- so that $thisUri can use it.
+# There is nothing to do if there's no deserializer or !$isInput,
+# because cache and serCache are the same in that case.
+# The cache's LM is *only* used to know if the deserializer needs
+# to be run.  It is not used by RequestLatestDependsOns in determining
+# freshness.
 sub DeserializeToLocalCache
 {
-@_ == 4 or die;
-my ($nm, $thisUri, $depUri, $depLM) = @_;
+@_ == 5 or die;
+my ($nm, $thisUri, $depUri, $depLM, $isInput) = @_;
 &Warn("DeserializeToLocalCache $thisUri In: $depUri\n", $DEBUG_DETAILS);
-&Warn("... with depLM: $depLM\n", $DEBUG_DETAILS);
+&Warn("... with depLM: $depLM isInput: $isInput\n", $DEBUG_DETAILS);
+$depLM or die;
+return if !$isInput;
 my $nmv = $nm->{value};
 my $thisVHash = $nmv->{$thisUri} || {};
 my $thisType = $thisVHash->{nodeType} || "";
@@ -430,7 +442,7 @@ my $depSerCache = $thisHHash->{dependsOnSerCache}->{$depUri} || "";
 my $depCache = $thisHHash->{dependsOnCache}->{$depUri} || "";
 my ($oldCacheLM) = &LookupLMs($thisType, $depCache);
 $oldCacheLM ||= "";
-my $fExists = $nmv->{$thisType}->{fExists} or confess;
+my $fExists = $nmv->{$thisType}->{fExists} or die;
 my $thisHostRoot = $nmh->{$thisType}->{hostRoot}->{$baseUri} || $basePath;
 $oldCacheLM = "" if $oldCacheLM && !&{$fExists}($depCache, $thisHostRoot);
 return if (!$depLM || $depLM eq $oldCacheLM);
@@ -439,7 +451,7 @@ my $contentType = $thisVHash->{contentType}
 	|| "text/plain";
 &Warn("UPDATING $depUri local cache: $depCache of $thisUri\n", $DEBUG_UPDATES); 
 &{$fDeserializer}($depSerCache, $depCache, $contentType, $thisHostRoot) 
-    or die "ERROR: Failed to deserialize $depSerCache to $depCache with Content-Type: $contentType\n";
+	or die "ERROR: Failed to deserialize $depSerCache to $depCache with Content-Type: $contentType\n";
 &SaveLMs($thisType, $depCache, $depLM);
 }
 
@@ -530,7 +542,8 @@ my $fSerializer = $thisTypeVHash->{fSerializer};
 my $state = $thisVHash->{state} || die;
 my $serState = $thisVHash->{serState} || die;
 my $newThisLM = &FreshenState($nm, 'GET', $thisUri, $callerUri, $callerLM);
-&Warn("FreshenSerState $thisUri returned newThisLM: $newThisLM\n", $DEBUG_DETAILS);
+&Warn("FreshenState $thisUri returned newThisLM: $newThisLM\n", $DEBUG_DETAILS);
+$newThisLM or die;
 # TODO: Is this correct? Why not serialize on a HEAD request?
 if ($method eq 'HEAD' || $method eq 'NOTIFY' || !$fSerializer) {
   &Warn("FreshenSerState: No serialization needed. Returning newThisLM: $newThisLM\n", $DEBUG_DETAILS);
@@ -568,8 +581,8 @@ return $serStateLM
 # differs from what was previously requested by $latestUri.
 # All $latestUris that are not outputs will be treated as the same
 # anonymous $latestUri.
-# Also generate a new LM if either the $latestQuery changed or
-# the set of output queries changed.
+# Also generate a new LM if either the $latestQuery changed and
+# $thisUri has no parametersFilter or the set of output queries changed.
 sub UpdateQueries
 {
 @_ == 4 or die;
@@ -582,8 +595,16 @@ my $pOutputs = $nm->{multi}->{$thisUri}->{outputs} || {};
 $latestUri = "" if !$pOutputs->{$latestUri};	# Treat as anonymous requester?
 my $thisVHash = $nm->{value}->{$thisUri} or die;
 my $parametersFile = $thisVHash->{parametersFile} or die;
+my @results = &LookupLMs($FILE, $parametersFile);
+if (@results % 2 != 0) {
+	&Warn("ODD NUMBER OF ELEMENTS IN HASH ASSIGNMENT after LookupLMs($FILE, $parametersFile)\n", $DEBUG_DETAILS);
+	for (my $i=0; $i<@results; $i++) {
+		&Warn("... results[$i]: $results[$i]\n", $DEBUG_DETAILS);
+		}
+	}
 my ($lm, $oldLatestQuery, %oldRequesterQueries) = 
-	&LookupLMs($FILE, $parametersFile);
+#	&LookupLMs($FILE, $parametersFile);
+	@results;
 $oldLatestQuery = $oldLatestQuery;		# Avoid unused var warning
 $lm ||= "";
 my $isNewLatest = !defined($oldLatestQuery) || $latestQuery ne $oldLatestQuery || 0;
@@ -598,11 +619,27 @@ if (!$lm || $isNewLatest || $isNewOutQuery) {
 	my %oldUniqOutQueries = map {($_,1)} values %oldRequesterQueries;
 	my %newUniqOutQueries = map {($_,1)} values %newRequesterQueries;
 	my $sameQueries = &SameKeys(\%oldUniqOutQueries, \%newUniqOutQueries);
+	# my $sameQueries = &KeySubset(\%newUniqOutQueries, \%oldUniqOutQueries);
 	&Warn("... sameQueries: $sameQueries\n", $DEBUG_DETAILS);
-	$lm = &GenerateNewLM() if !$lm || $isNewLatest || !$sameQueries;
+	$lm = &GenerateNewLM() if !$lm || !$sameQueries 
+		|| ($isNewLatest && !$thisVHash->{parametersFilter});
 	&SaveLMs($FILE, $parametersFile, $lm, $latestQuery, %newRequesterQueries);
 	}
 return $lm;
+}
+
+################### KeySubset ################### 
+# Return true (1) iff the keys of hashRef $pa are a subset of the keys of
+# hashref $pb.  I.e., every key of $pa exists as a key of $pb.
+sub KeySubset
+{
+@_ == 2 or die;
+my ($pa, $pb) = @_;
+defined($pa) && defined($pb) or die;
+foreach my $k (keys %{$pa}) {
+	return 0 if !exists($pb->{$k});
+	}
+return 1;
 }
 
 ################### SameKeys ################### 
@@ -649,6 +686,8 @@ my $thisHostRoot = $nm->{hash}->{$thisType}->{hostRoot}->{$baseUri} || $basePath
 $oldThisLM = "" if !&{$fExists}($state, $thisHostRoot);	# state got deleted?
 $thisIsStale = 1 if !$oldThisLM;
 my $thisUpdater = $thisVHash->{updater} || "";
+# If it's fresh then there's nothing to do, except if there's no updater, 
+# in which case we have to generate an LM from static content.
 return $oldThisLM if $thisUpdater && !$thisIsStale;
 my $thisLHash = $nm->{list}->{$thisUri};
 my $thisInputs = $thisLHash->{inputCaches} || [];
@@ -668,7 +707,8 @@ else	{
 	}
 my $newThisLM = &{$fRunUpdater}($nm, $thisUri, $thisUpdater, $state, 
 	$thisInputs, $thisParameters, $oldThisLM, $callerUri, $callerLM);
-&Warn("WARNING: fRunUpdater on $thisUri $thisUpdater returned false LM") if !$newThisLM;
+&Warn("WARNING: fRunUpdater on $thisUri $thisUpdater returned false LM\n") if !$newThisLM;
+$newThisLM or die;
 &SaveLMs($URI, $thisUri, $newThisLM, %{$newDepLMs});
 return $newThisLM if $newThisLM eq $oldThisLM;
 ### Allow non-monotonic LM (because they could be checksums):
@@ -766,7 +806,8 @@ foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
   my $newDepLM;
   my $method = 'GET';
   my $depLM = "";
-  my $depQuery = $pUpstreamQueries->{$depUri} || "";
+  my $depQuery = "";
+  $depQuery = $pUpstreamQueries->{$depUri} if $depType;
   # confess "INTERNAL ERROR: depUri: $depUri depQuery: $depQuery\n" if $depQuery =~ m/\Ahttp:/;
   my $isInput = $thisMHashInputs->{$depUri} 
 	|| $thisMHashParameters->{$depUri} || 0;
@@ -783,7 +824,8 @@ foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
   my $isSameServer = &IsSameServer($thisUri, $depUri) || 0;
   my $isSameType   = &IsSameType($thisType, $depType) || 0;
   #### TODO QUERY: Update local $depUri's requester queries:
-  &UpdateQueries($nm, $depUri, $thisUri, $depQuery) if $isSameServer && $isSameType;
+  &UpdateQueries($nm, $depUri, $thisUri, $depQuery) 
+	if $depType && $isSameServer;
   ####
   &Warn("$thisUri depUri: $depUri depType: $depType method: $method depLM: $depLM\n", $DEBUG_DETAILS);
   &Warn("... isSameServer: $isSameServer isSameType: $isSameType knownFresh: $knownFresh isInput: $isInput\n", $DEBUG_DETAILS);
@@ -797,13 +839,13 @@ foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
     &Warn("Foreign or non-node.\n", $DEBUG_DETAILS);
     #### TODO QUERY: Update $depUri's requester queries also:
     $newDepLM = &ForeignSendHttpRequest($nm, $method, $thisUri, $depUri, $depLM, $depQuery);
-    &DeserializeToLocalCache($nm, $thisUri, $depUri, $newDepLM);
+    &DeserializeToLocalCache($nm, $thisUri, $depUri, $newDepLM, $isInput);
     }
   elsif (!$isSameType) {
     # Neighbor: Same server but different type.
     &Warn("Same server, different type.\n", $DEBUG_DETAILS);
     $newDepLM = &FreshenSerState($nm, $method, $thisUri, $callerUri, $callerLM);
-    &DeserializeToLocalCache($nm, $thisUri, $depUri, $newDepLM);
+    &DeserializeToLocalCache($nm, $thisUri, $depUri, $newDepLM, $isInput);
     }
   elsif ($knownFresh) {
     # Nothing to do, because it's local and already known fresh.
@@ -858,13 +900,13 @@ foreach my $k (sort keys %config) {
 &PresetGenericDefaults($nm);
 # Run the initialization function to set defaults for each node type 
 # (i.e., wrapper type), starting with leaf nodes and working up the hierarchy.
-my @leaves = &LeafClasses($nm, keys %{$nmm->{Node}->{subClass}});
+my @leaves = &LeafClasses($nm, sort keys %{$nmm->{Node}->{subClass}});
 my %done = ();
 while(@leaves) {
 	my $nodeType = shift @leaves;
 	next if $done{$nodeType};
 	$done{$nodeType} = 1;
-	my @superClasses = keys %{$nmm->{$nodeType}->{$subClassOf}};
+	my @superClasses = sort keys %{$nmm->{$nodeType}->{$subClassOf}};
 	push(@leaves, @superClasses);
 	my $fSetNodeDefaults = $nmv->{$nodeType}->{fSetNodeDefaults};
 	next if !$fSetNodeDefaults;
@@ -894,7 +936,7 @@ my $nmm = $nm->{multi};
 # &Warn("PresetGenericDefaults:\n");
 # First set defaults that are set directly on each node: 
 # nodeType, state, serState, stderr, fUpdatePolicy.
-my @allNodes = keys %{$nmm->{Node}->{member}};
+my @allNodes = sort keys %{$nmm->{Node}->{member}};
 foreach my $thisUri (@allNodes) 
   {
   # Make life easier in this loop:
@@ -902,7 +944,7 @@ foreach my $thisUri (@allNodes)
   my $thisLHash = $nml->{$thisUri} or die;
   my $thisMHash = $nmm->{$thisUri} or die;
   # Set nodeType, which should be most specific node type.
-  my @types = keys %{$thisMHash->{a}};
+  my @types = sort keys %{$thisMHash->{a}};
   my @nodeTypes = &LeafClasses($nm, @types);
   die "INTERNAL ERROR: Multiple nodeTypes: @nodeTypes\n" if @nodeTypes > 1;
   die if @nodeTypes < 1;
@@ -945,6 +987,8 @@ foreach my $thisUri (@allNodes)
   &MakeValuesAbsoluteUris($nmv, $nml, $nmh, $nmm, $thisUri, "inputs");
   &MakeValuesAbsoluteUris($nmv, $nml, $nmh, $nmm, $thisUri, "parameters");
   &MakeValuesAbsoluteUris($nmv, $nml, $nmh, $nmm, $thisUri, "dependsOn");
+  #### TODO: {inputs} has not been set yet, so maybe this should be
+  #### moved later.
   &Warn("WARNING: Node $thisUri has inputs but no updater ")
 	if !$thisVHash->{updater} && @{$thisLHash->{inputs}};
   # Initialize the list of outputs (actually inverse dependsOn) for each node:
@@ -969,7 +1013,7 @@ foreach my $thisUri (@allNodes)
   # that will be used by $thisUri's updater when
   # it is invoked.  It will either use a new name (if the input is from
   # a different environment) or the input's state directly (if in the 
-  # same env).  A non-node dependsOn is treated like a foreign
+  # same env).  A non-node input dependsOn is treated like a foreign
   # node with no serializer.  
   # The dependsOnSerCache hash similarly maps
   # from dependsOn URIs to the local serCaches (i.e., file names of 
@@ -986,11 +1030,16 @@ foreach my $thisUri (@allNodes)
   #     If so (and on same server) then the node's state can be accessed directly.
   #  D. Does $thisType have a deserializer?
   #     If not, then 'cache' will be the same as serCache.
-  #  E. Does $thisType have a fUriToNativeName function?
+  #  E. Is $depUri an input (or parameter)?  
+  #     If not, then 'cache' will be the same as serCache.
+  #  F. Does $thisType have a fUriToNativeName function?
   #     If so, then it will be used to generate a native name for 'cache'.
   $thisHHash->{dependsOnCache} ||= {};
   $thisHHash->{dependsOnSerCache} ||= {};
-  foreach my $depUri (keys %{$thisMHash->{dependsOn}}) {
+  my $fDeserializer = $nmv->{$thisType}->{fDeserializer} || "";
+  my $thisMHashInputs = $thisMHash->{inputs};
+  my $thisMHashParameters = $thisMHash->{parameters};
+  foreach my $depUri (sort keys %{$thisMHash->{dependsOn}}) {
     # Ensure non-null hashrefs for all deps (because they may not be nodes):
     $nmv->{$depUri} ||= {};
     $nml->{$depUri} ||= {};
@@ -1008,18 +1057,19 @@ foreach my $thisUri (@allNodes)
     else {
       # Different servers, so make up a new file path.
       # dependsOnSerCache file path does not need to contain $thisType, because 
-      # different node types on the same server can share the same serCache's.
+      # different node types on the same server can share the same serCaches.
       my $depSerCache = "$basePath/cache/$depUriEncoded/serCache";
       $thisHHash->{dependsOnSerCache}->{$depUri} = $depSerCache;
       }
     # Now set dependsOnCache.
-    my $fDeserializer = $nmv->{$thisType}->{fDeserializer} || "";
+    my $isInput = $thisMHashInputs->{$depUri} 
+	|| $thisMHashParameters->{$depUri} || 0;
     if (&IsSameServer($baseUri, $depUri) && &IsSameType($thisType, $depType)) {
       # Same env.  Reuse the input's state.
       $thisHHash->{dependsOnCache}->{$depUri} = $nmv->{$depUri}->{state};
       # warn "thisUri: $thisUri depUri: $depUri Path 1\n";
       }
-    elsif ($fDeserializer) {
+    elsif ($fDeserializer && $isInput) {
       # There is a deserializer, so we must create a new {cache} name.
       # Create a URI and convert it
       # (if necessary) to an appropriate native name.
@@ -1033,7 +1083,8 @@ foreach my $thisUri (@allNodes)
       # warn "thisUri: $thisUri depUri: $depUri Path 2\n";
       }
     else {
-      # No deserializer, so dependsOnCache will be the same as dependsOnSerCache.
+      # No deserializer or not an input, so dependsOnCache will be 
+      # the same as dependsOnSerCache.
       my $path = $thisHHash->{dependsOnSerCache}->{$depUri};
       $thisHHash->{dependsOnCache}->{$depUri} = $path;
       # warn "thisUri: $thisUri depUri: $depUri Path 3\n";

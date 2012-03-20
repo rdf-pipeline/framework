@@ -4,6 +4,12 @@
 # or filter-expected.perl has been modified.  If either of those
 # files is different from this file (ignoring whitespace and comments),
 # then it is deemed to have changed.
+# It can also be used to restore those files back to their original
+# state after they have been modified.
+
+# When this file is used as a filter-actual.perl or filter-expected.perl
+# it will be run on each actual or expected file (respectively), and
+# can modify that file as needed or even delete it.
 
 use strict;
 

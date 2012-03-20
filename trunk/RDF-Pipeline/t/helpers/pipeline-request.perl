@@ -72,6 +72,10 @@ my $logCmd = "tail -n +'$apacheAccessStart' '$apacheAccess' | '$filterLog' >> '$
 my $logResult = system($logCmd);
 die "ERROR: Failed to copy Apache access log: $logCmd\n" if $logResult;
 
+my $separator = "-" x 70;
+foreach my $f (qw(testout apacheError.log apacheAccess.log)) {
+	!system("echo '$separator' >> '$wwwDir/test/$f'") or die;
+	}
 exit 0;
 
 ########## EnvNotSet #########
