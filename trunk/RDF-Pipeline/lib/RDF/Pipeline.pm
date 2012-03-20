@@ -487,8 +487,6 @@ my $query = &BuildQueryString(%args);
 my $newThisLM = &FreshenSerState($nm, $method, $thisUri, $callerUri, $callerLM);
 ####### Ready to generate the HTTP response. ########
 my $serState = $thisVHash->{serState} || die;
-my $size = -s $serState || 0;
-$r->set_content_length($size);
 # TODO: Should use Accept header in choosing contentType?
 my $contentType = $thisVHash->{contentType}
 	|| $nm->{value}->{$thisType}->{defaultContentType}
@@ -497,15 +495,6 @@ my $contentType = $thisVHash->{contentType}
 # $r->content_type('text/plain');
 # $r->content_type('application/rdf+xml');
 $r->content_type($contentType);
-# Not sure if the Content-Location header should be set.  
-# It may help people with debugging (so that they can view the serState
-# directly), but it could be misused if people start requesting 
-# directly from that instead of using the node name.
-# Based on my current reading of the HTTP 1.1. spec
-# http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.14
-# it sounds like it should be safe to return the Content-Location,
-# i.e., clients should know that the semantics are different.
-$r->headers_out->set('Content-Location' => &PathToUri($serState)); 
 my ($lmHeader, $eTagHeader) = &LMToHeaders($newThisLM);
 # These work:
 # "W/" prefix on ETag means that it is weak.
@@ -523,6 +512,17 @@ if($status != Apache2::Const::OK || $r->header_only) {
   # Also returns 304 if appropriate:
   return $status;
   }
+my $size = -s $serState || 0;
+$r->set_content_length($size);
+# Not sure if the Content-Location header should be set.  
+# It may help people with debugging (so that they can view the serState
+# directly), but it could be misused if people start requesting 
+# directly from that instead of using the node name.
+# Based on my current reading of the HTTP 1.1. spec
+# http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.14
+# it sounds like it should be safe to return the Content-Location,
+# i.e., clients should know that the semantics are different.
+$r->headers_out->set('Content-Location' => &PathToUri($serState)); 
 # sendfile seems to want a full file system path:
 $r->sendfile($serState);
 return Apache2::Const::OK;
@@ -541,10 +541,10 @@ my $thisTypeVHash = $nm->{value}->{$thisType} || {};
 my $fSerializer = $thisTypeVHash->{fSerializer};
 my $state = $thisVHash->{state} || die;
 my $serState = $thisVHash->{serState} || die;
-my $newThisLM = &FreshenState($nm, 'GET', $thisUri, $callerUri, $callerLM);
+my $newThisLM = &FreshenState($nm, $method, $thisUri, $callerUri, $callerLM);
 &Warn("FreshenState $thisUri returned newThisLM: $newThisLM\n", $DEBUG_DETAILS);
 $newThisLM or die;
-# TODO: Is this correct? Why not serialize on a HEAD request?
+# For efficiency, don't serialize on HEAD request.  See issue 20.
 if ($method eq 'HEAD' || $method eq 'NOTIFY' || !$fSerializer) {
   &Warn("FreshenSerState: No serialization needed. Returning newThisLM: $newThisLM\n", $DEBUG_DETAILS);
   return $newThisLM;
