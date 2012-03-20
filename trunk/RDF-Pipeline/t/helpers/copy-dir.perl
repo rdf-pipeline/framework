@@ -72,8 +72,8 @@ if ($sourceDir ne "/dev/null") {
 	# my $copyCmd = "rsync -a '--exclude=.*' '$sourceDir' '$destDir'";
 	mkdir($destDir) || die if !-d $destDir;
 	my $copyCmd = "cd '$sourceDir' ; /bin/tar cf - '--format=posix' '--exclude-vcs' . | ( cd '$destDir' ; /bin/tar xf - )";
-	# warn "copyCmd: $copyCmd\n";
-	warn "Copying '$sourceDir' to '$destDir'\n" if $useSvn && $noisy;
+	warn "$copyCmd\n" if $noisy;
+	# warn "Copying '$sourceDir' to '$destDir'\n" if $useSvn && $noisy;
 	!system($copyCmd) or die;
 	}
 
