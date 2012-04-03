@@ -41,7 +41,7 @@ Serializes the object named by _deserName_ to the file named by _serFilename_.  
 
 A node type whose cached data is already in serialized form (suitable for HTTP transmission) does not need to implement _fSerializer_.
 
-== fRunUpdater(...) ==
+== fRunUpdater(...) -- REQUIRED ==
 *Parameters:*
   * *nm* -- Hashmap: Node metadata.
   * *thisUri* -- String: URI of the node to be updated.
