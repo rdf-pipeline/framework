@@ -2,10 +2,12 @@
 <wiki:toc max_depth="1" />
 
 = Introduction =
-The RDF Pipeline framework has a regression test suite in RDF-Pipeline/t .  Since it runs as a mod_perl2 module in Apache2, the RDF Pipeline framework must be properly installed (as a mod_perl2 module) before the test suite can be run.  Once installed, the test suite may be run by issuing the following command from the RDF-Pipeline module directory:
+The RDF Pipeline ramework has a regression test suite in RDF-Pipeline/t .  Since it runs as a mod_perl2 module in Apache2, the RDF Pipeline framework must be properly installed (as a mod_perl2 module) before the test suite can be run.  Once installed, the test suite may be run by issuing the following command from the RDF-Pipeline module directory:
 {{{
   make test
 }}}
+
+Most of the tests in the test suite involve running pipelines in the RDF Pipeline Framework under Apache, and thus this page and the tools that it describes are mainly oriented toward creating and running such tests.  However, in some cases you may need to add a simple test -- such as a test of a utility script -- that does not require a pipeline or Apache.  For such cases, see the section "Adding a Non-Pipeline Test" at the end of this page.  
 
 = Environment variables =
 The test suite depends on two directories, which must be specified in the following environment variables:
@@ -128,3 +130,6 @@ Because subversion places hidden ".svn" files in directories that are under its 
 cd $RDF_PIPELINE_DEV_DIR
 svn update --force
 }}}
+
+= Adding a Non-Pipeline Test =
+The regression test suite can also be used for simple tests that do not require running a pipeline.  To add such a test:
