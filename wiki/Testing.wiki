@@ -7,7 +7,7 @@ The RDF Pipeline ramework has a regression test suite in RDF-Pipeline/t .  Since
   make test
 }}}
 
-Most of the tests in the test suite involve running pipelines in the RDF Pipeline Framework under Apache, and thus this page and the tools that it describes are mainly oriented toward creating and running such tests.  However, in some cases you may need to add a simple test -- such as a test of a utility script -- that does not require a pipeline or Apache.  For such cases, see the section "Adding a Non-Pipeline Test" at the end of this page.  
+Most of the tests in the test suite involve running pipelines in the RDF Pipeline Framework under Apache, and thus this page and the tools that it describes are mainly oriented toward creating and running such tests.  However, in some cases you may need to add a simple test -- such as a test of a utility script -- that does not require a pipeline or Apache.  For such cases, see the section on "Adding a Non-Pipeline Test" at the end of this page.  
 
 = Environment variables =
 The test suite depends on two directories, which must be specified in the following environment variables:
