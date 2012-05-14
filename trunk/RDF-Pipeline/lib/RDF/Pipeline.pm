@@ -80,7 +80,7 @@ use WWW::Mechanize;
 
 ################## Node Types ###################
 # use lib qw( /home/dbooth/rdf-pipeline/trunk/RDF-Pipeline/lib );
-use RDF::Pipeline::HtmlFileNode;
+use RDF::Pipeline::ExampleHtmlNode;
 
 ##################  Debugging and testing ##################
 # $debug verbosity:
@@ -376,6 +376,9 @@ my $reqString = $req->as_string;
 &Warn("... with L-MH: $oldLMHeader ETagH: $oldETagHeader\n", $DEBUG_DETAILS);
 &PrintLog("[[\n$reqString\n]]\n");
 ############# Sending the HTTP request ##############
+# TODO: http://tinyurl.com/cbxgu4y says:
+#   If you want to get a large result it is better to write to a file directly:
+#   my $res = $ua->request($req,'file_name.txt');
 my $res = $ua->request($req) or die;
 my $code = $res->code;
 &Warn("Code: $code\n", $DEBUG_DETAILS);
@@ -1416,7 +1419,7 @@ my ($nm) = @_;
 # a new node type, and issue a warning if not.  Somehow, the framework
 # needs to know what node types are being registered.
 &FileNodeRegister($nm);
-&RDF::Pipeline::HtmlFileNode::HtmlFileNodeRegister($nm);
+&RDF::Pipeline::ExampleHtmlNode::ExampleHtmlNodeRegister($nm);
 }
 
 ############# FileNodeRegister ##############

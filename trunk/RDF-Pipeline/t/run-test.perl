@@ -1,7 +1,8 @@
 #! /usr/bin/perl -w
 
 # This script runs one or more tests in the suite of numbered tests.
-# It exits with 0 status iff all tests pass.
+# It exits with 0 status iff all tests pass.  Running a test means:
+#
 #
 # Usage:
 #
@@ -70,6 +71,7 @@ foreach my $tDir (@tDirs) {
 
   # Clear out old $wwwDir/test files:
   !system("$moduleDir/t/helpers/copy-dir.perl '/dev/null' '$wwwDir/test'") or die;
+  mkdir("$wwwDir/test") if !-d "$wwwDir/test";
 
   # Run the test-script.
   my $testCmd = "cd '$tDir' ; ./test-script '$wwwDir'";
