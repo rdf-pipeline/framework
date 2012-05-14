@@ -149,3 +149,8 @@ rm -r lm cache node
 3. In the nnnn/setup-files directory, place whatever initial files your test will need.  These files will be automatically copied to $RDF_PIPELINE_WWW_DIR just before the test is run, so your test-script can access them there.
 
 4. Edit nnnn/test-script to perform the test.  It should place any result files in the $RDF_PIPELINE_WWW_DIR/test directory.  When the test is run, the result files will be automatically compared against the expected-files after test-script is executed.  If the test-script returns 0 exit status (success) and the result files are the same as those that are saved in expected-files when the test is accepted, then the test passes.  Otherwise it fails.
+
+5. After you have created the test you can run it using run-test.perl or "make test" the same way that other tests are run.  Once you are satisfied that it produces correct results, you should accept the test and put it into subversion:
+{{{
+accept-test.perl -s [nnnn]
+}}}
