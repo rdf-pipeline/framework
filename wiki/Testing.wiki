@@ -135,14 +135,17 @@ svn update --force
 The regression test suite can also be used for simple tests that do not require running a pipeline.  To add such a test:
 
 1. Create a new test directory, which in the remaining instructions will be called nnnn:
-  cd $RDF_PIPELINE_DEV_DIR/RDF-Pipeline/t/tests/
-  add-test.perl Your Test Description Goes Here
+{{{
+cd $RDF_PIPELINE_DEV_DIR/RDF-Pipeline/t/tests/
+add-test.perl Your Test Description Goes Here
+}}}
 
 2. Get rid of any lm, cache, node and ont directories in the setup-files directory, as they are not needed:
-  cd nnnn/setup-files
-  rm -r lm cache node
+{{{
+cd nnnn/setup-files
+rm -r lm cache node
+}}}
 
 3. In the nnnn/setup-files directory, place whatever initial files your test will need.  These files will be automatically copied to $RDF_PIPELINE_WWW_DIR just before the test is run, so your test-script can access them there.
 
 4. Edit nnnn/test-script to perform the test.  It should place any result files in the $RDF_PIPELINE_WWW_DIR/test directory.  When the test is run, the result files will be automatically compared against the expected-files after test-script is executed.  If the test-script returns 0 exit status (success) and the result files are the same as those that are saved in expected-files when the test is accepted, then the test passes.  Otherwise it fails.
-
