@@ -8,6 +8,25 @@ before I used code.google.com and had any formal bug tracker
 or issues list.  It is currently being used as a place for recording
 notes, ideas or things to do.
 
+5/5/12: It would be nice to add a visualization component, such as
+Cytoscape, to display in realtime the flow through a pipeline.
+It would be nice if it could also show map nodes created and destroyed.
+
+4/25/12: To know when a pipeline has been propagated all the way
+to its outputs, tokens can be passed to certain inputs, and when all
+tokens appear on the output, then those inputs have propagated through.
+For example, tokens X and Y may be passed to inputs A and B,
+respectively, and when they have both shown up at the output,
+then we know what those inputs have propagated all the way through.
+The tokens could be passed in hidden metadata.
+
+4/25/12: Metadata could be passed automatically from inputs to outputs,
+and would include things like provenance and LMs.  For simplicity,
+the metadata could be in RDF.
+
+4/22/12: I think I should change the format of LM files to be RDF
+triples, as that would allow them to be easily extensible.
+
 2/8/12: I'm thinking of doing SPARQL templates like sub-pipelines,
 because they both require a way to bind formal with actual parameters.
 
