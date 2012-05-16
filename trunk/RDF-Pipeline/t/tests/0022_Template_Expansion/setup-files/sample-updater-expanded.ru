@@ -10,9 +10,6 @@
 ########## Template variables are declared below #############
 ##############################################################
 
-#inputs ( $inUri Bill ${Taft} )	   	# Comment okay here
-#outputs ( $outUri )			
-#parameters ( $max $min $property )
 
 ##############################################################
 ########## Results of expansion can be seen below ############
@@ -20,33 +17,33 @@
 
 PREFIX foaf:  <http://xmlns.com/foaf/0.1/>
 
-# Env: THIS_URI: $ENV{THIS_URI}
-# in3: ${Taft} max: $max
-# QUERY_STRING: $ENV{QUERY_STRING}
+# Env: THIS_URI: http://example/this
+# in3: Taffy max: 99
+# QUERY_STRING: min=2&max=99&property=givenName
 # These should be unchanged: $inUriExtra  Billion  EmBill 
 
-CREATE SILENT GRAPH <$inUri>
-CREATE SILENT GRAPH <$outUri>
+CREATE SILENT GRAPH <http://example/in>
+CREATE SILENT GRAPH <http://example/out>
 
 INSERT DATA {
-  GRAPH <$inUri> {
-	<http://example/president25> foaf:givenName "Bill" .
+  GRAPH <http://example/in> {
+	<http://example/president25> foaf:givenName "William" .
 	<http://example/president25> foaf:familyName "McKinley" .
-	<http://example/president27> foaf:givenName "Bill" .
+	<http://example/president27> foaf:givenName "William" .
 	<http://example/president27> foaf:familyName "Taft" .
-	<http://example/president42> foaf:givenName "Bill" .
+	<http://example/president42> foaf:givenName "William" .
 	<http://example/president42> foaf:familyName "Clinton" .
     }
   }
 
 INSERT { 
-  GRAPH <$outUri> {
-    ?s foaf:$property ?v .
+  GRAPH <http://example/out> {
+    ?s foaf:givenName ?v .
     }
   }
 WHERE { 
-  GRAPH <$inUri> {
-    ?s foaf:$property ?v .
+  GRAPH <http://example/in> {
+    ?s foaf:givenName ?v .
     }
   } 
 
