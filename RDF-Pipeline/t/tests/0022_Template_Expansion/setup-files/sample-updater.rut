@@ -28,8 +28,11 @@ PREFIX foaf:  <http://xmlns.com/foaf/0.1/>
 # QUERY_STRING: $ENV{QUERY_STRING}
 # These should be unchanged: $inUriExtra  Billion  EmBill 
 
-CREATE SILENT GRAPH <$inUri>
-CREATE SILENT GRAPH <$outUri>
+DROP SILENT GRAPH <$inUri> ;
+DROP SILENT GRAPH <$outUri> ;
+
+CREATE SILENT GRAPH <$inUri> ;
+CREATE SILENT GRAPH <$outUri> ;
 
 INSERT DATA {
   GRAPH <$inUri> {
@@ -41,6 +44,7 @@ INSERT DATA {
 	<http://example/president42> foaf:familyName "Clinton" .
     }
   }
+;
 
 INSERT { 
   GRAPH <$outUri> {
@@ -52,4 +56,5 @@ WHERE {
     ?s foaf:$property ?v .
     }
   } 
+;
 
