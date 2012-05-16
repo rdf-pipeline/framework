@@ -1,5 +1,8 @@
 #! /usr/bin/env ste.perl
 
+# Copyright 2012 by David Booth <david@dbooth.org>
+# See license info at: http://code.google.com/p/rdf-pipeline/
+
 # This is a sample updater written as a SPARQL template.
 # The template should be expanded as:
 #
