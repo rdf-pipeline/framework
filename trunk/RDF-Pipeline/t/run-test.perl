@@ -24,6 +24,10 @@ my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
 my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
 my $moduleDir = "$devDir/RDF-Pipeline";
 my $testsDir = "$moduleDir/t/tests";
+my $libDir = "$moduleDir/lib";
+$ENV{PERL5LIB} ||= "";
+$ENV{PERL5LIB} = "$libDir:$ENV{PERL5LIB}";
+# warn "PERL5LIB: $ENV{PERL5LIB}\n";
 chdir($testsDir) or die "ERROR: Could not chdir('$testsDir')\n";
 
 my @tDirs = @ARGV;
