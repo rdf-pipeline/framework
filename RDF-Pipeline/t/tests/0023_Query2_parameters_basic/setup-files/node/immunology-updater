@@ -1,0 +1,6 @@
+#! /bin/bash
+
+echo '# Immunology patient data'
+egrep "id=(002|003|004)" $1
+exit 0
+

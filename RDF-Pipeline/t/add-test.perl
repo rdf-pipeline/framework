@@ -6,7 +6,7 @@
 
 use strict;
 
-@ARGV >= 1 or die "Usage: $0 URL [description]
+@ARGV >= 1 && $ARGV[0] =~ m/^http(s?)\:/ or die "Usage: $0 URL [description]
 where URL is the RDF Pipeline test URL to invoke for the new test.\n";
 my $url = shift @ARGV;
 my $description = join("_", @ARGV) || "";
