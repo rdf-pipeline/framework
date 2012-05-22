@@ -2,7 +2,7 @@
 
 # Touch all files, to force caches to be stale.
 touch:	
-	touch www/* ont.n3 internals.n3 pipeline.n3
+	( cd $(RDF_PIPELINE_WWW_DIR) ; rm -rf lm cache )
 
 hello:
 	cp test/hello-pipeline.n3 pipeline.n3
