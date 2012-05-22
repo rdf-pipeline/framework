@@ -7,7 +7,7 @@ This section will describe installation/configuration information for the RDF Pi
 
 = Debug level =
 
-Debug information is written to the apache2 error log, {{{/var/log/apache2/error.log}}} on Ubuntu 10.04.  The {{{$RDF_PIPELINE_DEBUG}}} environment variable controls the amount of debugging detail, and must be set using the PerlSetEnv directive in the apache2 configuration file such as {{{/etc/apache2/sites-enabled/000-default}}}:
+Debug information is written to the apache2 error log, {{{/var/log/apache2/error.log}}} on Ubuntu 10.04.  The {{{$RDF_PIPELINE_DEBUG}}} environment variable controls the amount of debugging detail, and must be set using the {{{PerlSetEnv}}} directive in the apache2 configuration file such as {{{/etc/apache2/sites-enabled/000-default}}}:
 {{{
 <Location /node/>
       SetHandler perl-script
