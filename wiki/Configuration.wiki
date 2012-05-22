@@ -1,0 +1,18 @@
+#summary Configuring the RDF Pipeline Framework
+
+= Introduction =
+
+This section will describe installation/configuration information for the RDF Pipeline Framework.
+
+
+= Debug level =
+
+Debug information is written to the apache2 error log, {{{/var/log/apache2/error.log}}} on Ubuntu 10.04.  The {{{$RDF_PIPELINE_DEBUG}}} environment variable controls the amount of debugging detail, and must be set using the PerlSetEnv directive in the apache2 configuration file such as {{{/etc/apache2/sites-enabled/000-default}}}:
+{{{
+<Location /node/>
+      SetHandler perl-script
+      PerlSetEnv RDF_PIPELINE_DEBUG 3
+      PerlResponseHandler  RDF::Pipeline
+</Location>
+}}}
+Debug levels start from 0 (debugging off) and go up from there.  Look at the RDF::Pipeline source code to see what the levels mean. 
