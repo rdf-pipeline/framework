@@ -86,13 +86,17 @@ use RDF::Pipeline::ExampleHtmlNode;
 # $debug verbosity:
 my $DEBUG_OFF = 0;	# No debug output.  Warnings/errors only.
 my $DEBUG_NODE_UPDATES = 1; 	# Show nodes updated.
-my $DEBUG_PARAM_UPDATES = 2; 	# Show nodes and parameters updated.
-my $DEBUG_CHANGES = 3; 	# Show nodes and parameters updated or unchanged.  This verbosity should be good for testing.
+my $DEBUG_PARAM_UPDATES = 2; 	# Also show parameters updated.
+my $DEBUG_CACHES = 3; 	# Also show caches updated.
+my $DEBUG_CHANGES = 4; 	# Also show them unchanged.  This verbosity should be good for testing.
 my $DEBUG_REQUESTS = 5;	# Show updates plus requests.
 my $DEBUG_DETAILS = 6;	# Show requests plus more detail.
 
-my $debug = $DEBUG_CHANGES;
-# $debug = $DEBUG_DETAILS;
+# $debug level is set using a PerlSetEnv directive in 
+# the apache2 config file:
+my $debug = $ENV{RDF_PIPELINE_DEBUG};
+$debug = eval $debug if defined($debug); # Allows symbolic value
+$debug = $DEBUG_CHANGES if !defined($debug);
 
 my $debugStackDepth = 0;	# Used for indenting debug messages.
 
@@ -409,7 +413,7 @@ if ($code == RC_OK && $newLM && $newLM ne $oldLM) {
 	# $ua->get($url, ':content_file'=>$filename) ?  See
 	# http://search.cpan.org/~gaas/libwww-perl-6.03/lib/LWP/UserAgent.pm
 	if ($method ne 'HEAD') {
-		&Warn("UPDATING $depUri inSerCache: $inSerCache of $thisUri\n", $DEBUG_NODE_UPDATES); 
+		&Warn("UPDATING $depUri inSerCache: $inSerCache of $thisUri\n", $DEBUG_CACHES); 
 		&MakeParentDirs( $inSerCache );
 		$ua->save_content( $inSerCache );
 		}
@@ -454,7 +458,7 @@ return if (!$depLM || $depLM eq $oldCacheLM);
 my $contentType = $thisVHash->{contentType}
 	|| $nmv->{$thisType}->{defaultContentType}
 	|| "text/plain";
-&Warn("UPDATING $depUri local cache: $depCache of $thisUri\n", $DEBUG_NODE_UPDATES); 
+&Warn("UPDATING $depUri local cache: $depCache of $thisUri\n", $DEBUG_CACHES); 
 &{$fDeserializer}($depSerCache, $depCache, $contentType, $thisHostRoot) 
 	or die "ERROR: Failed to deserialize $depSerCache to $depCache with Content-Type: $contentType\n";
 &SaveLMs($thisType, $depCache, $depLM);
@@ -570,7 +574,7 @@ if (!$serStateLM || !-e $serState || ($newThisLM && $newThisLM ne $serStateLM)) 
 	|| "text/plain";
   # There MUST be a serializer or we would have returned already.
   $fSerializer || die;
-  &Warn("UPDATING $thisUri serState: $serState\n", $DEBUG_NODE_UPDATES); 
+  &Warn("UPDATING $thisUri serState: $serState\n", $DEBUG_CACHES); 
   my $thisHostRoot = $nm->{hash}->{$thisType}->{hostRoot}->{$baseUri} || $basePath;
   &{$fSerializer}($serState, $state, $contentType, $thisHostRoot) 
     or die "ERROR: Failed to serialize $state to $serState with Content-Type: $contentType\n";
@@ -708,7 +712,7 @@ if ($thisUpdater) {
 	&Warn("UPDATING $thisUri {$thisUpdater} state: $state\n", $DEBUG_NODE_UPDATES); 
 	}
 else	{
-	&Warn("Generating LM of static node: $thisUri\n", $DEBUG_NODE_UPDATES); 
+	&Warn("Generating LM of static node: $thisUri\n", $DEBUG_CHANGES); 
 	}
 my $newThisLM = &{$fRunUpdater}($nm, $thisUri, $thisUpdater, $state, 
 	$thisInputs, $thisParameters, $oldThisLM, $callerUri, $callerLM);
@@ -791,8 +795,11 @@ my $pChanged = !defined($oldParametersLM) || 0;
 $oldParametersLM ||= "";
 $pChanged = 1 if ($parametersLM ne $oldParametersLM);
 $thisIsStale = 1 if $pChanged;
-my $status = $pChanged ? "UPDATED" : "NO CHANGE to";
-&Warn("$status query parameters of $thisUri\n", $DEBUG_NODE_UPDATES);
+if ($pChanged) {
+  &Warn("UPDATED query parameters of $thisUri\n", $DEBUG_PARAM_UPDATES);
+} else {
+  &Warn("NO CHANGE to query parameters of $thisUri\n", $DEBUG_CHANGES);
+  }
 &Warn("... oldParametersLM: $oldParametersLM parametersLM: $parametersLM\n", $DEBUG_DETAILS);
 $newDepLMs->{$parametersFileUri} = $parametersLM;
 #### TODO QUERY: Make this call the user's parameterFilter
@@ -868,7 +875,11 @@ foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
   $thisIsStale = 1 if $depChanged;
   $newDepLMs->{$depUri} = $newDepLM;
   my $status = $depChanged ? "UPDATED" : "NO CHANGE to";
-  &Warn("$status depUri $depUri of $thisUri\n", $DEBUG_NODE_UPDATES);
+  if ($depChanged) {
+    &Warn("UPDATED depUri $depUri of $thisUri\n", $DEBUG_CHANGES);
+    } else {
+    &Warn("NO CHANGE to depUri $depUri of $thisUri\n", $DEBUG_CHANGES);
+    }
   &Warn("... oldDepLM: $oldDepLM newDepLM: $newDepLM stale: $thisIsStale\n", $DEBUG_DETAILS);
   }
 &Warn("RequestLatestDependsOn(nm, $thisUri, $callerUri, $callerLM, $oldDepLMs) returning: $thisIsStale\n", $DEBUG_DETAILS);
