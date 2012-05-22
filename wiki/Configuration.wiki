@@ -15,4 +15,4 @@ Debug information is written to the apache2 error log, {{{/var/log/apache2/error
       PerlResponseHandler  RDF::Pipeline
 </Location>
 }}}
-Debug levels start from 0 (debugging off) and go up from there.  Look at the RDF::Pipeline source code to see what the levels mean. 
+Debug levels start from 0 (debugging off, only warnings and errors are logged) and go up from there.  Look at the RDF::Pipeline source code to see what the levels mean. 
