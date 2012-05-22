@@ -11,7 +11,7 @@ Debug information is written to the apache2 error log, {{{/var/log/apache2/error
 {{{
 <Location /node/>
       SetHandler perl-script
-      PerlSetEnv RDF_PIPELINE_DEBUG 3
+      PerlSetEnv RDF_PIPELINE_DEBUG $DEBUG_CHANGES
       PerlResponseHandler  RDF::Pipeline
 </Location>
 }}}
