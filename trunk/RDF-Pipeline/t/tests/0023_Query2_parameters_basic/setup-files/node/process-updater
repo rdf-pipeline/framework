@@ -1,6 +1,3 @@
-#! /usr/bin/perl -w
-
-while (<>) {
-	print "PROCESSED\t$_";
-	}
+#! /bin/bash
+sed 's/^/PROCESSED\t/'  $1
 
