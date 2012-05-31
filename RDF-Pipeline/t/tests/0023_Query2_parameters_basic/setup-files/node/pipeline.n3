@@ -1,4 +1,4 @@
-# Query Parameter example
+# Example pipeline
 
 @prefix p: <http://purl.org/pipeline/ont#> .
 @prefix : <http://localhost/node/> .
