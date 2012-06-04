@@ -110,6 +110,14 @@ These scripts are run by run-test.perl on a copy of each of the expected and act
 
 In addition, when tests are run by run-test.perl, the concatenated diffs of all tests that it runs are written to /tmp/rdfp/diffs.txt, so that you can quickly view all differences (after filtering through filter-expected.perl and filter-actual.perl).
 
+= Updating setup-files =
+Often a test will be developed based on the resulting state of the previous test.  In a case like this, if the previous test is changed to produce different results, then it may be necessary to update the setup-files of the next test to be the results of the previous test.  To do this:
+{{{
+  run-test.perl [previous_nnnn]
+  update-test-setup.perl nnnn ...
+}}}
+Where _previous_nnnn_ is the previous test, and _nnnn_ is the current test whose setup-files you wish to update.  The test name _nnnn_ is required.
+
 = Deleting a test = 
 You can delete a test by deleting its directory, e.g., 0003, and its tmp directory in /tmp/rdfp/ .  However:
   * It is helpful to keep the test numbers consecutive, because the Perl test framework reports test failures by number (counting from the first test).  Therefore it is safe to delete the highest numbered test, but instead of deleting an earlier test it is better to make it a no-op by modifying its "test-script" to immediately "exit 0;", so that it will always pass.
