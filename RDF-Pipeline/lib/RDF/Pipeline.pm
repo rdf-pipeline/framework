@@ -88,7 +88,7 @@ my $DEBUG_OFF = 0;	# No debug output.  Warnings/errors only.
 my $DEBUG_NODE_UPDATES = 1; 	# Show nodes updated.
 my $DEBUG_PARAM_UPDATES = 2; 	# Also show parameters updated.
 my $DEBUG_CACHES = 3; 	# Also show caches updated.
-my $DEBUG_CHANGES = 4; 	# Also show them unchanged.  This verbosity should be good for testing.
+my $DEBUG_CHANGES = 4; 	# Also show them unchanged.  This verbosity is normally used for regression testing.
 my $DEBUG_REQUESTS = 5;	# Also show requests.
 my $DEBUG_DETAILS = 6;	# Show requests plus more detail.
 

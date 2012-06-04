@@ -14,6 +14,8 @@
 # Option:
 #	-q	Quiet.  Less verbose output.
 
+my $apacheConfig = "/etc/apache2/sites-enabled/000-default";
+
 my $quietOption = 0;
 if (@ARGV && $ARGV[0] eq "-q") {
 	shift @ARGV;
@@ -29,6 +31,15 @@ $ENV{PERL5LIB} ||= "";
 $ENV{PERL5LIB} = "$libDir:$ENV{PERL5LIB}";
 # warn "PERL5LIB: $ENV{PERL5LIB}\n";
 chdir($testsDir) or die "ERROR: Could not chdir('$testsDir')\n";
+
+my $expectedDebug = ' PerlSetEnv RDF_PIPELINE_DEBUG $DEBUG_CHANGES ';
+my $expectedDebugPattern = quotemeta($expectedDebug);
+$expectedDebugPattern =~ s/\\ +/\\s*/g;		# Any number of spaces
+$expectedDebugPattern = "^$expectedDebugPattern\$";
+my $edCmd = "egrep -q '$expectedDebugPattern' $apacheConfig";
+warn "WARNING: \$RDF_PIPELINE_DEBUG may be set wrong in Apache config:
+$apacheConfig
+Expected to find line: $expectedDebug\n\n" if system($edCmd);
 
 my @tDirs = @ARGV;
 if (!@tDirs) {
