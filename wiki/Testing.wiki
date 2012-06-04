@@ -64,7 +64,7 @@ To run one test (or more) without using "make test":
     {{{
     run-test.perl [nnnn] ...
     }}}
-where nnnn is the test's numbered directory, and defaults to the highest numbered test if not specified.  The following directories are rewritten each time a test is run:
+where nnnn is the test's numbered directory, and defaults to the most recently added, run or accepted test if not specified.  The following directories are rewritten each time a test is run:
   * `$RDF_PIPELINE_WWW_DIR` -- Raw actual results; overwritten by _every_ test that is run.
   * `/tmp/rdfp/nnnn/actual-files` -- Raw actual results; overwritten each time this test (_nnnn_) is run.
   * `/tmp/rdfp/nnnn/actual-filtered` -- Actual results filtered through filter-actual.perl; overwritten each time this test (_nnnn_) is run.
@@ -96,7 +96,7 @@ If you need to update the expected-files for one or more tests (e.g., because a 
 {{{
   accept-test.perl [-s] [nnnn] ...
 }}}
-to delete the existing expected-files and copy the current actual-files to the expected-files.
+to delete the existing expected-files and copy the current actual-files to the expected-files.  If no test is specified then it defaults to the most recently added, run or updated test.
 
 The "`-s`" option tells accept-test.perl to add the test to subversion.
 
@@ -111,7 +111,7 @@ These scripts are run by run-test.perl on a copy of each of the expected and act
 In addition, when tests are run by run-test.perl, the concatenated diffs of all tests that it runs are written to /tmp/rdfp/diffs.txt, so that you can quickly view all differences (after filtering through filter-expected.perl and filter-actual.perl).
 
 = Deleting a test = 
-You can delete a test by deleting its directory, e.g., 0003, however:
+You can delete a test by deleting its directory, e.g., 0003, and its tmp directory in /tmp/rdfp/ .  However:
   * It is helpful to keep the test numbers consecutive, because the Perl test framework reports test failures by number (counting from the first test).  Therefore it is safe to delete the highest numbered test, but instead of deleting an earlier test it is better to make it a no-op by modifying its "test-script" to immediately "exit 0;", so that it will always pass.
   * If the directory has already been checked into subversion, then you will have to delete it through subversion, using an "svn rm DIR" command, where DIR is the directory relative to the subversion trunk.
 
