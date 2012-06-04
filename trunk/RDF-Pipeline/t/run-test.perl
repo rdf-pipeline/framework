@@ -9,7 +9,7 @@
 #  	./run-test.perl [-q] [nnnn] ...
 #
 # where nnnn is the numbered test directory you wish to run, defaulting
-# to the highest numbered test directory if none is specified.  
+# to the most recently run test directory ($currentTest) if none is specified.  
 #
 # Option:
 #	-q	Quiet.  Less verbose output.
@@ -27,6 +27,10 @@ my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
 my $moduleDir = "$devDir/RDF-Pipeline";
 my $testsDir = "$moduleDir/t/tests";
 my $libDir = "$moduleDir/lib";
+
+my $tmpRoot = "/tmp/rdfp";	# run-test.perl will put actual-files here
+my $currentTest = "$tmpRoot/currentTest";  # Name of most recently run test
+
 $ENV{PERL5LIB} ||= "";
 $ENV{PERL5LIB} = "$libDir:$ENV{PERL5LIB}";
 # warn "PERL5LIB: $ENV{PERL5LIB}\n";
@@ -42,10 +46,9 @@ $apacheConfig
 Expected to find line: $expectedDebug\n\n" if system($edCmd);
 
 my @tDirs = @ARGV;
-if (!@tDirs) {
-	@tDirs = sort grep { -d $_ } <0*>;
-	@tDirs or die "ERROR: No numbered test directories found in $testsDir\n";
-	@tDirs = ( $tDirs[@tDirs-1] );		# The last one.
+if (!@tDirs && -e $currentTest) {
+	@tDirs = map { chomp; $_ } grep { m/\S/; } `cat '$currentTest'`;
+	@tDirs or die "ERROR: no current test to run.  Please specify a test name.\n";
 	warn "Running $tDirs[0] ...\n";
 	}
 
@@ -62,6 +65,7 @@ foreach my $tDir (@tDirs) {
   $tDir =~ s|\/$||;
   warn "=================== $tDir ===================\n" if !$quietOption;
   !system("/bin/echo '===================' '$tDir' '===================' >> '$tmpDiff'") || die;
+  !system("echo '$tDir' > '$currentTest'") or die;
 
   my $testScript = "$tDir/test-script";
   if (!-e $testScript || !-x $testScript) {

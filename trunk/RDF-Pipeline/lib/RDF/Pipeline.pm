@@ -220,6 +220,7 @@ my $args = $r->args() || "";
 my %args = &ParseQueryString($args);
 $debug = $args{debug} if exists($args{debug});
 $debugStackDepth = $args{debugStackDepth} || 0;
+# warn("="x30 . " handler " . "="x30 . "\n");
 &Warn("="x30 . " handler " . "="x30 . "\n", $DEBUG_DETAILS);
 &Warn("" . `date`, $DEBUG_DETAILS);
 &Warn("SERVER_NAME: $ENV{SERVER_NAME}\n", $DEBUG_DETAILS);
@@ -695,6 +696,7 @@ my $thisHostRoot = $nm->{hash}->{$thisType}->{hostRoot}->{$baseUri} || $basePath
 $oldThisLM = "" if !&{$fExists}($state, $thisHostRoot);	# state got deleted?
 $thisIsStale = 1 if !$oldThisLM;
 my $thisUpdater = $thisVHash->{updater} || "";
+$thisUpdater or die "ERROR: Trying to freshen $thisUri but it has no updater!";
 # If it's fresh then there's nothing to do, except if there's no updater, 
 # in which case we have to generate an LM from static content.
 return $oldThisLM if $thisUpdater && !$thisIsStale;
@@ -981,6 +983,15 @@ foreach my $thisUri (@allNodes)
   my $thisName = $thisUri;
   $thisName = &{$fUriToNativeName}($thisUri, $baseUri, $thisHostRoot)
 	if $fUriToNativeName;
+  ### Default each Node to have an updater that is the node name
+  ### with an option file extension:
+  my $thisPath = &UriToPath($thisUri);
+  my $updaterFileExtensionsListRef = $nml->{$thisType}->{updaterFileExtensions}
+	|| [];
+  ####### TODO: Should this look for native names instead of file paths?
+  ####### E.g., java class name
+  $thisVHash->{updater} ||= &FindUpdater($thisPath, @{$updaterFileExtensionsListRef});
+  $thisVHash->{updater} or &Warn("WARNING: $thisUri has no updater!\n");
   $thisVHash->{state} ||= 
     $thisVHash->{updater} ? $defaultState : $thisName;
   $thisVHash->{serState} ||= 
@@ -1146,6 +1157,25 @@ $nml->{$thisUri}->{$predicate} = \@list;
 $nmh->{$thisUri}->{$predicate} = \%hhash;
 $nmm->{$thisUri}->{$predicate} = \%mhash;
 return;
+}
+
+################### FindUpdater ################### 
+# Use the updaterFileExtensions search list to find an updater file
+# based on the node path.  The node path itself is always checked first.
+# The file path of the first one that exists is returned.  Called: 
+#   &FindUpdater($thisPath, @{$updaterFileExtensionsListRef});
+# File extensions include the period: (".pl", ".sh")
+# The empty string is returned if no updater is found.
+sub FindUpdater
+{
+@_ >= 1 || die;
+my $thisPath = shift @_;
+my @updaterFileExtensions = ("", @_);
+foreach my $ext (@updaterFileExtensions) {
+  my $updaterPath = "$thisPath$ext";
+  return($updaterPath) if -e $updaterPath;
+  }
+return("");
 }
 
 ################### LazyUpdatePolicy ################### 
