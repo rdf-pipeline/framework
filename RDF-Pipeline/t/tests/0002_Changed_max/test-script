@@ -21,8 +21,8 @@ $ENV{RDF_PIPELINE_WWW_DIR} = $wwwDir;
 
 ############ CUSTOMIZE HERE ################
 # Change max to 9:
-!system("/bin/echo 9 > '$wwwDir/node/max'") or die;
-!system("/bin/echo 9 > 'setup-files/node/max'") or die;
+!system("cp 'setup-files/node/max9' '$wwwDir/node/max'") or die;
+!system("cp 'setup-files/node/max9' 'setup-files/node/max'") or die;
 
 # Wait at least 1 second to ensure that Apache will issue a strong ETag
 # instead of a weak ETag, as described at:

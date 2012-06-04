@@ -13,13 +13,9 @@ my $testsDir = "$moduleDir/t/tests";
 chdir($testsDir) or die "ERROR: Could not chdir('$testsDir')\n";
 
 my @testDirs = @ARGV;
-if (!@testDirs) {
-	@testDirs = sort grep { -d $_ } <0*>;
-	@testDirs or die "ERROR: No numbered test directories found in $testsDir
-\n";
-	@testDirs = ( $testDirs[@testDirs-1] );		# The last one.
-	warn "Using $testDirs[0] ...\n";
-	}
+# Do not default to the $currentTest, because normally it is the *next*
+# test that you want to update:
+die "ERROR: Test name required.\n" if !@testDirs;
 
 @testDirs == 1 or die "Usage: $0 [nnnn]
 where nnnn is the numbered test directory to be updated.\n";

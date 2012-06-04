@@ -10,6 +10,7 @@
 use strict;
 
 my $tmpRoot = "/tmp/rdfp";	# run-test.perl will put actual-files here
+my $currentTest = "$tmpRoot/currentTest";  # Name of most recently run test
 
 # my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
 my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
@@ -33,16 +34,14 @@ while (my $arg = shift @ARGV) {
 		}
 	}
 
-if (!@testDirs) {
-	my $maxDir = 0;
-	@testDirs = grep { -d $_ } <0*>;
-	@testDirs or die "ERROR: No test directories found in '$testsDir'\n";
-	@testDirs = ( $testDirs[@testDirs-1] );		# default to last one
+if (!@testDirs && -e $currentTest) {
+	@testDirs = map { chomp; $_ } grep { m/\S/; } `cat '$currentTest'`;
+	@testDirs or die "ERROR: no current test to accept.  Please specify a test name.\n";
 	warn "Accepting test $testDirs[0] ...\n";
 	}
 
 foreach my $dir (@testDirs) {
-
+	!system("echo '$dir' > '$currentTest'") or die;
 	my $tmpTDir = "$tmpRoot/$dir/actual-files";
 	-e $tmpTDir || die "ERROR: No actual-files to accept: $tmpTDir\n";
 
