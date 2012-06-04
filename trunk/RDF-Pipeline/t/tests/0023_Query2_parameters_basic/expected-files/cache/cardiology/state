@@ -1,4 +1,4 @@
-# Cardiology patient data
+# Cardiology patient data for id=(002|003|004)
 PROCESSED	Patient	id=002	name=Bob	dob=1950-12-21
 PROCESSED	Patient	id=003	name=Carol	dob=1944-06-12
 PROCESSED	Patient	id=004	name=Doug	dob=1949-08-27
