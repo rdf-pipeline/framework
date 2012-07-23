@@ -1,35 +1,31 @@
 #! /usr/bin/env ste.perl
 
+Copyright 2012 by David Booth <david@dbooth.org>
+See license info at http://code.google.com/p/rdf-pipeline/
+
 This is a sample template for testing and illustrating simple template
 expansion using ste.perl.  Try it using the following commands:
 
-  export QUERY_STRING='min=2&max=99&'
-  ste.perl sample-template.txt -t http://example/this -i http://example/in William Taffy -o http://example/out
+  export QUERY_STRING='min=2&max=99'
+  ste.perl sample-template.txt -t http://example/this -i http://example/in -i William -i Taffy -o http://example/out
 
 *******************************************************************
-************ Template variable names are listed below *************
+******************* Template begins below *************************
 *******************************************************************
 
-
-*******************************************************************
-*******  Below you can see the effect of template expansion *******
-*******************************************************************
-
-Inputs, outputs: 
-  inUri: http://example/in 
+Testing inputs, outputs:
+  inUri: http://example/in
   B_i_l_l: William  "William"  money@William.me
-  Taft: Taffy 
-Parameters (either from QUERY_STRING or from -p option):
+  Taft: Taffy
+Testing parameters (either from QUERY_STRING or from -p option):
   min: 2
   max: 99
-Environment examples: 
-  THIS_URI: http://example/this  
-  FOO: BAR
-QUERY_STRING: 
-  min=2&max=99&property=givenName
-
-Note that the following are NOT changed, because template expansion 
-will NOT break words, and it is case sensitive: 
-
+Testing environment variables:
+  THIS_URI: http://example/this
+  FOO: 
+Testing the QUERY_STRING:
+  min=2&max=99
+Note that the following are NOT changed, because template
+processing will NOT break words, and it is case sensitive:
   $inUriExtra  Billion  EmBill bill
 

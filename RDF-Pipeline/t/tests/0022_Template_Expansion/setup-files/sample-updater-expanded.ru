@@ -1,10 +1,13 @@
 #! /usr/bin/env ste.perl
 
+# Copyright 2012 by David Booth <david@dbooth.org>
+# See license info at: http://code.google.com/p/rdf-pipeline/
+
 # This is a sample updater written as a SPARQL template.
 # The template should be expanded as:
 #
 #  export QUERY_STRING='min=2&max=99&property=givenName'
-#  ste.perl sample-updater.rut -t http://example/this -i http://example/in William Taffy -o http://example/out > sample-updater-expanded.ru
+#  ste.perl sample-updater.rut -t http://example/this -i http://example/in -i William -i Taffy -o http://example/out > sample-updater-expanded.ru
 
 ##############################################################
 ########## Template variables are declared below #############
@@ -22,8 +25,11 @@ PREFIX foaf:  <http://xmlns.com/foaf/0.1/>
 # QUERY_STRING: min=2&max=99&property=givenName
 # These should be unchanged: $inUriExtra  Billion  EmBill 
 
-CREATE SILENT GRAPH <http://example/in>
-CREATE SILENT GRAPH <http://example/out>
+DROP SILENT GRAPH <http://example/in> ;
+DROP SILENT GRAPH <http://example/out> ;
+
+CREATE SILENT GRAPH <http://example/in> ;
+CREATE SILENT GRAPH <http://example/out> ;
 
 INSERT DATA {
   GRAPH <http://example/in> {
@@ -35,6 +41,7 @@ INSERT DATA {
 	<http://example/president42> foaf:familyName "Clinton" .
     }
   }
+;
 
 INSERT { 
   GRAPH <http://example/out> {
@@ -46,4 +53,5 @@ WHERE {
     ?s foaf:givenName ?v .
     }
   } 
+;
 

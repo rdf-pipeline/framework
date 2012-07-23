@@ -7,15 +7,15 @@
 # The template should be expanded as:
 #
 #  export QUERY_STRING='min=2&max=99&property=givenName'
-#  ste.perl sample-updater.rut -t http://example/this -i http://example/in William Taffy -o http://example/out > sample-updater-expanded.ru
+#  ste.perl sample-updater.rut -t http://example/this -i http://example/in -i William -i Taffy -o http://example/out > sample-updater-expanded.ru
 
 ##############################################################
 ########## Template variables are declared below #############
 ##############################################################
 
-#inputs ( $inUri Bill ${Taft} )	   	# Comment okay here
-#outputs ( $outUri )			
-#parameters ( $max $min $property )
+#inputs( $inUri Bill ${Taft} )	   	
+#outputs( $outUri )			
+#parameters( $max $min $property )
 
 ##############################################################
 ########## Results of expansion can be seen below ############
