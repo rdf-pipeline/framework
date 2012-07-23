@@ -55,7 +55,7 @@ use URI::Escape;
 ##################################################################
 
 unless (caller) {
-  print "This is the script being executed\n";
+  # print "This is the script being executed\n";
   &GetArgsAndProcessTemplate();
   exit 0;
 }
@@ -68,7 +68,7 @@ unless (caller) {
 ################### ScanAndAddInputs ####################
 # Called as: 
 # ($template, $pHash) = 
-#    &ScanAndAddInputs($template, $pValues, $pHash, $warningTemplate);
+#    &ScanAndAddInputs($template, $pValues, $pHash);
 sub ScanAndAddInputs
 {
 return &ScanAndAddToHash("inputs", @_);
@@ -77,7 +77,7 @@ return &ScanAndAddToHash("inputs", @_);
 ################### ScanAndAddOutputs ####################
 # Called as: 
 # ($template, $pHash) = 
-#    &ScanAndAddOutputs($template, $pValues, $pHash, $warningTemplate);
+#    &ScanAndAddOutputs($template, $pValues, $pHash);
 sub ScanAndAddOutputs
 {
 return &ScanAndAddToHash("outputs", @_);
@@ -93,12 +93,11 @@ sub ScanAndAddToHash
 {
 @_ <= 5 or confess "$0: ScanAndAddToHash called with too many arguments\n";
 @_ >= 3 or confess "$0: ScanAndAddToHash called with too few arguments\n";
-my ($keyword, $template, $pValues, $pHash, $warningTemplate) = @_;
+my ($keyword, $template, $pValues, $pHash) = @_;
 $pHash ||= {};
 my $pVars;
 ($template, $pVars) = &ScanForList($keyword, $template);
-# my $warningTemplate = "$0: Duplicate $keyword variable name: %s\n";
-&AddPairsToHash($pVars, $pValues, $pHash, $warningTemplate);
+&AddPairsToHash($pVars, $pValues, $pHash);
 return ($template, $pHash);
 }
 
@@ -110,9 +109,9 @@ return ($template, $pHash);
 # stripped from the variables, using &BaseVar($_).
 sub ScanAndAddParameters
 {
-@_ <= 4 or confess "$0: ScanAndAddParameters called with too many arguments\n";
+@_ <= 3 or confess "$0: ScanAndAddParameters called with too many arguments\n";
 @_ >= 1 or confess "$0: ScanAndAddParameters called with too few arguments\n";
-my ($template, $queryString, $pHash, $warningTemplate) = @_;
+my ($template, $queryString, $pHash) = @_;
 $pHash ||= {};
 $queryString ||= "";
 my $pVars;
@@ -123,10 +122,10 @@ my %pWanted = map
 	my $value = $qsHash->{&BaseVar($_)};
 	($_, defined($value) ? $value : "")
 	} @{$pVars};
+my $errorTemplate = "$0: ERROR: Duplicate template variable: %s\n";
 foreach my $var (@{$pVars}) {
-	# my $warningTemplate = "$0: Duplicate $keyword variable name: %s\n";
-	warn sprintf($warningTemplate, $var)
-		if $warningTemplate && exists($pHash->{$var});
+	die sprintf($errorTemplate, $var)
+		if $errorTemplate && exists($pHash->{$var});
 	$pHash->{$var} = $pWanted{$var};
 	}
 return ($template, $pHash);
@@ -135,7 +134,7 @@ return ($template, $pHash);
 ################### ScanForList ####################
 # Scan $template for a declared list of variable names, such as:
 #	#inputs ( $foo ${fum} )
-# which is removed from the returned $template.  Also returns a hashref 
+# which is removed from the returned $template.  Also returns a list ref 
 # of the variable names found in the declared list.
 # The given $keyword should normally be "inputs", "outputs" or "parameters",
 # but may be some other word.
@@ -148,14 +147,15 @@ defined($template) or confess "$0: ScanForList called with undefined template\n"
 my @inVars = ();
 # Given keyword "inputs", the pattern matches the first line like:
 #	#inputs ( $foo ${fum} )
-if ($template =~ s/^\#\s*$keyword\s*\(\s*([^\)]+?)\s*\)(.*)(\n|$)//m) {
+if ($template =~ s/^\#$keyword\s*\(\s*([^\(\)]+?)\s*\)(.*)(\n|$)//m) {
 	my $inList = $1;
 	my $extra = $2;
 	my $line = $&;
 	# warn "FOUND inList: ($inList) extra: ($extra) line: ($line)\n";
 	$extra =~ s/\A\s*//;
-	$extra =~ s/\A\#.*//;
-	warn "$0: WARNING: Extra text ignored after \#$keyword list: $extra\n" if $extra;
+	### Do not allow trailing comment:
+	### $extra =~ s/\A\#.*//;
+	die "$0: ERROR: Extra text after \#$keyword(...): $extra\n" if $extra;
 	push(@inVars, split(/\s+/, $inList));
 	}
 return ($template, \@inVars);
@@ -187,22 +187,21 @@ return $pEnvs;
 ################### AddPairsToHash #####################
 # Add pairs of corresponding values from the two arrayrefs to the
 # given hashref.  If no hashref is given, a new one will be created.
-# The hashref is returned.  If an optional warning string template is 
-# supplied then a warning will be generated if a duplicate key is seen.
-# E.g.:
-# $warningTemplate = "$0: AddPairsToHash called with duplicate variable name: %s\n";
+# The hashref is returned.  
+# An error will be generated if a duplicate key is seen.
 sub AddPairsToHash
 {
-my ($pVars, $pVals, $pRep, $warningTemplate) = @_;
+my ($pVars, $pVals, $pRep) = @_;
 $pRep ||= {};
 $pVars && $pVals or confess "$0: AddPairsToHash called with insufficient arguments\n";
 my $nVars = scalar(@{$pVars});
 my $nVals = scalar(@{$pVals});
-$nVars == $nVals or warn "$0: WARNING: $nVals values (@{$pVals}) provided for $nVars template variables (@{$pVars}) but\n";
+$nVars >= $nVals or die "$0: ERROR: $nVals values provided for $nVars template variables (@{$pVars})\n";
 
+my $errorTemplate = "$0: ERROR: duplicate template variable: %s\n";
 for (my $i=0; $i<@{$pVars}; $i++) {
-	warn sprintf($warningTemplate, ${$pVars}[$i])
-		if $warningTemplate && exists($pRep->{${$pVars}[$i]});
+	die sprintf($errorTemplate, ${$pVars}[$i])
+		if $errorTemplate && exists($pRep->{${$pVars}[$i]});
 	my $val = ${$pVals}[$i];
 	$val = "" if !defined($val);
 	$pRep->{${$pVars}[$i]} = $val;
@@ -222,7 +221,9 @@ sub ParseQueryString
 {
 my $qs = shift || "";
 my $hashref = shift || {};
-foreach ( split(/\&/, $qs) ) {
+# Per http://www.w3.org/TR/1999/REC-html401-19991224/appendix/notes.html#h-B.2.2
+# also allow semicolon to be treated as ampersand separator:
+foreach ( split(/[\&\;]/, $qs) ) {
         my ($var, $val) = split(/\=/, $_, 2);
         $val = "" if !defined($val);
 	$hashref->{uri_unescape($var)} = uri_unescape($val) if $var;
@@ -231,14 +232,17 @@ return $hashref;
 }
 
 ################# BaseVar ####################
-# Given a string like '${fum}' (representing a declared variable), 
+# Given a string like '${foo}' (representing a declared variable), 
 # return a new string with the delimiters stripped off: 'fum'.
+# This is for variables that are used as query string parameters,
+# such as: http://example/whatever?foo=bar
+# For simplicity, variable names must match \w+ .
 sub BaseVar
 {
-my $dv = shift or confess "Bad args";	# ${fum}   -- declared variable
-$dv =~ s/\A\W+//i; 	# fum}
-$dv =~ s/\W+\Z//i; 	# fum
-return $dv;
+my $dv = shift or confess "Bad args";
+$dv =~ m/^\W*(\w+)\W*$/ or confess "$0: Bad template variable in #parameters(...): $dv\n";
+my $baseVar = $1;
+return $baseVar;
 }
 
 ################### ExpandTemplate ####################
@@ -274,12 +278,11 @@ return $template;
 # value of $ENV{THIS_URI} regardless of what was set in the environment.
 # $pInputs and $pOutputs are array references supplying values
 # for declared "#inputs" and "#outputs".
-# The function warns of duplicate declared variables if $warningTemplate
-# is supplied.
+# The function dies if duplicate declared variables are detected.
 sub ProcessTemplate
 {
 @_ >= 1 && @_ <= 6 or confess "Bad args";
-my ($template, $pInputs, $pOutputs, $queryString, $warningTemplate, $thisUri) = @_;
+my ($template, $pInputs, $pOutputs, $queryString, $thisUri) = @_;
 defined($template) or confess "Bad args";
 $pInputs ||= {};
 $pOutputs ||= {};
@@ -289,13 +292,12 @@ my $pRep = &ScanAndAddEnvs($template);
 # $thisUri (if set) takes precedence:
 $pRep->{'$ENV{THIS_URI}'} = $thisUri if defined($thisUri);
 # Scan for input, output and parameter vars and add them:
-# my $warningTemplate = "$0: Duplicate $keyword variable name: %s\n";
 ($template, $pRep) = 
-	&ScanAndAddInputs($template, $pInputs, $pRep, $warningTemplate);
+	&ScanAndAddInputs($template, $pInputs, $pRep);
 ($template, $pRep) = 
-	&ScanAndAddOutputs($template, $pOutputs, $pRep, $warningTemplate);
+	&ScanAndAddOutputs($template, $pOutputs, $pRep);
 ($template, $pRep) = 
-	&ScanAndAddParameters($template, $queryString, $pRep, $warningTemplate);
+	&ScanAndAddParameters($template, $queryString, $pRep);
 # Expand the template and we're done:
 my $result = &ExpandTemplate($template, $pRep);
 return $result;
@@ -304,36 +306,29 @@ return $result;
 ################### GetArgsAndProcessTemplate ###################
 sub GetArgsAndProcessTemplate 
 {
-my %args = map {($_,[])} qw(file in out param this);
-my $argType = "file";
-my @files = ();
-my $gotParam = 0;
-while (@ARGV) {
-	my $arg = shift @ARGV;
-	if ($arg eq "-i") { $argType = "in"; }
-	elsif ($arg eq "-o") { $argType = "out"; }
-	elsif ($arg eq "-p") { $argType = "param"; $gotParam = 1; }
-	elsif ($arg eq "-t") { $argType = "this"; }
-	elsif ($arg =~ m/\A\-/) { &Usage("$0: Unknown argument: $arg\n"); }
-	else	{
-		push(@{$args{$argType}}, $arg);
-		}
-	}
-my @ins = @{$args{"in"}};
-my @outs = @{$args{"out"}};
-my $params = $gotParam ? join("&", @{$args{"param"}}) : $ENV{QUERY_STRING};
-$params ||= "";
-my @this = @{$args{"this"}};
-die "$0: ERROR: Too many values given with -t option: @this\n" if @this > 1;
-my $thisUri = shift @this;	# Okay if it's undef
-@ARGV = @{$args{"file"}};
+my @ins = ();
+my @outs = ();
+my @params = ();
+my $thisUri = undef;
+use Getopt::Long;
+GetOptions(	
+		"inputs|i=s" => \@ins,
+		"outputs|o=s" => \@outs,
+		"parameters|p=s" => \@params,
+		"thisUri|t=s" => \$thisUri,
+                ) or die "$0: Error reading options.\n";
+$ENV{QUERY_STRING} = join("&", map { s/^[&;]+//; s/[&;]+$//; $_} @params)
+	if @params;
+my $params = $ENV{QUERY_STRING} || "";
+$ENV{THIS_URI} = $thisUri if defined($thisUri);
+$thisUri = $ENV{THIS_URI} || "";
+
 my $template = join("", <>);
 
 # warn "ins: @ins\n";
 # warn "outs: @outs\n";
 
-my $warningTemplate = "$0: WARNING: Duplicate template variable declared: %s\n";
-my $result = &ProcessTemplate($template, \@ins, \@outs, $params, $warningTemplate, $thisUri);
+my $result = &ProcessTemplate($template, \@ins, \@outs, $params, $thisUri);
 
 # Output the result:
 print $result;
@@ -387,93 +382,126 @@ RDF::Pipeline::Template - Perl extension for very simple template substitution.
 
 =head1 SYNOPSIS
 
-From the command line (ste.perl merely calls &GetArgsAndProcessTemplate):
+From the command line:
 
-  ste.perl [template] [ -i iVal1 ...] [ -o oVal1 ...] [ -p pVar1=pVal1 ...]
+  ste.perl [options...] [template] 
 
-For use as a module, from within perl:
+with typical options (explained more fully below):
+ -i iVal1 	Provide #inputs value iVal1
+ -o oVal1 	Provide #outputs value oVal1
+ -p pVar1=pVal1 Set QUERY_STRING to pVar1=pVal1
+
+Or for use as a module, by a perl program:
 
   use RDF::Pipeline::Template qw( :all );
-  my $result = &ProcessTemplate($template, \@ins, \@outs, $queryString, $warningTemplate, $thisUri);
+  my $result = &ProcessTemplate($template, \@ins, \@outs, 
+		$queryString, $thisUri);
 
 =head1 DESCRIPTION
 
 This page documents both the RDF::Pipeline::Template module and
 ste.perl, which is a tiny shell script that merely invokes
-&RDF::Pipeline::Template::GetArgsAndProcessTemplate.
+the module.
 
 This module provides a very simple template substitution facility.
 It was intended primarily for writing SPARQL query templates for use
 in the context of the RDF Pipeline Framework, but can be used for other
-things.  
+things.  It knows nothing about SPARQL syntax.
 
-Template expansion involves replacing template variables with their
-values.  No other features are provided.  Template variables include
+Template processing involves replacing template variables with 
+values, which may be arbitrary strings.  No looping, conditional or
+other features are provided.  Template variables include
 those that are declared explicitly, as described next, and environment
-variables.
+variables, described later.
 
 =head2 Declaring Template Variables
 
-Template variables may be declared using lines like this:
+Template variables are declared within a template using lines like this:
 
   #inputs ( iVar1 iVar2 ... iVarN )
   #outputs ( oVar1 oVar2 ... oVarN )
   #parameters ( pVar1 pVar2 ... pVarN )
 
 This declares variables iVar1 ... iVarN, oVar1 ... oVarN and pVar1 ... pVarN
-for use elsewhere in the template.
-It does not supply values for these variables; that is a separate step.
-
-The hash (#) MUST be the first character of the line.  Each of these
+for use within the template.  Values may be provided when the template is
+processed, as explained later.
+Each of these
 lines is optional and is removed when the template is processed.
 
-There is no difference in the way #input, #output and #parameter variables
-are processed when a template is expanded -- they all cause values
-to be substituted for the variable names when the template is expanded.
-However, they differ in their purpose, the ways you can set them,
-and their syntax.
+The hash (#) MUST be the first character of the line.  Whitespace is
+required between variable names, and is 
+optional around the parentheses.
+Variable names specified in #inputs or #outputs can use any syntax 
+except whitespace or parentheses, i.e., they must
+match the following Perl regular expression
+(where \s is any whitespace):
 
-Variable names listed as #inputs or #outputs 
-are intended to be used for a node's inputs or outputs (respectively)
-in the RDF Pipeline Framework, but you don't have to use them this way.
-They can use any syntax except whitespace or parentheses:
-they are not required to start or end with special characters.
-However, common variable syntax conventions like $max or ${max} are a 
-good idea for readability.  On the other hand, you could use a
-string like <http://example/var#> as a variable name, which would
-give you the effect of replacing that string throughout your template.
+  [^()\s]+
 
-Variable syntax is more restrictive for #parameters variables,
-because of the way they are set: each #parameters variable 
-should be a word starting with a dollar sign (such as $max).  
-Otherwise you won't be able to supply values for them.
+However, common variable syntax conventions like $foo , ${foo} or %foo% are a 
+good idea for both safety and readability.   On the other hand, you could use a
+string like http://example/var# as a variable name, which would
+give you the effect of replacing that string throughout your template
+when the template is processed.
+
+The #inputs and #outputs directives have exactly the same function unless
+you are using the RDF Pipeline Framework, in which case #inputs is
+used to specify a node's inputs and #outputs specifies its outputs.
+
+The syntax of #parameters variables is further restricted because of
+the way they are set (via query string parameters, as described
+below).  #parameters variables must be composed of "word" characters, 
+optionally surrounded by non-"word" characters, i.e., they must match the
+following Perl regular expression 
+(where \w means [0-9a-zA-Z_]):
+
+  [^()\s\w]*\w+[^()\s\w]*
+
+The non-word characters are ignored when looking for the corresponding
+query string variable, as further described below, so ${foo} and %foo% 
+both correspond to query string variable foo.
 
 =head2 Value Substitution
 
 When a template is processed, values are substituted for all #inputs,
-#outputs, #parameters and environment variables (per the syntax
-described below).  If a value is not supplied
+#outputs, #parameters and environment variables
+that appear in the template, as described below.  If a value is not supplied
 for a variable, then the empty string is silently substituted.
 
 The template processor has no idea what you are
-intending to generate, and values be any text 
+intending to generate, and values may be any text 
 (limited in size only by memory),
-so for the most part
-this is a simple, blind, textual substitution.
-
-This means that if you are using this template system to generate 
+so for the most part this is blind text substitution.
+Hence, if you are using this template system to generate 
 queries, commands, HTML or
 anything else that could be dangerous if inappropriate text were
-injected, then you had better be careful to scrub your values
+injected, then you should be careful to scrub your values
 before invoking this template processor.
+
+Also, although bare words (or numbers!) are allowed as 
+variable names, they are usually not a good idea, because it is too easy
+to make a mistake like writing the following:
+
+  #inputs( givenName )
+  SELECT *
+  WHERE { ?name foaf:givenName "givenName" }
+
+which, when givenName has the value "Bill", will silently become:
+
+  SELECT *
+  WHERE { ?name foaf:Bill "Bill" }
+
+which is probably NOT what you intended.
 
 There is one small exception to this blind substitution:
 the template processor will not break a word in the template.  
 This means that you
 can safely use a variable name like $f without fear that it will be 
 substituted into template text containing the string $fred.  
-Specifically, a variable beginning or ending with a "word" character
-(alphanumeric plus "_") will have \b prepended or appended (or both) to
+Specifically, a variable beginning or ending with a Perl "word" character
+[a-zA-Z0-9_] will have the Perl regular expression assertion \b (see
+http://perldoc.perl.org/perlre.html#Assertions )
+prepended or appended (or both) to
 the substitution pattern, thus forcing the match to
 only occur on a word boundary.
 Template processing can, however, cause words to be joined together.
@@ -487,35 +515,45 @@ of template variable it is.
 
 =over
 
-=item #input or #output variables
+=item #inputs or #outputs variables
 
-Input or output variables are set using the -i or -o command-line options, 
+Any #inputs or #outputs variables are set using the -i or -o command-line options, 
 respectively, or passed in array references if you are calling
-&ProcessTemplate directly from Perl.
+&ProcessTemplate directly from Perl.  Values are supplied positionally: the 
+value specified by the nth -i option (or -o option) is bound to the nth
+#inputs (or #outputs) variable, respectively.
 
-=item #parameter variables
+=item #parameters variables
 
-Parameter variables by default are set through the $QUERY_STRING environment
-variable, which provides an ampersand-delimited list of variable=value pairs.
-However, an implied dollar sign ($) is prepended to each variable 
-before performing the template substitution.  In other words, parameters $min
-and $max that are declared in a template as
+By default #parameters variables are set through the $QUERY_STRING environment
+variable, which is assumed to provide an ampersand-delimited list of 
+key=value pairs.
+Per http://www.w3.org/TR/1999/REC-html401-19991224/appendix/notes.html#h-B.2.2
+a semicolon can also be used as a delimiter instead of ampersand.
+Both keys and values are URI decoded during template processing, i.e.,
+any %-encodings are decoded.
 
-  #parameters ( $min $max )
+Non-word characters (i.e., [^a-zA-Z0-9_]) in a #parameters variable 
+are ignored when looking
+up the corresponding key in the $QUERY_STRING.  For example,
+parameters $min and ${max} that are declared in a template as:
 
-and used as
+  #parameters ( $min ${max} )
+  . . . 
+  FILTER( ?n >= $min && ?n <= ${max} )
 
-  The minimum is $min and the maximum is $max.
+correspond to keys min and max in a $QUERY_STRING such as min=2&max=99 ,
+yielding the following result:
 
-correspond to min and max in a $QUERY_STRING such as min=2&max=99 .
+  . . . 
+  FILTER( ?n >= 2 && ?n <= 99 )
 
 Parameter variables may also be set via the -p command-line option, 
-which overrides the values in $QUERY_STRING, and uses the
-exact same variable=value pair syntax.
+which sets the QUERY_STRING environment variable (explained below).
 
 If you are calling &ProcessTemplate directly from Perl, then parameter
 values are supplied in a $queryString argument as a string, which has the exact
-same syntax as the $QUERY_STRING environment variable.
+same syntax as the $QUERY_STRING.
 
 If you specify the same variable name twice, such as in min=2&max=99&min=5 , 
 the earlier value will be silently ignored, so $min will be 5.
@@ -524,15 +562,15 @@ the earlier value will be silently ignored, so $min will be 5.
 
 =head2 ACCESSING ENVIRONMENT VARIABLES
 
-In addition to any input, output or parameters that you have declared
-explicitly as described above, the template expander processes 
-certain variables that can be set from the environment:
+In addition to any #inputs, #outputs or #parameters variables that you 
+declare explicitly as described above, a template can access the values
+of environment variables, using a fixed syntax.
 
 =over
 
 =item $ENV{VAR}
 
-For any environment variable $VAR, $ENV{VAR} Will be replaced with 
+For any environment variable $VAR, $ENV{VAR} will be replaced with 
 the value of the $VAR environment variable (if set)
 or the empty string (if unset).
 
@@ -543,8 +581,7 @@ will be replaced with the value of the $QUERY_STRING environment variable
 (if set) or the empty string (if unset).   This is useful if you need
 access to the raw $QUERY_STRING.  Normally it is not needed, 
 because #parameters variables are set from the $QUERY_STRING environment
-variable, so they are usually
-more convenient.  See the -p option of ste.perl.
+variable.  See the -p option of ste.perl.
 
 =item $ENV{THIS_URI}
 
@@ -556,62 +593,49 @@ will be replaced with the value of the $THIS_URI environment variable
 
 =head2 EXAMPLE
 
-Here is a complete template example:
+Here is a complete template example, sample-template.txt, that illustrates
+the features:
 
-  Template variable names are listed here:
-
-  #inputs ( $inUri Bill ${Taft} )               # Comment okay here
+  #inputs ( $inUri Bill ${Taft} )     
   #outputs ( $outUri )
   #parameters ( $max $min )
-
-  Below you can see the effect of template expansion:
-
-  Inputs, outputs:
+  Testing inputs, outputs:
     inUri: $inUri
     B_i_l_l: Bill  "Bill"  money@Bill.me
     Taft: ${Taft}
-  Parameters (either from QUERY_STRING or from -p option):
+  Testing parameters (either from QUERY_STRING or from -p option):
     min: $min
     max: $max
-  Environment examples:
+  Testing environment variables:
     THIS_URI: $ENV{THIS_URI}
     FOO: $ENV{FOO}
-  QUERY_STRING:
+  Testing the QUERY_STRING:
     $ENV{QUERY_STRING}
-
-  Note that the following are NOT changed, because template expansion
-  will NOT break words, and it is case sensitive:
-
+  Note that the following are NOT changed, because template 
+  processing will NOT break words, and it is case sensitive:
     $inUriExtra  Billion  EmBill bill
 
-If this template is expanded using the following shell commands:
+If this template is processed using the following shell commands:
 
   export QUERY_STRING='min=2&max=99'
-  ./ste.perl sample-template.txt -t http://example/this -i http://example/in William Taffy -o http://example/out
+  ./ste.perl sample-template.txt -t http://example/this -i http://example/in -i William -i Taffy -o http://example/out
 
 then the following result will be written to STDOUT:
 
-  Template variable names are listed here:
-
-
-  Below you can see the effect of template expansion:
-
-  Inputs, outputs:
+  Testing inputs, outputs:
     inUri: http://example/in
     B_i_l_l: William  "William"  money@William.me
     Taft: Taffy
-  Parameters (either from QUERY_STRING or from -p option):
+  Testing parameters (either from QUERY_STRING or from -p option):
     min: 2
     max: 99
-  Environment examples:
+  Testing environment variables:
     THIS_URI: http://example/this
-    FOO: BAR
-  QUERY_STRING:
+    FOO:
+  Testing the QUERY_STRING:
     min=2&max=99
-
-  Note that the following are NOT changed, because template expansion
-  will NOT break words, and it is case sensitive:
-
+  Note that the following are NOT changed, because template
+  processing will NOT break words, and it is case sensitive:
     $inUriExtra  Billion  EmBill bill
 
 =head2 EXPORT
@@ -620,48 +644,53 @@ None by default.
 
 =head1 COMMAND LINE OPTIONS
 
-When this module is used from the command line (as ste.perl, which
-simply calls &GetArgsAndProcessTemplate), it has the following options:
-
-  ste.perl [template] [ -i iVal1 ...] [ -o oVal1 ...] [ -p pVar1=pVal1 ...]
+When this module is run from the command line (as ste.perl) 
+it has the following options:
 
 =over
 
-=item  -i iVal1 ...
+=item  -i iValueN
 
-Values to be substituted into variables specified
-by "#inputs ( $iVar1 ... )" line in template.
+Provides a value for an #inputs variable.
+This option should be repeated once for each variable
+in the #inputs list: the nth -i option supplies
+the value for the nth #inputs variable.
+For example, given two variables $x and $y:
 
-=item  -o oVal1 ...
+  #inputs( $x $y )
 
-Values to be substituted into variables specified
-by "#outputs ( $oVar1 ... )" line in template.
+to set $x to 5 and $y to 10, the -i option should be used twice:
 
-=item  -p pVar1=pVal1 ...
+  ste.perl -i 5 -i 10
 
-URI encoded variable/value pairs to be substituted
-into variables specified by "#parameters( $pVar1 ... )"
-line in template.  Both variables and
-values will be uri_unescaped before use.  Multiple
-variable/value pairs may be specified together using
-"&" as separator: foo=bar&fum=bah&foe=bif .  If -p
-option is not used, then URI-encoded variable/value
+=item  -o iValueN 
+
+Like the -i option, but for #outputs variables.
+
+=item  -p pVar1=pVal1&pVar2=pVal2 ...
+
+Sets the QUERY_STRING environment variable to provide
+URI encoded key/value pairs to be substituted
+into variables specified by the "#parameters( $pVar1 $pVar2 ... )"
+line in template.  Both keys and
+values will be uri_unescaped before variable substitution.  Multiple
+key=value pairs may be specified together using
+"&" or ";" as separator, such as: foo=bar&fum=bah&foe=bif .  
+If the -p option is not used, then URI-encoded variable/value
 pairs will be taken from the QUERY_STRING environment
-variable, which is ignored if -p is used.
+variable.
+This option may be repeated, in which case the given key=value
+pairs will be concatenated into a single $QUERY_STRING,
+with ampersand as a separator. 
+Variable order is not significant unless the same
+variable appears more than once in $QUERY_STRING, 
+in which case the last value is silently used.
 
-At present, the -p option does not actually set the $ENV{QUERY_STRING} 
-variable: $ENV{QUERY_STRING} always gives the value
-of the $QUERY_STRING environment variable, regardless of whether
-the -p option was used.  
-This is inconsistent with the -t option, which does set
-the value of $ENV{THIS_URI}.
-I don't know if this is a bug or not.  :)
+=item  -t thisUri
 
-item  -t thisUri
-
-Causes thisUri to be substituted for $ENV{THIS_URI}
-in template, overriding whatever value was set in
-the environment.
+Sets the THIS_URI environment variable to thisUri,
+which causes thisUri to be substituted for $ENV{THIS_URI}
+in template.
 
 =back
 
@@ -671,7 +700,7 @@ RDF Pipeline Framework: http://code.google.com/p/rdf-pipeline/
 
 =head1 AUTHOR
 
-David Booth <lt>david@dbooth.org<gt>
+David Booth <david@dbooth.org>
 
 =head1 COPYRIGHT AND LICENSE
 
