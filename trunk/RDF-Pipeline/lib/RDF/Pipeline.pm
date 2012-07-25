@@ -121,7 +121,7 @@ my $rdfsPrefix = "http://www.w3.org/2000/01/rdf-schema#";
 # my $subClassOf = $rdfsPrefix . "subClassOf";
 my $subClassOf = "rdfs:subClassOf";
 
-my $configFile = "$nodeBasePath/pipeline.n3";
+my $configFile = "$nodeBasePath/pipeline.ttl";
 my $ontFile = "$basePath/ont/ont.n3";
 my $internalsFile = "$basePath/ont/internals.n3";
 
