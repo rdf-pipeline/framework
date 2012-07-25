@@ -20,9 +20,9 @@ my $wwwDir = shift @ARGV || $ENV{RDF_PIPELINE_WWW_DIR} || die;
 $ENV{RDF_PIPELINE_WWW_DIR} = $wwwDir;	
 
 ############ CUSTOMIZE HERE ################
-# Force pipeline.n3 to be reloaded, so that the nodeType FILE error 
+# Force pipeline.ttl to be reloaded, so that the nodeType FILE error 
 # will show up predictably and immediately:
-my $pipeline = "$wwwDir/node/pipeline.n3";
+my $pipeline = "$wwwDir/node/pipeline.ttl";
 -e $pipeline or die;
 !system("touch '$pipeline'") or die;
 # Invoke the URL, concatenating its output to $wwwDir/test/testout :
