@@ -136,6 +136,9 @@ my @systemArgs = qw(debug debugStackDepth callerUri callerLM method);
 my $configLastModified = 0;
 my $ontLastModified = 0;
 my $internalsLastModified = 0;
+my $configLastInode = 0;
+my $ontLastInode = 0;
+my $internalsLastInode = 0;
 
 my $logFile = "/tmp/rdf-pipeline-log.txt";
 # unlink $logFile || die;
@@ -273,12 +276,18 @@ foreach my $k (sort keys %args) {
 	}
 
 # Reload config file?
-my $cmtime = &MTime($configFile) || die "ERROR: File not found: $configFile\n";
-my $omtime = &MTime($ontFile) || die "ERROR: File not found: $ontFile\n";
-my $imtime = &MTime($internalsFile) || die "ERROR: File not found: $internalsFile\n";
+my ($cmtime, $cinode) = &MTimeAndInode($configFile);
+my ($omtime, $oinode) = &MTimeAndInode($ontFile);
+my ($imtime, $iinode) = &MTimeAndInode($internalsFile);
+$cmtime || die "ERROR: File not found: $configFile\n";
+$omtime || die "ERROR: File not found: $ontFile\n";
+$imtime || die "ERROR: File not found: $internalsFile\n";
 if ($configLastModified != $cmtime
 		|| $ontLastModified != $omtime
-		|| $internalsLastModified != $imtime) {
+		|| $internalsLastModified != $imtime
+		|| $configLastInode != $cinode
+		|| $ontLastInode != $oinode
+		|| $internalsLastInode != $iinode) {
 	# Initialize node metadata:
 	$nm = {"value"=>{}, "list"=>{}, "hash"=>{}, "multi"=>{}};
 	&RegisterWrappers($nm);
@@ -289,6 +298,9 @@ if ($configLastModified != $cmtime
 	$configLastModified = $cmtime;
 	$ontLastModified = $omtime;
 	$internalsLastModified = $imtime;
+	$configLastInode = $cinode;
+	$ontLastInode = $oinode;
+	$internalsLastInode = $iinode;
 	if (1) {
 		%config = &CheatLoadN3($ontFile, $configFile);
 		%configValues = map { 
@@ -1698,9 +1710,9 @@ close $fh;	# Release flock
 return &TimeToLM($newTime, $counter);
 }
 
-############# MTime ##############
-# Return the $mtime (modification time) of a file.
-sub MTime
+############# MTimeAndInode ##############
+# Return the $mtime (modification time) and inode of a file.
+sub MTimeAndInode
 {
 @_ == 1 || die;
 my $f = shift;
@@ -1713,7 +1725,14 @@ my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
 	= ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
 	      $atime,$mtime,$ctime,$blksize,$blocks);
 # warn "MTime($f): $mtime\n";
-return $mtime;
+return ($mtime, $ino);
+}
+
+############# MTime ##############
+# Return the $mtime (modification time) of a file.
+sub MTime
+{
+return (&MTimeAndInode(@_))[0];
 }
 
 ############## QuickName ##############
