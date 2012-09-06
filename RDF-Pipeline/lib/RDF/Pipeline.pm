@@ -29,7 +29,82 @@ our @ISA = qw(Exporter);
 # If you do not need this, moving things directly into @EXPORT or @EXPORT_OK
 # will save memory.
 our %EXPORT_TAGS = ( 'all' => [ qw(
-) ] );
+	FilterArgs
+	ForeignSendHttpRequest
+	DeserializeToLocalCache
+	HandleHttpEvent
+	FreshenSerState
+	UpdateQueries
+	KeySubset
+	SameKeys
+	FreshenState
+	Notify
+	RequestLatestDependsOns
+	LoadNodeMetadata
+	PresetGenericDefaults
+	MakeValuesAbsoluteUris 
+	FindUpdater
+	LazyUpdatePolicy
+	LeafClasses
+	BuildQueryString
+	ParseQueryString
+	CheatLoadN3
+	WriteFile
+	ReadFile
+	NameToLmFile
+	SaveLMs
+	LookupLMs
+	SaveLMHeaders
+	LookupLMHeaders
+	FileExists
+	RegisterWrappers
+	FileNodeRegister
+	FileNodeRunParametersFilter
+	LatestRunParametersFilter 
+	FileNodeRunUpdater
+	GenerateNewLM
+	MTimeAndInode
+	MTime
+	QuickName
+	NodeAbsUri
+	AbsUri
+	UriToPath
+	NodeAbsPath
+	AbsPath
+	PathToUri
+	PrintLog
+	Warn
+	MakeParentDirs
+	IsSameServer
+	IsSameType
+	FormatTime
+	FormatCounter
+	TimeToLM
+	LMToHeaders
+	HeadersToLM
+	PrintNodeMetadata
+
+	$DEBUG_DETAILS
+
+	$pipelinePrefix
+	$baseUri
+	$baseUriPattern
+	$basePath
+	$basePathPattern
+	$nodeBaseUri
+	$nodeBaseUriPattern
+	$nodeBasePath
+	$nodeBasePathPattern
+	$lmCounterFile
+	$rdfsPrefix
+	$subClassOf
+	$configFile
+	$ontFile
+	$internalsFile
+	$URI
+	$FILE
+
+	) ] );
 
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
@@ -81,66 +156,68 @@ use WWW::Mechanize;
 ################## Node Types ###################
 # use lib qw( /home/dbooth/rdf-pipeline/trunk/RDF-Pipeline/lib );
 use RDF::Pipeline::ExampleHtmlNode;
+use RDF::Pipeline::GraphNode;
 
 ##################  Debugging and testing ##################
 # $debug verbosity:
-my $DEBUG_OFF = 0;	# No debug output.  Warnings/errors only.
-my $DEBUG_NODE_UPDATES = 1; 	# Show nodes updated.
-my $DEBUG_PARAM_UPDATES = 2; 	# Also show parameters updated.
-my $DEBUG_CACHES = 3; 	# Also show caches updated.
-my $DEBUG_CHANGES = 4; 	# Also show them unchanged.  This verbosity is normally used for regression testing.
-my $DEBUG_REQUESTS = 5;	# Also show requests.
-my $DEBUG_DETAILS = 6;	# Show requests plus more detail.
+our $DEBUG_OFF = 0;	# No debug output.  Warnings/errors only.
+our $DEBUG_NODE_UPDATES = 1; 	# Show nodes updated.
+our $DEBUG_PARAM_UPDATES = 2; 	# Also show parameters updated.
+our $DEBUG_CACHES = 3; 	# Also show caches updated.
+our $DEBUG_CHANGES = 4; 	# Also show them unchanged.  This verbosity is normally used for regression testing.
+our $DEBUG_REQUESTS = 5;	# Also show requests.
+our $DEBUG_DETAILS = 6;	# Show requests plus more detail.
 
 # $debug level is set using a PerlSetEnv directive in 
 # the apache2 config file:
-my $debug = $ENV{RDF_PIPELINE_DEBUG};
+our $debug = $ENV{RDF_PIPELINE_DEBUG};
 $debug = eval $debug if defined($debug); # Allows symbolic value
 $debug = $DEBUG_CHANGES if !defined($debug);
 
-my $debugStackDepth = 0;	# Used for indenting debug messages.
+our $debugStackDepth = 0;	# Used for indenting debug messages.
 
-my $test;
+our $test;
 
 ##################  Constants for this server  ##################
-my $pipelinePrefix = "http://purl.org/pipeline/ont#";	# Pipeline ont prefix
+our $pipelinePrefix = "http://purl.org/pipeline/ont#";	# Pipeline ont prefix
 $ENV{DOCUMENT_ROOT} ||= "/home/dbooth/rdf-pipeline/trunk/www";	# Set if not set
 ### TODO: Set $baseUri properly.  Needs port?
 $ENV{SERVER_NAME} ||= "localhost";
 # $baseUri is the URI prefix that corresponds directly to DOCUMENT_ROOT.
-my $baseUri = "http://$ENV{SERVER_NAME}";  # TODO: Should become "scope"?
-my $baseUriPattern = quotemeta($baseUri);
-my $basePath = $ENV{DOCUMENT_ROOT};	# Synonym, for convenience
-my $basePathPattern = quotemeta($basePath);
-my $nodeBaseUri = "$baseUri/node";	# Base for nodes
-my $nodeBaseUriPattern = quotemeta($nodeBaseUri);
-my $nodeBasePath = "$basePath/node";
-my $nodeBasePathPattern = quotemeta($nodeBasePath);
-my $lmCounterFile = "$basePath/lm/lmCounter.txt";
-my $rdfsPrefix = "http://www.w3.org/2000/01/rdf-schema#";
-# my $subClassOf = $rdfsPrefix . "subClassOf";
-my $subClassOf = "rdfs:subClassOf";
+our $baseUri = "http://$ENV{SERVER_NAME}";  # TODO: Should become "scope"?
+our $baseUriPattern = quotemeta($baseUri);
+our $basePath = $ENV{DOCUMENT_ROOT};	# Synonym, for convenience
+our $basePathPattern = quotemeta($basePath);
+our $nodeBaseUri = "$baseUri/node";	# Base for nodes
+our $nodeBaseUriPattern = quotemeta($nodeBaseUri);
+our $nodeBasePath = "$basePath/node";
+our $nodeBasePathPattern = quotemeta($nodeBasePath);
+our $lmCounterFile = "$basePath/lm/lmCounter.txt";
+our $rdfsPrefix = "http://www.w3.org/2000/01/rdf-schema#";
+# our $subClassOf = $rdfsPrefix . "subClassOf";
+our $subClassOf = "rdfs:subClassOf";
 
-my $configFile = "$nodeBasePath/pipeline.ttl";
-my $ontFile = "$basePath/ont/ont.n3";
-my $internalsFile = "$basePath/ont/internals.n3";
+our $configFile = "$nodeBasePath/pipeline.ttl";
+our $ontFile = "$basePath/ont/ont.n3";
+our $internalsFile = "$basePath/ont/internals.n3";
 
 #### $nameType constants used by SaveLMs/LookupLMs:
-my $URI = 'URI';
-my $FILE = 'FILE';
+#### TODO: Change to "use Const".
+our $URI = 'URI';
+our $FILE = 'FILE';
 
-my @systemArgs = qw(debug debugStackDepth callerUri callerLM method);
+our @systemArgs = qw(debug debugStackDepth callerUri callerLM method);
 
 ################### Runtime data ####################
 
-my $configLastModified = 0;
-my $ontLastModified = 0;
-my $internalsLastModified = 0;
-my $configLastInode = 0;
-my $ontLastInode = 0;
-my $internalsLastInode = 0;
+our $configLastModified = 0;
+our $ontLastModified = 0;
+our $internalsLastModified = 0;
+our $configLastInode = 0;
+our $ontLastInode = 0;
+our $internalsLastInode = 0;
 
-my $logFile = "/tmp/rdf-pipeline-log.txt";
+our $logFile = "/tmp/rdf-pipeline-log.txt";
 # unlink $logFile || die;
 
 my %config = ();		# Maps: "?s ?p" --> "v1 v2 ... vn"
@@ -699,7 +776,7 @@ my $policySaysFreshen =
 	&{$fUpdatePolicy}($nm, $method, $thisUri, $callerUri, $callerLM);
 return $oldThisLM if !$policySaysFreshen;
 my ($thisIsStale, $newDepLMs) = 
-	&RequestLatestDependsOns($nm, $thisUri, $callerUri, $callerLM, \%oldDepLMs);
+	&RequestLatestDependsOns($nm, $thisUri, $oldThisLM, $callerUri, $callerLM, \%oldDepLMs);
 my $thisType = $thisVHash->{nodeType} or die;
 my $state = $thisVHash->{state} or die;
 my $thisTypeVHash = $nm->{value}->{$thisType} || {};
@@ -779,9 +856,9 @@ my ($nm, $thisUri, $callerUri, $callerLM) = @_;
 #  ** No difference between GET and GRAB for non-node.
 sub RequestLatestDependsOns
 {
-@_ == 5 or die;
-my ($nm, $thisUri, $callerUri, $callerLM, $oldDepLMs) = @_;
-&Warn("RequestLatestDependsOn(nm, $thisUri, $callerUri, $callerLM, $oldDepLMs) called\n", $DEBUG_DETAILS);
+@_ == 6 or die;
+my ($nm, $thisUri, $oldThisLM, $callerUri, $callerLM, $oldDepLMs) = @_;
+&Warn("RequestLatestDependsOn(nm, $thisUri, $oldThisLM, $callerUri, $callerLM, $oldDepLMs) called\n", $DEBUG_DETAILS);
 # callerUri and callerLM are only used to avoid requesting the latest 
 # state from an input/parameter that is already known fresh, because 
 # it was the one that notified thisUri.
@@ -870,7 +947,7 @@ foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
   elsif (!$isSameType) {
     # Neighbor: Same server but different type.
     &Warn("Same server, different type.\n", $DEBUG_DETAILS);
-    $newDepLM = &FreshenSerState($nm, $method, $thisUri, $callerUri, $callerLM);
+    $newDepLM = &FreshenSerState($nm, $method, $depUri, $thisUri, $oldThisLM);
     &DeserializeToLocalCache($nm, $thisUri, $depUri, $newDepLM, $isInput);
     }
   elsif ($knownFresh) {
@@ -896,7 +973,7 @@ foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
     }
   &Warn("... oldDepLM: $oldDepLM newDepLM: $newDepLM stale: $thisIsStale\n", $DEBUG_DETAILS);
   }
-&Warn("RequestLatestDependsOn(nm, $thisUri, $callerUri, $callerLM, $oldDepLMs) returning: $thisIsStale\n", $DEBUG_DETAILS);
+&Warn("RequestLatestDependsOn(nm, $thisUri, $oldThisLM, $callerUri, $callerLM, $oldDepLMs) returning: $thisIsStale\n", $DEBUG_DETAILS);
 return( $thisIsStale, $newDepLMs )
 }
 
@@ -1475,6 +1552,7 @@ my ($nm) = @_;
 # needs to know what node types are being registered.
 &FileNodeRegister($nm);
 &RDF::Pipeline::ExampleHtmlNode::ExampleHtmlNodeRegister($nm);
+&RDF::Pipeline::GraphNode::GraphNodeRegister($nm);
 }
 
 ############# FileNodeRegister ##############
@@ -1606,6 +1684,8 @@ my $parameterFiles = join(" ", map {quotemeta($_)}
 	@{$nm->{list}->{$thisUri}->{parameterCaches}});
 &Warn("parameterFiles: $parameterFiles\n", $DEBUG_DETAILS);
 my $ipFiles = "$inputFiles $parameterFiles";
+#### TODO: Move this code out of this function and pass $latestQuery
+#### as a parameter to FileNodeRunUpdater.
 #### TODO QUERY:
 my $thisVHash = $nm->{value}->{$thisUri} or die;
 my $parametersFile = $thisVHash->{parametersFile} or die;
@@ -1863,6 +1943,7 @@ $msg = (" " x $indent) . $msg;
 warn "debug not defined!\n" if !defined($debug);
 warn "configLastModified not defined!\n" if !defined($configLastModified);
 print STDERR $msg if !defined($level) || $debug >= $level;
+confess "Deep recursion " if $indent >= 40;
 return 1;
 }
 
