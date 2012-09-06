@@ -1,0 +1,14 @@
+@prefix : <http://example/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+
+:president42 foaf:familyName "CLINTON" .
+
+:president27 foaf:familyName "TAFT" .
+
+:president25 foaf:familyName "MCKINLEY" .
+
+:president42 foaf:givenName "WILLY" .
+
+:president27 foaf:givenName "WILLY" .
+
+:president25 foaf:givenName "WILLY" .

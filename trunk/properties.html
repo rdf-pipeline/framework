@@ -1,0 +1,257 @@
+<!DOCTYPE HTML>
+<html itemtype="http://schema.org/WebPage" itemscope="itemscope">
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <title>Node Metadata Properties</title>
+</head>
+<body>
+<h1>Node Metadata Properties</h1>
+Most of these are node properties, though some (noted) are node type
+properties.<br>
+Perhaps we should standardize internal naming, something like:<br>
+&nbsp; fooPath&nbsp;&nbsp; &nbsp;-- A filename full path.<br>
+&nbsp; fooDir&nbsp;&nbsp; &nbsp;-- A directory full path.<br>
+&nbsp; fooUri&nbsp;&nbsp; &nbsp;-- A URI.<br>
+&nbsp; fooName&nbsp;&nbsp; &nbsp;-- A native name (i.e., node-type
+specific).<br>
+<br>
+<table border="1" cellspacing="0" cols="3">
+  <col width="497"><col width="696"><col width="1980"> <tbody>
+    <tr>
+      <td style="vertical-align: top; font-weight: bold;">Property<br>
+      </td>
+      <td style="vertical-align: top; font-weight: bold;">Type of value<br>
+      </td>
+      <td style="vertical-align: top; font-weight: bold;">Purpose or
+Notes<br>
+      </td>
+    </tr>
+    <tr>
+      <td height="17" width="497" align="LEFT">a</td>
+      <td width="696" align="LEFT">hash</td>
+      <td width="1980" align="LEFT">Inverse is {member}</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">state</td>
+      <td align="LEFT">value</td>
+      <td align="LEFT">Native name of node output</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">stateOriginal</td>
+      <td align="LEFT">value</td>
+      <td align="LEFT">Value of state predicate before setting defaults</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">command</td>
+      <td align="LEFT"><br>
+      </td>
+      <td align="LEFT"><br>
+      </td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">contentType</td>
+      <td align="LEFT">value</td>
+      <td align="LEFT">HTTP Content-Type for this node's serialized
+output. Defaults to defaultContentType of the $nodeType if not
+specified.</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">cache</td>
+      <td align="LEFT"><br>
+      </td>
+      <td align="LEFT"><br>
+      </td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">date</td>
+      <td align="LEFT"><br>
+      </td>
+      <td align="LEFT"><br>
+      </td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">defaultContentType</td>
+      <td align="LEFT">value</td>
+      <td align="LEFT">Subject is $nodeType. Default HTTP Content-Type
+for serialized output.</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">defaultContentEncoding</td>
+      <td align="LEFT">value</td>
+      <td align="LEFT">Subject is $nodeType. Default HTTP
+Content-Encoding for serialized output.</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">dependsOn</td>
+      <td align="LEFT">list/multi</td>
+      <td align="LEFT">URIs of inputs, parameters and anything else
+this node depends on.</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">dependsOnCache</td>
+      <td align="LEFT">hash</td>
+      <td align="LEFT">Maps a dependsOn URI to the native name for that
+input. I.e., points to local "cache".</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">dependsOnSerCache</td>
+      <td align="LEFT">hash</td>
+      <td align="LEFT">Maps a dependsOn URI to the local file name for
+that serialized input. I.e., points to local "serCache".</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">fExists</td>
+      <td align="LEFT">value</td>
+      <td align="LEFT">Subject is $nodeType. Function that takes a
+native name and returns 1 iff that state or local cache exists.</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">fSetNodeDefaults</td>
+      <td align="LEFT">value</td>
+      <td align="LEFT">Subject is $nodeType. @@ Is this used? @@</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">fSerializer</td>
+      <td align="LEFT">value</td>
+      <td align="LEFT">Subject is $nodeType.</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">fDeserializer</td>
+      <td align="LEFT">value</td>
+      <td align="LEFT">Subject is $nodeType.</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">fRunUpdater</td>
+      <td align="LEFT">value</td>
+      <td align="LEFT">Subject is $nodeType.</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">fUpdatePolicy</td>
+      <td align="LEFT">value</td>
+      <td align="LEFT">Update policy function for this node.</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">fUriToNativeName</td>
+      <td align="LEFT">value</td>
+      <td align="LEFT">Subject is $nodeType. Converts a URI to a native
+name.</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">inputCaches<br>
+      </td>
+      <td align="LEFT">list<br>
+      </td>
+      <td align="LEFT">Native input names for this node -- either
+states or caches, depending on whether the input is local or foreign.</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">inputs</td>
+      <td align="LEFT">list/multi</td>
+      <td align="LEFT">URIs of this node's inputs.</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">lmFile</td>
+      <td align="LEFT">value</td>
+      <td align="LEFT">File name of node's last modified timestamps:
+(state and all inputs)</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">member</td>
+      <td align="LEFT">hash</td>
+      <td align="LEFT">Inverse of rdf:type (aka "a")</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">Node</td>
+      <td align="LEFT"><br>
+      </td>
+      <td align="LEFT"><br>
+      </td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">nodeType</td>
+      <td align="LEFT">value</td>
+      <td align="LEFT">Most specific node type -- a leaf class.</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">outputs</td>
+      <td align="LEFT">multi</td>
+      <td align="LEFT">URIs of this node's outputs (actually inverse
+dependsOns). Derived from dependsOns.</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">parameterCaches<br>
+      </td>
+      <td align="LEFT">list</td>
+      <td align="LEFT">Native parameter names for this node -- either
+states or caches, depending on whether the input is local or foreign.</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">parameters</td>
+      <td align="LEFT">list/multi</td>
+      <td align="LEFT">URIs of this node's parameters.</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">rdfs:subClassOf</td>
+      <td align="LEFT">hash</td>
+      <td align="LEFT">Inverse is subClass</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">hostRoot</td>
+      <td align="LEFT">hash</td>
+      <td align="LEFT">Subject is $nodeType. Maps the server prefix
+(such as "http://localhost/") of node URIs of this $nodeType to the
+root location (as native name) of the server that implements the
+wrapper for this $nodeType. Analogous to $DOCUMENT_ROOT. $DOCUMENT_ROOT
+(a/k/a $basePath) is used by default if this property is not set.</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">#### Obsolete?</td>
+      <td align="LEFT"><br>
+      </td>
+      <td align="LEFT"><br>
+      </td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT"># scope</td>
+      <td align="LEFT">value</td>
+      <td align="LEFT">URI prefix without trailing "/". Env = scope +
+node type</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT"># scopePath</td>
+      <td align="LEFT">value</td>
+      <td align="LEFT">File path corresponding to scope (under
+DOCUMENT_ROOT)</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">serState</td>
+      <td align="LEFT">value</td>
+      <td align="LEFT">File name of serialized state (under
+DOCUMENT_ROOT). Same as state if the node has no fSerializer.</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">serCache</td>
+      <td align="LEFT">value</td>
+      <td align="LEFT">File name of cache of serialized state.</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">stderr</td>
+      <td align="LEFT">value</td>
+      <td align="LEFT">File name of stderr from last update.</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">subClass</td>
+      <td align="LEFT">hash</td>
+      <td align="LEFT">Inverse of rdfs:subClassOf</td>
+    </tr>
+    <tr>
+      <td height="17" align="LEFT">updater</td>
+      <td align="LEFT">value</td>
+      <td align="LEFT">Native name of updater function</td>
+    </tr>
+  </tbody>
+</table>
+<br>
+<br>
+</body>
+</html>

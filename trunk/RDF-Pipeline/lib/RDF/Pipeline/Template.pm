@@ -472,7 +472,8 @@ The template processor has no idea what you are
 intending to generate, and values may be any text 
 (limited in size only by memory),
 so for the most part this is blind text substitution.
-Hence, if you are using this template system to generate 
+
+WARNING: If you are using this template system to generate 
 queries, commands, HTML or
 anything else that could be dangerous if inappropriate text were
 injected, then you should be careful to scrub your values

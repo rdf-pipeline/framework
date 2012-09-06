@@ -8,6 +8,20 @@ before I used code.google.com and had any formal bug tracker
 or issues list.  It is currently being used as a place for recording
 notes, ideas or things to do.
 
+7/27/12: Thinking more about how to provide configuration information
+for GraphNodes.  For each node or nodetype, prefix or pipeline, need to specify
+the endpoint URI and the driver.  Somehow, security credentials may 
+also be needed.  I guess credentials could be passed as encrypted 
+parameters.
+
+# On a node:
+:x a p:GraphNode ; p:driver p:ParliamentDriver .
+# On a nodetype:
+:MyGraphNode rdfs:subClassOf p:GraphNode ;
+	p:driver "RDF::Pipeline::GraphNode::Drivers::BigData" ;
+	p:endpoint "http://localhost:8080/parliament/"  .
+:y a :MyGraphNode .
+
 5/5/12: It would be nice to add a visualization component, such as
 Cytoscape, to display in realtime the flow through a pipeline.
 It would be nice if it could also show map nodes created and destroyed.
