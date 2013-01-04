@@ -545,6 +545,9 @@ my $fExists = $nmv->{$thisType}->{fExists} or die;
 my $thisHostRoot = $nmh->{$thisType}->{hostRoot}->{$baseUri} || $basePath;
 $oldCacheLM = "" if $oldCacheLM && !&{$fExists}($depCache, $thisHostRoot);
 return if (!$depLM || $depLM eq $oldCacheLM);
+#### TODO: It would be better to store the Content-Type with the serCache
+#### and look it up here, instead of assuming that it is what it was
+#### originally declared to be.
 my $contentType = $thisVHash->{contentType}
 	|| $nmv->{$thisType}->{defaultContentType}
 	|| "text/plain";
@@ -925,7 +928,7 @@ foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
     $method = 'HEAD';
     }
   my $isSameServer = &IsSameServer($thisUri, $depUri) || 0;
-  my $isSameType   = &IsSameType($thisType, $depType) || 0;
+  my $isSameType   = &IsSameType($nm, $thisType, $depType) || 0;
   #### TODO QUERY: Update local $depUri's requester queries:
   &UpdateQueries($nm, $depUri, $thisUri, $depQuery) 
 	if $depType && $isSameServer;
@@ -951,7 +954,7 @@ foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
     &DeserializeToLocalCache($nm, $thisUri, $depUri, $newDepLM, $isInput);
     }
   elsif ($knownFresh) {
-    # Nothing to do, because it's local and already known fresh.
+    # Nothing to do, because it's local, same type and already known fresh.
     $newDepLM = $callerLM;
     &Warn("Nothing to do: Caller known fresh and local.\n", $DEBUG_DETAILS);
     }
@@ -1180,7 +1183,7 @@ foreach my $thisUri (@allNodes)
     # Now set dependsOnCache.
     my $isInput = $thisMHashInputs->{$depUri} 
 	|| $thisMHashParameters->{$depUri} || 0;
-    if (&IsSameServer($baseUri, $depUri) && &IsSameType($thisType, $depType)) {
+    if (&IsSameServer($baseUri, $depUri) && &IsSameType($nm, $thisType, $depType)) {
       # Same env.  Reuse the input's state.
       $thisHHash->{dependsOnCache}->{$depUri} = $nmv->{$depUri}->{state};
       # warn "thisUri: $thisUri depUri: $depUri Path 1\n";
@@ -1984,13 +1987,17 @@ return $isSame;
 }
 
 ########## IsSameType ############
-# Are $thisType and $depType both set and the same?  
+# Are $thisType and $depType both set and their {stateType}s the same?  
 sub IsSameType
 {
-@_ == 2 or die;
-my ($thisType, $depType) = @_;
-my $isSame = $thisType && $depType && ($thisType eq $depType) ? 1 : 0;
-return $isSame;
+@_ == 3 or die;
+my ($nm, $thisType, $depType) = @_;
+return 0 if !$thisType or !$depType;
+return 1 if $thisType eq $depType;
+my $thisStateType = $nm->{value}->{$thisType}->{stateType} || $thisType;
+my $depStateType  = $nm->{value}->{$depType}->{stateType}  || $depType;
+return 1 if $thisStateType eq $depStateType;
+return 0;
 }
 
 ########## FormatTime ############

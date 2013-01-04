@@ -10,8 +10,7 @@ p:FileNode	rdfs:subClassOf p:Node ;
   p:defaultContentType "text/plain" .
 p:ExampleHtmlNode	rdfs:subClassOf p:Node ;
   p:defaultContentType "text/html" .
-p:GraphNode     rdfs:subClassOf p:Node ;
-  p:defaultContentType "text/turtle" .
+p:GraphNode     rdfs:subClassOf p:Node .
 p:JenaNode      rdfs:subClassOf p:GraphNode .
 p:SesameNode    rdfs:subClassOf p:GraphNode .
 p:PerlNode      rdfs:subClassOf p:Node .
