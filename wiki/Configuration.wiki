@@ -7,9 +7,9 @@ WARNING: This page is `very` incomplete.  It is starting to collect installation
 This section will describe installation/configuration information for the RDF Pipeline Framework.
 
 = Installation =
-* cwm (this will change as soon as we get it using the Perl Trine library)
-* apache2
-* mod_perl2
+ * cwm (this will change as soon as we get it using the Perl Trine library)
+ * apache2
+ * mod_perl2
 
 = Configuration =
 See trunk/apache2-config/ReadMe.txt .
