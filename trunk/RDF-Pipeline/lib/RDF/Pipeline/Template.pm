@@ -1,7 +1,7 @@
 #! /usr/bin/perl -w 
 package RDF::Pipeline::Template;
 
-# RDF Pipeline Framework -- Template
+# RDF Pipeline Framework -- Template expansion.
 # Copyright 2011 & 2012 David Booth <david@dbooth.org>
 # Code home: http://code.google.com/p/rdf-pipeline/
 # See license information at http://code.google.com/p/rdf-pipeline/ 
@@ -23,16 +23,16 @@ our @ISA = qw(Exporter);
 # will save memory.
 our %EXPORT_TAGS = ( 'all' => [ qw(
 
-			&ScanAndAddInputs
-			&ScanAndAddOutputs
-			&ScanAndAddParameters
-			&ScanForList
-			&ScanAndAddEnvs
-			&AddPairsToHash
-			&ParseQueryString
-			&ExpandTemplate
-			&ProcessTemplate
-			&GetArgsAndProcessTemplate 
+			ScanAndAddInputs
+			ScanAndAddOutputs
+			ScanAndAddParameters
+			ScanForList
+			ScanAndAddEnvs
+			AddPairsToHash
+			ParseQueryString
+			ExpandTemplate
+			ProcessTemplate
+			GetArgsAndProcessTemplate 
 
 			) ] );
 
@@ -133,7 +133,7 @@ return ($template, $pHash);
 
 ################### ScanForList ####################
 # Scan $template for a declared list of variable names, such as:
-#	#inputs ( $foo ${fum} )
+#	#inputs( $foo ${fum} )
 # which is removed from the returned $template.  Also returns a list ref 
 # of the variable names found in the declared list.
 # The given $keyword should normally be "inputs", "outputs" or "parameters",
@@ -146,8 +146,8 @@ my $template = shift;
 defined($template) or confess "$0: ScanForList called with undefined template\n";
 my @inVars = ();
 # Given keyword "inputs", the pattern matches the first line like:
-#	#inputs ( $foo ${fum} )
-if ($template =~ s/^\#$keyword\s*\(\s*([^\(\)]+?)\s*\)(.*)(\n|$)//m) {
+#	#inputs( $foo ${fum} )
+if ($template =~ s/^\#$keyword\(\s*([^\(\)]+?)\s*\)(.*)(\n|$)//m) {
 	my $inList = $1;
 	my $extra = $2;
 	my $line = $&;
@@ -268,8 +268,8 @@ return $template;
 
 ##################### ProcessTemplate #######################
 # Scan and expand a template containing variable declarations like:
-#	#inputs ( $in1 ${in2} )
-#	#outputs ( {out1} [out2] )
+#	#inputs( $in1 ${in2} )
+#	#outputs( {out1} [out2] )
 # 	#parameters( $foo ${fum} )
 # $queryString supplies values for variables declared as "#parameters",
 # such as: foo=bar&fum=bif&foe=bah 
@@ -347,11 +347,11 @@ die "Usage: $0 [template] [ -i iVal1 ...] [ -o oVal1 ...] [ -p pVar1=pVal1 ...]
 Options:
   -i iVal1 ...		
 	Values to be substituted into variables specified
-	by "#inputs ( $iVar1 ... )" line in template.
+	by "#inputs( $iVar1 ... )" line in template.
 
   -o oVal1 ...		
 	Values to be substituted into variables specified
-	by "#outputs ( $oVar1 ... )" line in template.
+	by "#outputs( $oVar1 ... )" line in template.
 
   -p pVar1=pVal1 ...	
 	URI encoded variable/value pairs to be substituted
@@ -403,10 +403,14 @@ This page documents both the RDF::Pipeline::Template module and
 ste.perl, which is a tiny shell script that merely invokes
 the module.
 
-This module provides a very simple template substitution facility.
+This module provides a very simple template processing facility.
 It was intended primarily for writing SPARQL query templates for use
 in the context of the RDF Pipeline Framework, but can be used for other
 things.  It knows nothing about SPARQL syntax.
+
+The template to be processed is either: (a) read from a file
+specified on the command line; (b) read from stdin; or (c)
+supplied directly as a string argument to &ProcessTemplate.
 
 Template processing involves replacing template variables with 
 values, which may be arbitrary strings.  No looping, conditional or
@@ -418,9 +422,9 @@ variables, described later.
 
 Template variables are declared within a template using lines like this:
 
-  #inputs ( iVar1 iVar2 ... iVarN )
-  #outputs ( oVar1 oVar2 ... oVarN )
-  #parameters ( pVar1 pVar2 ... pVarN )
+  #inputs( iVar1 iVar2 ... iVarN )
+  #outputs( oVar1 oVar2 ... oVarN )
+  #parameters( pVar1 pVar2 ... pVarN )
 
 This declares variables iVar1 ... iVarN, oVar1 ... oVarN and pVar1 ... pVarN
 for use within the template.  Values may be provided when the template is
@@ -428,9 +432,11 @@ processed, as explained later.
 Each of these
 lines is optional and is removed when the template is processed.
 
-The hash (#) MUST be the first character of the line.  Whitespace is
+The hash (#) MUST be the first character of the line, and there must
+be no space between #inputs, #outputs or #parameters and the open
+parenthesis .  Whitespace is
 required between variable names, and is 
-optional around the parentheses.
+optional between the parentheses and the variables.
 Variable names specified in #inputs or #outputs can use any syntax 
 except whitespace or parentheses, i.e., they must
 match the following Perl regular expression
@@ -521,8 +527,8 @@ of template variable it is.
 Any #inputs or #outputs variables are set using the -i or -o command-line options, 
 respectively, or passed in array references if you are calling
 &ProcessTemplate directly from Perl.  Values are supplied positionally: the 
-value specified by the nth -i option (or -o option) is bound to the nth
-#inputs (or #outputs) variable, respectively.
+value specified by the nth -i option (or -o option) is bound to the 
+nth #inputs (or #outputs) variable, respectively.
 
 =item #parameters variables
 
@@ -539,7 +545,7 @@ are ignored when looking
 up the corresponding key in the $QUERY_STRING.  For example,
 parameters $min and ${max} that are declared in a template as:
 
-  #parameters ( $min ${max} )
+  #parameters( $min ${max} )
   . . . 
   FILTER( ?n >= $min && ?n <= ${max} )
 
@@ -597,9 +603,9 @@ will be replaced with the value of the $THIS_URI environment variable
 Here is a complete template example, sample-template.txt, that illustrates
 the features:
 
-  #inputs ( $inUri Bill ${Taft} )     
-  #outputs ( $outUri )
-  #parameters ( $max $min )
+  #inputs( $inUri Bill ${Taft} )     
+  #outputs( $outUri )
+  #parameters( $max $min )
   Testing inputs, outputs:
     inUri: $inUri
     B_i_l_l: Bill  "Bill"  money@Bill.me

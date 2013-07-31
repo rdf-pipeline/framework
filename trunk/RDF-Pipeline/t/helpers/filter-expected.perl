@@ -20,6 +20,18 @@ while (<>) {
 	# Make whatever changes are needed:
         # s/ETag\: \"(\d)/ETag\: \"LM$1/;
 
+	my $old = quotemeta('Apache/2.2.14 (Ubuntu)');
+	my $new = 'Apache/2.2.22 (Ubuntu)';
+	s/$old/$new/g;
+
+	$old = quotemeta('http://localhost:28080/openrdf-workbench/repositories/owlimlite');
+	$new = 'http://localhost:8080/openrdf-workbench/repositories/rdf-pipeline-test';
+	s/$old/$new/g;
+
+	$old = quotemeta('rdf-pipeline-test/"');
+	$new = 'rdf-pipeline-test"';
+	s/$old/$new/g;
+
 	print $tmpfh $_;
 	}
 close($tmpfh) || die;

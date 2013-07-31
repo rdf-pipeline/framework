@@ -20,8 +20,10 @@ my $wwwDir = shift @ARGV || $ENV{RDF_PIPELINE_WWW_DIR} || die;
 $ENV{RDF_PIPELINE_WWW_DIR} = $wwwDir;	
 
 ############ CUSTOMIZE HERE ################
-# Force pipeline.ttl to be reloaded, so that the nodeType FILE error 
-# will show up predictably and immediately:
+# Touch the config file pipeline.ttl to force it to be reloaded
+# when the next request is processed, because the test for 
+# ensuring that FILE and URI are not subclasses of Node is done during
+# reloading of the config files:
 my $pipeline = "$wwwDir/node/pipeline.ttl";
 -e $pipeline or die;
 !system("touch '$pipeline'") or die;

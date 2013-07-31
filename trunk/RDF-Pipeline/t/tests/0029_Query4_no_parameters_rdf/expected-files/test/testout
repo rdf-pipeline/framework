@@ -1,6 +1,6 @@
 HTTP/1.1 200 OK
 Date: Thu, 19 Jan 2012 18:26:00 GMT
-Server: Apache/2.2.14 (Ubuntu)
+Server: Apache/2.2.22 (Ubuntu)
 Last-Modified: Wed, 18 Jan 2012 01:30:56 GMT
 ETag: "LM1326850256.504565000001"
 Content-Length: 614
@@ -20,7 +20,7 @@ patient:p004 :lab [ :glucose 950 ; :date "2012-03-03" ] .	# PROCESSED
 ----------------------------------------------------------------------
 HTTP/1.1 200 OK
 Date: Thu, 19 Jan 2012 18:26:00 GMT
-Server: Apache/2.2.14 (Ubuntu)
+Server: Apache/2.2.22 (Ubuntu)
 Last-Modified: Wed, 18 Jan 2012 01:30:56 GMT
 ETag: "LM1326850256.504565000001"
 Content-Length: 334
