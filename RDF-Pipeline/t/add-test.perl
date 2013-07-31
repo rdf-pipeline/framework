@@ -40,7 +40,26 @@ my $chmodCmd = "chmod +x '$dir/test-script'";
 # warn "chmodCmd: $chmodCmd\n";
 !system($chmodCmd) or die;
 
-warn "Created test: $dir\n\n";
+# Create ReadMe.txt (initially empty) for documenting the test:
+my $readme = "ReadMe.txt";
+&WriteFile("$dir/$readme", "");
+
+warn "Created test: $dir\n";
+
+# Encourage the user to edit the test description in $readme:
+my $editor = $ENV{EDITOR} || `which vi` || `which pico`;
+chomp $editor;
+if ($editor) {
+	print STDERR "Edit test description $readme using $editor? [y] ";
+	my $yes = <STDIN>;
+	if ($yes =~ m/^y/i || $yes =~ m/^\s*$/) {
+		my $cmd = "$editor '$dir/$readme'";
+		system($cmd);
+		}
+	} else {
+	warn "No editor found for editing test description $dir/$readme !\nPlease set \$EDITOR !\n";
+	}
+warn "\n";
 
 # Create setup-files and run the test (which will initially fail):
 my $runCmd = "$moduleDir/t/update-test-setup.perl '$dir'";

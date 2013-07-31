@@ -20,7 +20,8 @@ my $wwwDir = shift @ARGV || $ENV{RDF_PIPELINE_WWW_DIR} || die;
 $ENV{RDF_PIPELINE_WWW_DIR} = $wwwDir;	
 
 ############ CUSTOMIZE HERE ################
-# Test ste.perl (simple template expansion).
+# Test ste.perl (simple template expansion) to ensure that extra template
+# values are detected.
 my $devDir = $ENV{RDF_PIPELINE_DEV_DIR} || die "ERROR: This test requires the \$RDF_PIPELINE_DEV_DIR \n environment variable to be set, so that it can find \n the tools directory\n";
 my $toolsDir = "$devDir/tools";
 -d $toolsDir or die "ERROR: Tools directory not found: $toolsDir\n";

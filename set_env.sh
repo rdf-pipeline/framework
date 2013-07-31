@@ -21,3 +21,7 @@ export PATH="$PATH:$RDF_PIPELINE_DEV_DIR/RDF-Pipeline/t/helpers"
 # Add tools utilities to $PATH:
 export PATH="$PATH:$RDF_PIPELINE_DEV_DIR/tools"
 
+# Add generic sparql utilities to path (initially sesame,
+# but eventually should become generic):
+export PATH="$PATH:$RDF_PIPELINE_DEV_DIR/tools/gsparql/scripts/sesame2_6"
+

@@ -13,9 +13,9 @@ expansion using ste.perl.  Try it using the following commands:
 ******************* Template begins below *************************
 *******************************************************************
 
-#inputs ( $inUri Bill ${Taft} ) 
-#outputs ( $outUri ) 
-#parameters ( $max $min ) 
+#inputs( $inUri Bill ${Taft} ) 
+#outputs( $outUri ) 
+#parameters( $max $min ) 
 Testing inputs, outputs:
   inUri: $inUri
   B_i_l_l: Bill  "Bill"  money@Bill.me

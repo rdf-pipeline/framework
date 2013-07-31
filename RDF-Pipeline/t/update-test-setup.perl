@@ -3,6 +3,24 @@
 # Update the setup-files of a test case by re-copying the current
 # state of the Apache WWW root directory to the test directory,
 # and then run the test via RDF-Pipeline/t/run-test.perl .
+#
+# This is typically used to reset the setup-files to the proper
+# server state that should exist *before* running the test.  For
+# example, test 0013 expects a starting state that is the result
+# of running test 0012.  If test 0013 fails with this diff:
+#
+#   diff -r -b -w -x lm -x ont -x '.*' /tmp/rdfp/0013_No_changes_should_304/expected
+#   -filtered/test/apacheAccess.log /tmp/rdfp/0013_No_changes_should_304/actual-filt
+#   ered/test/apacheAccess.log
+#   2c2
+#   < "GET /node/multiplier.txt HTTP/1.1" 304
+#   ---
+#   > "GET /node/multiplier.txt HTTP/1.1" 200
+#
+# it can probably be fixed by running:
+#
+#   $ run-test.perl 0012_Modified_multipliertxt/
+#   $ update-test-setup.perl 0013_No_changes_should_304/
 
 use strict;
 

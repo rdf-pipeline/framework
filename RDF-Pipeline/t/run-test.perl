@@ -1,7 +1,7 @@
 #! /usr/bin/perl -w
 
 # This script runs one or more tests in the suite of numbered tests.
-# It exits with 0 status iff all tests pass.  Running a test means:
+# It exits with 0 status iff all tests pass.  
 #
 #
 # Usage:

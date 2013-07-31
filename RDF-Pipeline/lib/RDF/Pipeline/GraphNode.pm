@@ -97,6 +97,8 @@ my $sparqlUpdate = &ProcessTemplate($template, $thisInputs, [ $state ],
                        $latestQuery, $thisUri);
 my $tmp = "/tmp/GraphNodeUpdater-$$.ru";
 &RDF::Pipeline::Warn("GraphNodeRunUpdater sparqlUpdate: \n[[\n$sparqlUpdate\n]]\n", $RDF::Pipeline::DEBUG_DETAILS);
+# my $debugDetails = $RDF::Pipeline::DEBUG_DETAILS;
+# die "debugDetails: $debugDetails ";
 &RDF::Pipeline::WriteFile($tmp, $sparqlUpdate);
 # @@@@
 # Ensure no unsafe chars before invoking $cmd:
@@ -113,11 +115,11 @@ my $nmh = $nm->{hash};
 # warn "GraphNodeRunUpdater: thisType: $thisType baseUri: $RDF::Pipeline::baseUri\n";
 my $thisHostRoot = $nmh->{$thisType}->{hostRoot}->{$RDF::Pipeline::baseUri};
 if (!$thisHostRoot) {
-  &RDF::Pipeline::Warn("GraphNodeRunUpdater: ERROR: hostRoot not set\n");
+  &RDF::Pipeline::Warn("GraphNodeRunUpdater: ERROR: hostRoot not set for node $thisUri type $thisType\n");
   return "";
   }
 #### TODO: Make this non-Sesame specific:
-my $cmd = "/usr/bin/curl  -s --data-urlencode  'update\@$tmp' '${thisHostRoot}update'";
+my $cmd = "/usr/bin/curl  -s -S --data-urlencode  'update\@$tmp' '${thisHostRoot}/update'";
 &RDF::Pipeline::Warn("GraphNodeRunUpdater cmd: $cmd\n", $RDF::Pipeline::DEBUG_DETAILS);
 my $result = (system($cmd) >> 8);
 my $saveError = $?;
@@ -163,17 +165,19 @@ $hostRoot || die "GraphNodeSerializer: ERROR: \$hostRoot not specified\n";
 $hostRoot =~ s|/openrdf-workbench/|/openrdf-sesame/| or die;
 # $hostRoot = "http://localhost:28080/openrdf-sesame/repositories/owlimlite";
 # http://localhost:28080/openrdf-sesame/repositories/owlimlite/rdf-graphs/service?graph=http://example/in
-my $curlUrl =  "${hostRoot}rdf-graphs/service?graph=$deserName";
+my $curlUrl =  "${hostRoot}/rdf-graphs/service?graph=$deserName";
 ### TODO: Make this safer by using quotemeta for everything in the command:
 # my $qCurlUrl = quotemeta($curlUrl);
 # my $qSerFilename = quotemeta($serFilename);
 ### TODO: Make this non-Sesame specific.  Might need to pass $nm to wrapper
 ### functions to achieve this.  Maybe use property hostRootTemplate:
-### '${hostRoot}rdf-graphs/service?graph=$deserName';
+### '${hostRoot}/rdf-graphs/service?graph=$deserName';
 # curl -s -H 'Accept: text/turtle' -X GET 'http://localhost:28080/openrdf-sesame/repositories/owlimlite/rdf-graphs/service?graph=http://example/in'
 my $curlCmd = "/usr/bin/curl -s -H 'Accept: text/turtle' -X GET '$curlUrl' -o '$serFilename'";
 # warn "GraphNodeSerializer curlCmd: $curlCmd\n";
+&RDF::Pipeline::Warn("GraphNodeSerializer curlCmd: $curlCmd\n", $RDF::Pipeline::DEBUG_DETAILS);
 my $success = !system($curlCmd);
+&RDF::Pipeline::Warn("GraphNodeSerializer($serFilename, $deserName, $contentType, $hostRoot) FAILED\n", $RDF::Pipeline::DEBUG_OFF) if !$success;
 return $success;
 }
 
@@ -189,16 +193,19 @@ $contentType ||= "text/turtle";
 $hostRoot || die "GraphNodeSerializer: ERROR: \$hostRoot not specified\n";
 # $hostRoot = "http://localhost:28080/openrdf-sesame/repositories/owlimlite";
 # http://localhost:28080/openrdf-workbench/repositories/owlimlite/update
-my $curlUrl = "${hostRoot}update";
+my $curlUrl = "${hostRoot}/update";
 ### TODO: Make this safer by using quotemeta for everything in the command:
 ### TODO: Make this non-Sesame specific.  Might need to pass $nm to wrapper
 ### functions to achieve this.  
 # curl  -s --data-urlencode  'update=CLEAR SILENT GRAPH <$deserName> ; LOAD <file://$serFilename> INTO GRAPH <$deserName>' 'http://localhost:28080/openrdf-workbench/repositories/owlimlite/update'
-#### TODO: Awful hack get OWLIM reader to recognize Turtle:
-my $tmp = "/tmp/GraphNodeDeserializer-$$.ttl";
-my $curlCmd = "/bin/cp $serFilename $tmp ; /usr/bin/curl  -s --data-urlencode  'update=CLEAR SILENT GRAPH <$deserName> ; LOAD <file://$tmp> INTO GRAPH <$deserName>' 'http://localhost:28080/openrdf-workbench/repositories/owlimlite/update'";
-# warn "GraphNodeDeserializer curlCmd: $curlCmd\n";
+#### TODO: Awful hack get OWLIM reader to recognize Turtle via file extension:
+my $tmpDir = $ENV{TEMPDIR} || "/tmp";
+$tmpDir =~ s|\/$|| if length($tmpDir) > 1;
+my $tmp = "$tmpDir/GraphNodeDeserializer-$$.ttl";
+my $curlCmd = "/bin/cp $serFilename $tmp ; /usr/bin/curl  -s -S --data-urlencode  'update=CLEAR SILENT GRAPH <$deserName> ; LOAD <file://$tmp> INTO GRAPH <$deserName>' '$curlUrl'";
+&RDF::Pipeline::Warn("GraphNodeDeserializer curlCmd: $curlCmd\n", $RDF::Pipeline::DEBUG_DETAILS);
 my $success = !system($curlCmd);
+&RDF::Pipeline::Warn("GraphNodeDeserializer($serFilename, $deserName, $contentType, $hostRoot) FAILED\n", $RDF::Pipeline::DEBUG_OFF) if !$success;
 unlink $tmp;
 return $success;
 }

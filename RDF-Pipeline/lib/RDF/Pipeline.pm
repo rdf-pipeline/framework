@@ -171,8 +171,10 @@ our $DEBUG_DETAILS = 6;	# Show requests plus more detail.
 # $debug level is set using a PerlSetEnv directive in 
 # the apache2 config file:
 our $debug = $ENV{RDF_PIPELINE_DEBUG};
+$debug = $DEBUG_CHANGES if !defined($debug) or $debug !~ m/\S/;
+my $rawDebug = $debug;
 $debug = eval $debug if defined($debug); # Allows symbolic value
-$debug = $DEBUG_CHANGES if !defined($debug);
+die "ERROR: debug not defined: $rawDebug " if !defined($debug);
 
 our $debugStackDepth = 0;	# Used for indenting debug messages.
 
@@ -534,7 +536,10 @@ my $nmv = $nm->{value};
 my $thisVHash = $nmv->{$thisUri} || {};
 my $thisType = $thisVHash->{nodeType} || "";
 my $fDeserializer = $nmv->{$thisType}->{fDeserializer} || "";
-return if !$fDeserializer;
+if (!$fDeserializer) {
+	&Warn("DeserializeToLocalCache returning due to no fDeserializer\n", $DEBUG_DETAILS);
+	return;
+	}
 my $nmh = $nm->{hash};
 my $thisHHash = $nmh->{$thisUri} || {};
 my $depSerCache = $thisHHash->{dependsOnSerCache}->{$depUri} || "";
@@ -544,7 +549,10 @@ $oldCacheLM ||= "";
 my $fExists = $nmv->{$thisType}->{fExists} or die;
 my $thisHostRoot = $nmh->{$thisType}->{hostRoot}->{$baseUri} || $basePath;
 $oldCacheLM = "" if $oldCacheLM && !&{$fExists}($depCache, $thisHostRoot);
-return if (!$depLM || $depLM eq $oldCacheLM);
+if (!$depLM || $depLM eq $oldCacheLM) {
+	&Warn("DeserializeToLocalCache returning due to no depLM or depLM eq oldCacheLM\n", $DEBUG_DETAILS);
+	return;
+	}
 #### TODO: It would be better to store the Content-Type with the serCache
 #### and look it up here, instead of assuming that it is what it was
 #### originally declared to be.
@@ -555,6 +563,7 @@ my $contentType = $thisVHash->{contentType}
 &{$fDeserializer}($depSerCache, $depCache, $contentType, $thisHostRoot) 
 	or die "ERROR: Failed to deserialize $depSerCache to $depCache with Content-Type: $contentType\n";
 &SaveLMs($thisType, $depCache, $depLM);
+&Warn("DeserializeToLocalCache returning (finished).\n", $DEBUG_DETAILS);
 }
 
 ################### HandleHttpEvent ##################
@@ -697,18 +706,17 @@ my $pOutputs = $nm->{multi}->{$thisUri}->{outputs} || {};
 $latestUri = "" if !$pOutputs->{$latestUri};	# Treat as anonymous requester?
 my $thisVHash = $nm->{value}->{$thisUri} or die;
 my $parametersFile = $thisVHash->{parametersFile} or die;
-my @results = &LookupLMs($FILE, $parametersFile);
-if (@results % 2 != 0) {
+my ($lm, $oldLatestQuery, @oldRequesterQueries) = 
+	&LookupLMs($FILE, $parametersFile);
+# my @results = &LookupLMs($FILE, $parametersFile);
+if (@oldRequesterQueries % 2 != 0) {
 	&Warn("ODD NUMBER OF ELEMENTS IN HASH ASSIGNMENT after LookupLMs($FILE, $parametersFile)\n", $DEBUG_DETAILS);
-	for (my $i=0; $i<@results; $i++) {
-		&Warn("... results[$i]: $results[$i]\n", $DEBUG_DETAILS);
+	for (my $i=0; $i<@oldRequesterQueries; $i++) {
+		&Warn("... oldRequesterQueries[$i]: $oldRequesterQueries[$i]\n", $DEBUG_DETAILS);
 		}
 	}
-my ($lm, $oldLatestQuery, %oldRequesterQueries) = 
-#	&LookupLMs($FILE, $parametersFile);
-	@results;
-$oldLatestQuery = $oldLatestQuery;		# Avoid unused var warning
 $lm ||= "";
+my %oldRequesterQueries = @oldRequesterQueries;
 my $isNewLatest = !defined($oldLatestQuery) || $latestQuery ne $oldLatestQuery || 0;
 my $isNewOutQuery = !defined($oldRequesterQueries{$latestUri})
 		|| $latestQuery ne $oldRequesterQueries{$latestUri} || 0;
@@ -1056,7 +1064,7 @@ foreach my $thisUri (@allNodes)
   # Set nodeType, which should be most specific node type.
   my @types = sort keys %{$thisMHash->{a}};
   my @nodeTypes = &LeafClasses($nm, @types);
-  die "INTERNAL ERROR: Multiple nodeTypes: @nodeTypes\n" if @nodeTypes > 1;
+  die "INTERNAL ERROR: Multiple nodeTypes: (@nodeTypes) for node $thisUri\n" if @nodeTypes > 1;
   die if @nodeTypes < 1;
   my $thisType = $nodeTypes[0];
   $thisVHash->{nodeType} = $thisType;
@@ -1270,6 +1278,25 @@ foreach my $ext (@updaterFileExtensions) {
 return("");
 }
 
+################### EagerUpdatePolicy ################### 
+# Return 1 iff $thisUri should be freshened according to eager update policy.
+# $method is one of qw(GET HEAD NOTIFY). It is never GRAB, because there
+# is never any updating involved with GRAB.
+sub EagerUpdatePolicy
+{
+@_ == 5 or die;
+my ($nm, $method, $thisUri, $callerUri, $callerLM) = @_;
+# Avoid unused var warning:
+($nm, $method, $thisUri, $callerUri, $callerLM) = 
+($nm, $method, $thisUri, $callerUri, $callerLM);
+&Warn("EagerUpdatePolicy(\$nm, $method, $thisUri, $callerUri, $callerLM) Called\n", $DEBUG_DETAILS);
+return 1 if $method eq "GET";
+return 1 if $method eq "HEAD";
+die if $method ne "NOTIFY";
+#### TODO: Implement this.
+die "INTERNAL ERROR: EagerUpdatePolicy not implemented\n ";
+}
+
 ################### LazyUpdatePolicy ################### 
 # Return 1 iff $thisUri should be freshened according to lazy update policy.
 # $method is one of qw(GET HEAD NOTIFY). It is never GRAB, because there
@@ -1475,13 +1502,18 @@ return $lmFile;
 # Called as: &SaveLMs($nameType, $thisName, $thisLM, %depLMs);
 # Actually, this can be used to save/load any lines of data, using
 # $nameType and $thisName as the composite key.
+# The lines are given as strings with no newline at the ends.
 sub SaveLMs
 {
 @_ >= 3 || die;
 my ($nameType, $thisName, $thisLM, @depLMs) = @_;
+# Make sure the data to be saved does not contain newlines:
+grep { die if m/\n/s; 0} @depLMs;
 my $f = &NameToLmFile($nameType, $thisName);
-my $s = join("\n", "# $nameType $thisName", $thisLM, @depLMs) . "\n";
+my $cThisUri = "# $nameType $thisName";
+my $s = join("\n", $cThisUri, $thisLM, @depLMs) . "\n";
 &Warn("SaveLMs($nameType, $thisName, $thisLM, ...) to file: $f\n", $DEBUG_DETAILS);
+&Warn("... $cThisUri\n", $DEBUG_DETAILS);
 foreach my $line ("# $nameType $thisName", @depLMs) {
 	&Warn("... $line\n", $DEBUG_DETAILS);
 	}
@@ -1502,6 +1534,8 @@ open(my $fh, $f) or return ("", ());
 my ($cThisUri, $thisLM, @depLMs) = map {chomp; $_} <$fh>;
 close($fh) || die;
 &Warn("LookupLMs($nameType, $thisName) from file: $f\n", $DEBUG_DETAILS);
+&Warn("... $cThisUri\n", $DEBUG_DETAILS);
+$cThisUri =~ m/\A\#/ or die;
 foreach my $line ($thisLM, @depLMs) {
 	&Warn("... $line\n", $DEBUG_DETAILS);
 	}
@@ -1940,13 +1974,15 @@ sub Warn
 {
 die if @_ < 1 || @_ > 2;
 my ($msg, $level) = @_;
-my $indent = ($debugStackDepth + &CallStackDepth() -2)*2;
+my $depth = $debugStackDepth + &CallStackDepth() -2;
+my $indent = $depth *2;
 $msg = (" " x $indent) . $msg;
 &PrintLog($msg);
 warn "debug not defined!\n" if !defined($debug);
 warn "configLastModified not defined!\n" if !defined($configLastModified);
 print STDERR $msg if !defined($level) || $debug >= $level;
-confess "Deep recursion " if $indent >= 40;
+my $maxRecursion = 30;
+confess "PANIC!!!  Deep recursion > $maxRecursion! debug $debug \n " if $depth >= $maxRecursion;
 return 1;
 }
 
@@ -1966,7 +2002,7 @@ foreach my $f (@_) {
 	$MakeParentDirs::dirSeen{$fDir} = 1;
 	next if $fDir eq "";	# Hit the root?
 	make_path($fDir);
-	-d $fDir || die;
+	-d $fDir || die "ERROR: Failed to create directory: $fDir\n ";
 	}
 }
 
