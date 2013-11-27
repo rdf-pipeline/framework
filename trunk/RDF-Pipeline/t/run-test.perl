@@ -34,7 +34,7 @@ my $currentTest = "$tmpRoot/currentTest";  # Name of most recently run test
 $ENV{PERL5LIB} ||= "";
 $ENV{PERL5LIB} = "$libDir:$ENV{PERL5LIB}";
 # warn "PERL5LIB: $ENV{PERL5LIB}\n";
-chdir($testsDir) or die "ERROR: Could not chdir('$testsDir')\n";
+# chdir($testsDir) or die "ERROR: Could not chdir('$testsDir')\n";
 
 my $expectedDebug = ' PerlSetEnv RDF_PIPELINE_DEBUG $DEBUG_CHANGES ';
 my $expectedDebugPattern = quotemeta($expectedDebug);
@@ -75,7 +75,15 @@ foreach my $tDir (@tDirs) {
     next;
     }
 
-  my $tmpTDir = "$tmpDir/$tDir";
+  my $ttd = $tDir;
+  # Strip trailing /
+  $ttd =~ s|\/+$|| if $ttd ne "/";
+  # Strip leading dirs
+  $ttd =~ s|^.*\/|| if $ttd ne "/";
+  # Make it safe
+  $ttd = "dot" if $ttd eq "." || $ttd eq "..";
+  my $tmpTDir = "$tmpDir/$ttd";
+  # warn "tmpTDir: $tmpTDir\n";
   -e $tmpTDir || mkdir($tmpTDir) || die;
 
   -e $wwwDir || mkdir($wwwDir) || die "ERROR: Failed to mkdir $wwwDir\n";
