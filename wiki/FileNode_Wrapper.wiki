@@ -2,11 +2,11 @@
 
 = Introduction =
 
-A FileNode represents its state as a file.  Its updater is an executable command, such as a shell script.
+A !FileNode represents its state as a file.  Its updater is an executable command, such as a shell script.
 
 = Details =
 
-A FileNode's updater is called in one of two ways, depending on whether the p:state was explicitly set in the pipeline definition.  
+A !FileNode's updater is called in one of two ways, depending on whether the p:state was explicitly set in the pipeline definition.  
 
 If p:state *was* set, the updater is called as follows:
   _updaterCmd_ _stateFile_ _inputFiles..._
