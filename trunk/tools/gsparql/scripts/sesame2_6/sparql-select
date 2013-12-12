@@ -13,7 +13,7 @@ use warnings;
 use strict;
 my $debug = 0;
 $ENV{SPARQL_SERVER} or die "$0: ERROR: SPARQL_SERVER env var is not set.  Example:
-  export SPARQL_SERVER=http://localhost:8080/openrdf-workbench/repositories/mda_v11\n";
+  export SPARQL_SERVER=http://localhost:8080/openrdf-workbench/repositories/rdf-pipeline-test\n";
 @ARGV <= 1 or die "Usage: $0 [ filename.rq ]\n";
 @ARGV = ( "-" ) if !@ARGV;	# Default to stdin
 

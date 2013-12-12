@@ -13,10 +13,10 @@ use strict;
 ############ Usage #############
 sub Usage
 {
-return 'Usage: $0 [ -g graphURI ] [ file.ttl ... ]
-Where file.ttl may be "-" to read from stdin instead of reading from a file.
+return "Usage: $0 [ -g graphURI ] [ file.ttl ... ]
+Where file.ttl may be '-' to read from stdin instead of reading from a file.
 If no graphUri is given, the file(s) are read into the default graph.
-';
+";
 }
 
 ################### Main ####################

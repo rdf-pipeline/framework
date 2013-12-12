@@ -3,10 +3,10 @@
 # This will be used to filter each of the actual result files from
 # running a regression test.
 # It will be run with the filename as its only argument, and should
-# write to stdout.
+# modify the file in place.
 # 
 # This script should be temporarily modified as needed when changes
-# are made that affect the format of the actual result files.
+# are made that affect the format of the result files.
 
 use strict;
 

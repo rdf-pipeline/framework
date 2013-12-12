@@ -158,3 +158,13 @@ foreach my $tDir (@tDirs) {
 exit 0 if $allPassed;
 exit 1;
 
+########## EnvNotSet #########
+sub EnvNotSet
+{
+@_ == 1 or die;
+my ($var) = @_;
+die "ERROR: Environment variable '$var' not set!  Please set it
+by editing set_env.sh and then (in bourne shell) issuing the
+command '. set_env.sh'\n";
+}
+
