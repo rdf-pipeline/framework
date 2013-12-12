@@ -1,6 +1,6 @@
 HTTP/1.1 500 Internal Server Error
-Date: Thu, 19 Jan 2012 18:26:00 GMT
-Server: Apache/2.2.14 (Ubuntu)
+Date: Sat, 03 Mar 2012 03:03:03 GMT
+Server: Apache/2.2.22 (Ubuntu)
 Vary: Accept-Encoding
 Content-Length: 614
 Connection: close
@@ -21,6 +21,6 @@ caused the error.</p>
 <p>More information about this error may be available
 in the server error log.</p>
 <hr>
-<address>Apache/2.2.14 (Ubuntu) Server at localhost Port 80</address>
+<address>Apache/2.2.22 (Ubuntu) Server at localhost Port 80</address>
 </body></html>
 ----------------------------------------------------------------------

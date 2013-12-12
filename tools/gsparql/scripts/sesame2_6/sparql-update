@@ -14,7 +14,7 @@
 use warnings;
 my $debug = 0;
 $ENV{SPARQL_SERVER} or die "$0: ERROR: SPARQL_SERVER env var is not set.  Example:
-  export SPARQL_SERVER=http://localhost:8080/openrdf-workbench/repositories/mda_v11\n";
+  export SPARQL_SERVER=http://localhost:8080/openrdf-workbench/repositories/rdf-pipeline-test\n";
 @ARGV == 1 || @ARGV == 0 || die "Usage: $0 [ filename.ru ]\n";
 my $f = $ARGV[0];
 my $tmpDir = $ENV{TMPDIR} || "/tmp";
@@ -36,7 +36,7 @@ my $dir = $0;
 $dir =~ s/\/[^\/]+$//;
 my $qdir = quotemeta($dir);
 my $qss = quotemeta($ENV{SPARQL_SERVER});
-# curl -s --data-urlencode  'update@/dev/null' 'http://localhost:8080/openrdf-workbench/repositories/mda_v11/update' 
+# curl -s --data-urlencode  'update@/dev/null' 'http://localhost:8080/openrdf-workbench/repositories/rdf-pipeline-test/update' 
 my $cmd = "/usr/bin/curl -s  --data-urlencode  update\@$qf $qss/update" ;
 warn "cmd: $cmd\n" if $debug;
 !system($cmd) or die "$0: $?\n";

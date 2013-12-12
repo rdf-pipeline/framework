@@ -7,7 +7,7 @@
 ######### Example Node types ##########
 p:Node		a rdfs:Class .
 p:FileNode	rdfs:subClassOf p:Node ;
-  ### This does not work yet due to issue #39:
+  ### This does not work yet due to issue #37:
   # p:updaterFileExtensions ( ".sh" ".pl" ) ;
   ### But test it anyway:
   p:updaterFileExtensions ( "-updater" ) ;

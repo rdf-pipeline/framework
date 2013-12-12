@@ -15,7 +15,7 @@ use URI::Encode qw(uri_encode uri_decode);
 use warnings;
 my $debug = 0;
 $ENV{SPARQL_SERVER} or die "$0: ERROR: SPARQL_SERVER env var is not set.  Example:
-  export SPARQL_SERVER=http://localhost:8080/openrdf-workbench/repositories/mda_v11\n";
+  export SPARQL_SERVER=http://localhost:8080/openrdf-workbench/repositories/rdf-pipeline-test\n";
 @ARGV <= 1 or die "Usage: $0 [ namedGraph ] \n";
 my $graph = shift @ARGV || "";
 my $eGraph = uri_encode($graph);
@@ -32,7 +32,7 @@ else	{
 	$sesameUrl .= "/export?Accept=text%2Fturtle";
 	}
 my $qss = quotemeta($sesameUrl);
-# http://localhost:8080/openrdf-sesame/repositories/mda_v11/rdf-graphs/service?Accept=text%2Fturtle&graph=http%3A%2F%2Fexample%2Ffoo
+# http://localhost:8080/openrdf-sesame/repositories/rdf-pipeline-test/rdf-graphs/service?Accept=text%2Fturtle&graph=http%3A%2F%2Fexample%2Ffoo
 my $cmd = "/usr/bin/curl -s  $qss | perl -p -e 's/\\\\r//g'";
 warn "cmd: $cmd\n" if $debug;
 !system($cmd) or die "$0: $?\n";

@@ -6,7 +6,49 @@ It is licensed for use under the license in License.txt
 These are my (dbooth) personal notes and "To Do" list from
 before I used code.google.com and had any formal bug tracker
 or issues list.  It is currently being used as a place for recording
-notes, ideas or things to do.
+notes or ideas.
+
+10/29/13: Brainstorming how to write map pipelines.
+[[
+########### Sub-pipeline template, in s.ttl:
+:s a p:PipelineTemplate ;
+  p:formalInputs ( :pa :pb ) ;
+  p:formalOutputs ( :px :py ) ;
+  p:formalNodes ( :p ) .
+
+:p a p:FileNode ;
+  p:inputs ( :pa :pb ) ;
+  p:outputs ( :px :py ) .
+]]
+
+[[
+########### Explicitly using it twice:
+:s1 a p:PipelineNode ;
+  p:inputs ( :a :b1 ) ;
+  p:outputs ( :x :y1 ) ;
+  p:updater "s.ttl" .
+
+:s2 a p:PipelineNode ;
+  p:inputs ( :a :b2 ) ;
+  p:outputs ( :x :y2 ) ;
+  p:updater "s.ttl" .
+]]
+
+[[
+########### End result after expansion:
+:s1-p a p:FileNode ;
+  p:inputs ( :a :b1 ) ;
+  p:outputs ( :x :y1 ) .
+
+:s2-p a p:FileNode ;
+  p:inputs ( :a :b2 ) ;
+  p:outputs ( :x :y2 ) .
+]]
+
+[[
+########### And if a downstream node used p as its input:
+:x a p:FileNode ;	# Downstream node
+  p:inputs ( ( p:all :x ) 
 
 7/27/12: Thinking more about how to provide configuration information
 for GraphNodes.  For each node or nodetype, prefix or pipeline, need to specify

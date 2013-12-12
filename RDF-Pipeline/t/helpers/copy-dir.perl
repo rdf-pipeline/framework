@@ -7,7 +7,7 @@
 # of the destination directory are deleted, leaving an empty
 # directory.
 #
-# The -s ("subversion") option says to be svn-aware, which means that it if the
+# The -s ("subversion") option says to be svn-aware, which means that if the
 # destination directory contains a hidden .svn subdirectory, then
 # we will do an "svn rm" to remove the destination directory
 # from svn's control before copying the directory.  And after
