@@ -172,6 +172,7 @@ our $DEBUG_DETAILS = 6;	# Show requests plus more detail.
 # the apache2 config file:
 our $debug = $ENV{RDF_PIPELINE_DEBUG};
 $debug = $DEBUG_CHANGES if !defined($debug) or $debug !~ m/\S/;
+# $debug = $DEBUG_DETAILS;
 my $rawDebug = $debug;
 # Allows symbolic $debug value:
 $debug = eval $debug if defined($debug) && $debug =~ m/^\$\w+$/;  
@@ -621,13 +622,23 @@ $r->headers_out->set('ETag' => $eTagHeader) if $eTagHeader;
 # Done setting headers.  Determine status code to return, and
 # send content body if 200 and not HEAD.
 my $status = $r->meets_conditions();
-if($status != Apache2::Const::OK || $r->header_only) {
+if($status != Apache2::Const::OK) {
   # $r->status(Apache2::Const::HTTP_NOT_MODIFIED);
-  # Also returns 304 if appropriate:
+  # Returns 304 if appropriate:
   return $status;
   }
-my $size = -s $serState || 0;
-$r->set_content_length($size);
+# TODO: It might be better to convert {serState} and {state}
+# to absolute paths *once*, and store them in $nm.  But {state}
+# is a native name -- not necessarily a file name, though it
+# is in the case of a FileNode -- whereas {serState} is always
+# a filename.
+my $serStateAbsPath = &NodeAbsPath($serState);
+# Either HEAD or GET.  Set size.
+my $size = -s $serStateAbsPath;
+$r->set_content_length($size) if defined($size);
+if($r->header_only) {
+  return $status;
+  }
 # Not sure if the Content-Location header should be set.  
 # It may help people with debugging (so that they can view the serState
 # directly), but it could be misused if people start requesting 
@@ -638,7 +649,12 @@ $r->set_content_length($size);
 # i.e., clients should know that the semantics are different.
 $r->headers_out->set('Content-Location' => &PathToUri($serState)); 
 # sendfile seems to want a full file system path:
-$r->sendfile($serState);
+&Warn("Sending file: $serStateAbsPath\n", $DEBUG_DETAILS);
+# my $contents = &ReadFile($serStateAbsPath);
+# &Warn("[[\n", $DEBUG_DETAILS);
+# &Warn("  $contents\n", $DEBUG_DETAILS);
+# &Warn("]]\n", $DEBUG_DETAILS);
+$r->sendfile($serStateAbsPath);
 return Apache2::Const::OK;
 }
 
@@ -701,9 +717,9 @@ sub UpdateQueries
 {
 @_ == 4 or die;
 my ($nm, $thisUri, $latestUri, $latestQuery) = @_;
-defined($thisUri) || die;
-defined($latestUri) || die;
-defined($latestQuery) || die;
+defined($thisUri) || confess;
+defined($latestUri) || confess;
+defined($latestQuery) || confess;
 &Warn("UpdateQueries(nm, $thisUri, $latestUri, $latestQuery)\n", $DEBUG_DETAILS);
 my $pOutputs = $nm->{multi}->{$thisUri}->{outputs} || {};
 $latestUri = "" if !$pOutputs->{$latestUri};	# Treat as anonymous requester?
@@ -917,6 +933,9 @@ my $pUpstreamQueries = &{$fRunParametersFilter}($nm, $thisUri, $parametersFilter
 &Warn("Ran parametersFilter\n", $DEBUG_DETAILS);
 ####
 foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
+  # In case $thisUri dependsOn itself, ignore it.
+  # See issue 58.
+  next if $depUri eq $thisUri;
   # Bear in mind that a node may dependsOn a non-node arbitrary http 
   # or file:// source, so $depVHash may be undef.
   my $depVHash = $nm->{value}->{$depUri} || {};
@@ -925,7 +944,7 @@ foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
   my $method = 'GET';
   my $depLM = "";
   my $depQuery = "";
-  $depQuery = $pUpstreamQueries->{$depUri} if $depType;
+  $depQuery = ($pUpstreamQueries->{$depUri} || "") if $depType;
   # confess "INTERNAL ERROR: depUri: $depUri depQuery: $depQuery\n" if $depQuery =~ m/\Ahttp:/;
   my $isInput = $thisMHashInputs->{$depUri} 
 	|| $thisMHashParameters->{$depUri} || 0;
@@ -1710,8 +1729,11 @@ my ($nm, $thisUri, $updater, $state, $thisInputs, $thisParameters,
 ($nm, $thisUri, $updater, $state, $thisInputs, $thisParameters, 
 	$oldThisLM, $callerUri, $callerLM) = @_;
 &Warn("FileNodeRunUpdater(nm, $thisUri, $updater, $state, ...) called.\n", $DEBUG_DETAILS);
-$updater = &NodeAbsPath($updater) if $updater;
 return &TimeToLM(&MTime($state)) if !$updater;
+$state || die;
+$state = &NodeAbsPath($state);
+$updater = &NodeAbsPath($updater);
+&Warn("Abs state: $state  Abs updater: $updater\n", $DEBUG_DETAILS);
 # TODO: Move this warning to when the metadata is loaded?
 if (!-x $updater) {
 	die "ERROR: $thisUri updater $updater is not executable by web server!";
@@ -1750,7 +1772,7 @@ my $qStderr = quotemeta($stderr);
 my $useStdout = 0;
 my $stateOriginal = $nm->{value}->{$thisUri}->{stateOriginal} || "";
 &Warn("stateOriginal: $stateOriginal\n", $DEBUG_DETAILS);
-$useStdout = 1 if $updater && !$nm->{value}->{$thisUri}->{stateOriginal};
+$useStdout = 1 if $updater && !$stateOriginal;
 my $cmd = "( cd '$nodeBasePath' ; export THIS_URI=$qThisUri ; $qUpdater $qState $ipFiles > $qStderr 2>&1 )";
 $cmd =    "( cd '$nodeBasePath' ; export THIS_URI=$qThisUri ; $qUpdater         $ipFiles > $qState 2> $qStderr )"
 	if $useStdout;
