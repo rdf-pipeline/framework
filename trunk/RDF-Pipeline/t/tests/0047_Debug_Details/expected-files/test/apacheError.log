@@ -7,8 +7,6 @@ Query string (elements 2): debug=$DEBUG_DETAILS
   Query string args unparsed: debug=$DEBUG_DETAILS
   Query string args parsed:
     debug=$DEBUG_DETAILS
-  --------- NodeMetadata after RegisterWrappers -------
-  Reloading config file: /home/dbooth/rdf-pipeline/trunk/www/node/pipeline.ttl
   thisUri: http://localhost/node/UPPERWILLIES subtype: FileNode
     HandleHttpEvent called: thisUri: http://localhost/node/UPPERWILLIES
     HandleHttpEvent query: 
@@ -153,6 +151,7 @@ Query string (elements 2): debug=$DEBUG_DETAILS
           RequestLatestDependsOn(nm, http://localhost/node/UPPERWILLIES, 1326111111.111111000001, , , HASH(0x111111111111)) returning: 0
       FreshenState http://localhost/node/UPPERWILLIES returned newThisLM: 1326111111.111111000001
       FreshenSerState: No serialization needed. Returning newThisLM: 1326111111.111111000001
+    Sending file: /home/dbooth/rdf-pipeline/trunk/www/cache/UPPERWILLIES/state
 RealHandler returned: 0
 ============================================================
 ----------------------------------------------------------------------
