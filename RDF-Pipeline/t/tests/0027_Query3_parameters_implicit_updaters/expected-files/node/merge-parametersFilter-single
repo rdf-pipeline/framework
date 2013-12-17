@@ -1,6 +1,0 @@
-#! /bin/bash
-
-for inUri in $@ ; do 
-  echo $inUri\?$QUERY_STRING 
-done
-

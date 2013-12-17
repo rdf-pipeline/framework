@@ -1,2 +1,0 @@
-Test tools/prefix -u
-
