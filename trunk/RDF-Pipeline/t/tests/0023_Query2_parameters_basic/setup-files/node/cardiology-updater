@@ -1,5 +1,0 @@
-#! /bin/bash
-echo '# Cardiology patient data for id=(002|003|004)'
-egrep "id=(002|003|004)" $1
-exit 0
-
