@@ -22,8 +22,6 @@ while (<>) {
         # Make whatever changes are needed:
         # s/ETag\: \"(\d)/ETag\: \"LM$1/;
 
-        # s|\/Private||g;
-
         print $tmpfh $_;
         }
 close($tmpfh) || die;

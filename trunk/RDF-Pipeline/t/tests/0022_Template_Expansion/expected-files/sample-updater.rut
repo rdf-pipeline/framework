@@ -1,25 +1,8 @@
 #! /usr/bin/env ste.perl
 
-# Copyright 2012 by David Booth <david@dbooth.org>
-# See license info at: http://code.google.com/p/rdf-pipeline/
-
-# This is a sample updater written as a SPARQL template.
-# The template should be expanded as:
-#
-#  export QUERY_STRING='min=2&max=99&property=givenName'
-#  ste.perl sample-updater.rut -t http://example/this -i http://example/in -i William -i Taffy -o http://example/out > sample-updater-expanded.ru
-
-##############################################################
-########## Template variables are declared below #############
-##############################################################
-
-#inputs( $inUri Bill ${Taft} )	   	
-#outputs( $outUri )			
-#parameters( $max $min $property )
-
-##############################################################
-########## Results of expansion can be seen below ############
-##############################################################
+#inputs ( $inUri Bill ${Taft} )	   	# Comment okay here
+#outputs ( $outUri )			
+#parameters ( $max $min $property )
 
 PREFIX foaf:  <http://xmlns.com/foaf/0.1/>
 
@@ -27,12 +10,6 @@ PREFIX foaf:  <http://xmlns.com/foaf/0.1/>
 # in3: ${Taft} max: $max
 # QUERY_STRING: $ENV{QUERY_STRING}
 # These should be unchanged: $inUriExtra  Billion  EmBill 
-
-DROP SILENT GRAPH <$inUri> ;
-DROP SILENT GRAPH <$outUri> ;
-
-CREATE SILENT GRAPH <$inUri> ;
-CREATE SILENT GRAPH <$outUri> ;
 
 INSERT DATA {
   GRAPH <$inUri> {
@@ -44,7 +21,6 @@ INSERT DATA {
 	<http://example/president42> foaf:familyName "Clinton" .
     }
   }
-;
 
 INSERT { 
   GRAPH <$outUri> {
@@ -56,5 +32,4 @@ WHERE {
     ?s foaf:$property ?v .
     }
   } 
-;
 
