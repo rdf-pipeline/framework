@@ -1,34 +1,28 @@
 #! /usr/bin/env ste.perl
 
-Copyright 2012 by David Booth <david@dbooth.org>
-See license info at http://code.google.com/p/rdf-pipeline/
+Template variable names are listed here:
 
-This is a sample template for testing and illustrating simple template
-expansion using ste.perl.  Try it using the following commands:
+#inputs ( $inUri Bill ${Taft} )	   	# Comment okay here
+#outputs ( $outUri )			
+#parameters ( $max $min )
 
-  export QUERY_STRING='min=2&max=99'
-  ste.perl sample-template.txt -t http://example/this -i http://example/in -i William -i Taffy -o http://example/out
+Below you can see the effect of template expansion: 
 
-*******************************************************************
-******************* Template begins below *************************
-*******************************************************************
-
-#inputs( $inUri Bill ${Taft} ) 
-#outputs( $outUri ) 
-#parameters( $max $min ) 
-Testing inputs, outputs:
-  inUri: $inUri
+Inputs, outputs: 
+  inUri: $inUri 
   B_i_l_l: Bill  "Bill"  money@Bill.me
-  Taft: ${Taft}
-Testing parameters (either from QUERY_STRING or from -p option):
+  Taft: ${Taft} 
+Parameters (either from QUERY_STRING or from -p option):
   min: $min
   max: $max
-Testing environment variables:
-  THIS_URI: $ENV{THIS_URI}
+Environment examples: 
+  THIS_URI: $ENV{THIS_URI}  
   FOO: $ENV{FOO}
-Testing the QUERY_STRING:
+QUERY_STRING: 
   $ENV{QUERY_STRING}
-Note that the following are NOT changed, because template
-processing will NOT break words, and it is case sensitive:
+
+Note that the following are NOT changed, because template expansion 
+will NOT break words, and it is case sensitive: 
+
   $inUriExtra  Billion  EmBill bill
 

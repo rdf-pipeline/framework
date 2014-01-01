@@ -1795,7 +1795,7 @@ if ($result) {
 	&Warn("FileNodeRunUpdater: UPDATER ERROR: $saveError\n");
 	return "";
 	}
-my $newLM = ($useStdout ? &GenerateNewLM() : &TimeToLM(&MTime($state)));
+my $newLM = &GenerateNewLM();
 &Warn("FileNodeRunUpdater returning newLM: $newLM\n", $DEBUG_DETAILS);
 return $newLM;
 }
@@ -1861,7 +1861,7 @@ sub MTimeAndInode
 my $f = shift;
 my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
 	      $atime,$mtime,$ctime,$blksize,$blocks)
-		  = Time::HiRes::stat($f);
+		  = stat($f);
 # Avoid unused var warning:
 ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
 	      $atime,$mtime,$ctime,$blksize,$blocks)
