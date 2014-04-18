@@ -4,7 +4,10 @@
 The RDF Pipeline framework is designed to allow new wrappers to be implemented for new node types.  A wrapper is provided by implementing the wrapper interface and registering the wrapper, which sets appropriate node metadata.  The mechanics of the interface depend on the programming language that is used (e.g., Java or Perl), but all interfaces involve similar functions.
 
 = Wrapper Functions =
-A wrapper must implement the following functions.
+A wrapper must implement the following functions.  In the descriptions that follow, there are three kinds of names:
+ * *URIs*, which are used to uniquely identify pipeline nodes and maybe some other things.
+ * *Filenames*, which identify files.
+ * *Native names*, which may be URIs, filenames or some other kind of names, depending on what kind of wrapper is used.  Native names are used by the wrapper to uniquely identify node states (or local caches of states).  For example, a FileNode works with files, so a FileNode native name is a filename.  A GraphNode works with RDF named graphs, so a GraphNode native name is a URI.
 
 == fExists(...) -- REQUIRED ==
 *Parameters:*
