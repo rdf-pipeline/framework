@@ -13,7 +13,7 @@ A wrapper must implement the following functions.
 *Returns:*
   * Boolean: true (1) iff _name_ exists in _hostRoot_ .
 
-Tests whether a state or local cache exists.
+Tests whether a state or local cache exists.  If it is not possible to determine reliably whether an object of this wrapper type exist, then fExists should always return true.  This is the case, for example for GraphNode, because the SPARQL standard does not define a reliable way to determine whether a graph exists if it is empty, because empty graphs may be silently and automatically deleted by the SPARQL server.
 
 == fDeserializer(...) -- OPTIONAL ==
 *Parameters:*
