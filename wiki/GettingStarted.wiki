@@ -20,7 +20,7 @@ A node's inputs are listed using the p:inputs predicate:
   p:inputs ( :bar1 :bar2 :bar3 ) .
 }}}
 
-Files may be specified as inputs in three ways:
+File inputs may be specified as inputs in three ways:
 {{{
 # Input file is $DOCUMENT_ROOT/node/bar.txt (because that's where pipeline.ttl is):
 :foo1 a p:FileNode ;
