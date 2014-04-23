@@ -23,11 +23,12 @@ A node's inputs are listed using the p:inputs predicate:
   p:inputs ( :bar1 ) .
 }}}
 
-A node with no inputs (or p:dependsOn's, discussed below) will be run only once (to initially freshen its state), and thereafter never again unless caches are flushed using tools/flush-caches or the updater itself is changed, because each node's updater is an implicit dependency:
+A node with no inputs (or p:dependsOn's, discussed below) will be run only once (to initially freshen its state), and thereafter never again unless caches are flushed using tools/flush-caches:
 {{{
 # No inputs
 :foo1 a p:FileNode .
 }}}
+The node's updater should actually be run if the updater itself has changed, because each node's updater is an implicit dependency, but this feature is not yet working.  (See issue #58: http://code.google.com/p/rdf-pipeline/issues/detail?id=58 )
 
 == File inputs ==
 
