@@ -3,3 +3,36 @@
 = Introduction =
 
 Sorry, installation and configuration documentation have not yet been written.   Contact david@dbooth.org directly if you wish to try out this software.
+
+= RDF limitations in pipeline.ttl =
+The RDF Pipeline Framework expects pipeline.ttl to obey certain conventions and limitations:
+  * pipeline.ttl must be written in Turtle.
+  * Blank nodes should only be used implicitly, and only when specifying a list, such as as a list of a node's inputs:
+{{{
+:foo a p:FileNode ;
+  p:inputs ( :bar1 :bar2 :bar3 ) .
+}}}
+
+= Inputs =
+A node's inputs are listed using the p:inputs predicate:
+{{{
+# Input file is $DOCUMENT_ROOT/node/bar.txt (because that's where pipeline.ttl is):
+:foo1 a p:FileNode ;
+  p:inputs ( <bar.txt> ) .
+
+# Input file is $DOCUMENT_ROOT/node/bar.txt :
+:foo2 a p:FileNode ;
+  p:inputs ( <http://localhost/node/bar.txt> ) .
+
+# Absolute path: input file is /home/dbooth/bar.txt :
+:foo3 a p:FileNode ;
+  p:inputs ( <file:///home/dbooth/bar.txt> ) .
+}}}
+
+= p:dependsOn =
+Sometimes it is useful to indicate that a node depends on some other node or external source or file without actually requiring that thing's output.  This can be indicated using p:dependsOn .  For example, a node could depend on a clock source, which would cause the node's updater to run every time the node's output is requested (assuming the clock source has changed every time):
+{{{
+foo: a FileNode ;
+  p:inputs ( :bar1 :bar2 :bar3 ) .
+  p:dependsOn ( <http://www.timeanddate.com/worldclock/> ) .
+}}}
