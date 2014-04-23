@@ -16,6 +16,12 @@ The RDF Pipeline Framework expects pipeline.ttl to obey certain conventions and 
 = Inputs =
 A node's inputs are listed using the p:inputs predicate:
 {{{
+:foo a p:FileNode ;
+  p:inputs ( :bar1 :bar2 :bar3 ) .
+}}}
+
+Files may be specified as inputs in three ways:
+{{{
 # Input file is $DOCUMENT_ROOT/node/bar.txt (because that's where pipeline.ttl is):
 :foo1 a p:FileNode ;
   p:inputs ( <bar.txt> ) .
