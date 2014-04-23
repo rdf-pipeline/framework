@@ -13,6 +13,25 @@ The RDF Pipeline Framework expects pipeline.ttl to obey certain conventions and 
   p:inputs ( :bar1 :bar2 :bar3 ) .
 }}}
 
+= Updaters: p:updater =
+An updater is a program, function or procedure -- the precise nature depends on the node type -- that is associated with a node and _run_ (a/k/a _fired_ or _executed_) when the RDF Pipeline Framework detects that the state of that node should be _refreshed_ (a/k/a _updated, regenerated_ or _freshened_).  By default the node's updater is assumed to exist (as a file) in the $DOCUMENT_ROOT/node directory.  A node's updater may be specified explicitly using p:updater .  However, by default the updater is expected to have the same name as the node, so the following two examples are equivalent:
+{{{
+# Updater specified explicitly:
+:foo a p:FileNode ;
+  p:updater "foo" ;
+  p:inputs ( :bar1 :bar2 :bar3 ) .
+
+# Updater is implicitly "foo":
+:foo a p:FileNode ;
+  p:inputs ( :bar1 :bar2 :bar3 ) .
+}}}
+
+Every node MUST have an updater.  If you have a data source http://example/coolDataSource that does not need to be updated by the RDF Pipeline Framework, then just make it an input of some other node, without declaring it to be a node:
+{{{
+:foo a p:FileNode ;
+  p:inputs ( <http://example/coolDataSource> ) .
+}}}
+
 = Inputs: p:inputs =
 A node's inputs are listed using the p:inputs predicate:
 {{{
@@ -23,12 +42,22 @@ A node's inputs are listed using the p:inputs predicate:
   p:inputs ( :bar1 ) .
 }}}
 
-A node with no inputs (or p:dependsOn's, discussed below) will be run only once (to initially freshen its state), and thereafter never again unless caches are flushed using tools/flush-caches:
+A node with no inputs (or p:dependsOn's, discussed below) will be run only once (to initially freshen its state), and thereafter never again unless: (a) caches are flushed using tools/flush-caches; or (b) the node's updater itself changes, because each node implicitly depends on its updater.  However, as of this writing (see issue #58: http://code.google.com/p/rdf-pipeline/issues/detail?id=58 ), a change to the updater will only be detected if the updater is named explicitly, using p:updater, and is named differently from the node itself, like this:
 {{{
-# No inputs
-:foo1 a p:FileNode .
+# No inputs -- Update only if foo1-updater changes (or caches are flushed)
+:foo3 a p:FileNode 
+  p:updater "foo1-updater" .
 }}}
-The node's updater should actually be run if the updater itself has changed, because each node's updater is an implicit dependency, but this feature is not yet working.  (See issue #58: http://code.google.com/p/rdf-pipeline/issues/detail?id=58 )
+
+{{{
+# No inputs -- Update only when caches are flushed, which is probably NOT what you want to achieve.
+:foo4 a p:FileNode .
+
+# Same as :foo4 example above, but more wordy.
+:foo5 a p:FileNode 
+  p:updater "foo5" .
+}}}
+
 
 == File inputs ==
 
