@@ -35,6 +35,12 @@ Files may be specified as inputs in three ways:
   p:inputs ( <file:///home/dbooth/bar.txt> ) .
 }}}
 
+# Input file is $DOCUMENT_ROOT/node/bar.txt , but *a change in that file will not be detected:*
+{{{
+:foo3 a p:FileNode ;
+  p:inputs ( "bar.txt" ) .
+}}}
+
 = p:dependsOn =
 Sometimes it is useful to indicate that a node depends on some other node or external source or file without actually requiring that thing's output.  This can be indicated using p:dependsOn .  For example, a node could depend on a clock source, which would cause the node's updater to run every time the node's output is requested (assuming the clock source has changed every time):
 {{{
