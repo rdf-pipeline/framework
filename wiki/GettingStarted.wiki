@@ -35,8 +35,10 @@ Files may be specified as inputs in three ways:
   p:inputs ( <file:///home/dbooth/bar.txt> ) .
 }}}
 
-# Input file is $DOCUMENT_ROOT/node/bar.txt , but *a change in that file will not be detected:*
+A file can also be specified this way, but this is *not recommended
+because a change in that file will not be detected:*
 {{{
+# Input file is $DOCUMENT_ROOT/node/bar.txt , but changes are NOT DETECTED:
 :foo3 a p:FileNode ;
   p:inputs ( "bar.txt" ) .
 }}}
