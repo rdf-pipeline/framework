@@ -50,6 +50,8 @@ File inputs may be specified as inputs in three ways:
   p:inputs ( <file:///home/dbooth/bar.txt> ) .
 }}}
 
+*WARNING:* Because of the one-second resolution of Last-Modified headers, if a file changes more than once within the same second, changes after the first may not be detected.  See https://issues.apache.org/bugzilla/show_bug.cgi?id=42987
+
 = Non-input dependencies: p:dependsOn =
 Sometimes it is useful to indicate that a node depends on some other node or external source or file without actually requiring that thing's output.  This can be indicated using p:dependsOn .  For example, a node could depend on a clock source, which would cause the node's updater to run every time the node's output is requested (assuming the clock source has changed every time):
 {{{
