@@ -61,7 +61,7 @@ A node with no inputs (or p:dependsOn's, discussed below) will be run only once 
 
 == File inputs ==
 
-File inputs may be specified as inputs in three ways:
+File inputs may be specified as inputs in four ways:
 {{{
 # Input file is $DOCUMENT_ROOT/node/bar.txt (because that's where pipeline.ttl is):
 :foo1 a p:FileNode ;
