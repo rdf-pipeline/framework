@@ -109,14 +109,14 @@ sudo apt-get -y install libxml-namespacefactory-perl
 Installation instructions: http://www.w3.org/2000/10/swap/doc/CwmInstall
 
 As root:
-{{
+{{{
 mkdir /opt/cwm
 cd /opt/cwm
 wget http://www.w3.org/2000/10/swap/cwm.tar.gz
 tar xvzf cwm.tar.gz
 cd cwm-1.2.1
 python setup.py install
-}}
+}}}
 
 Verify the installation and check the version:
 {{{
