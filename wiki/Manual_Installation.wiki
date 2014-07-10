@@ -145,10 +145,10 @@ https://help.ubuntu.com/community/Java
 See if it is already installed:
 {{{
 dpkg --list | grep tomcat
-}}
+}}}
 
 1. Install it:
-{{
+{{{
 sudo apt-get update
 sudo apt-get -y install tomcat7 tomcat7-admin
 }}}
@@ -157,10 +157,10 @@ sudo apt-get -y install tomcat7 tomcat7-admin
 Edit /etc/tomcat7/tomcat-users.xml to the these lines just 
 before the ending {{{</tomcat-users>}}} line (but change them to use a
 more secure password):
-{{
+{{{
   <role rolename="manager-gui"/>
   <user username="tomcat" password="tomcat" roles="manager-gui"/>
-}}
+}}}
 
 3. Increase tomcat's java heap memory allocation.  Edit /etc/default/tomcat7
 to change the line that begins {{{JAVA_OPTS="-Djava.awt.headless=true}}
