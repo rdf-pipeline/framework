@@ -198,7 +198,7 @@ http://sourceforge.net/projects/sesame/files/latest/download?source=files
 2. Unpack:
 {{{
 tar xzvf openrdf-sesame-2.7.11-sdk.tar.gz
-}}
+}}}
 
 For some unknown reason, tar seems to give a warning:
 {{{
