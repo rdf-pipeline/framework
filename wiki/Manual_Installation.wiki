@@ -256,7 +256,7 @@ and then download them:
 # First look for perl programs in tools:
 cd /home/dbooth/rdf-pipeline/trunk/
 TOOLS=`find tools -type f -print | perl -n -e 'chomp; print "$_\n" if !system("file $_ | grep -q -i perl")'`
-# If desired, you see what programs it found: echo $TOOLS
+# If desired, you can see what programs it found: echo $TOOLS
 # Now scan for module names used in perl programs or modules.
 # Apache2::Const is omitted because it is already installed in mod_perl2.
 MODULES=`cat RDF-Pipeline/lib/RDF/Pipeline.pm RDF-Pipeline/lib/RDF/Pipeline/* $TOOLS |grep -P '^(use|require) ' | perl -p -e 's/^.*? //; s/[ ;].*$//; s/^[0-9].*//; s/^(strict|warnings)$//; s/^RDF::Pipeline.*//; s/^(Apache2::Const)$//' | sort -u`
