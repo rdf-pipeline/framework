@@ -1,6 +1,6 @@
 #summary Use case: Map
 
-This use case motivates the need for map capability: applying an updater to many instances.  
+This use case motivates the need for map capability: one updater for n dynamically generated nodes, such as _n_ patient records or _m_ prescription instances.
 
 A patient record contains prescription information that includes SIG strings.  A SIG string is an abbreviated description of the drug, dosage, instructions for taking it, etc., that has been prescribed to the patient.  In transforming the patient record, each SIG string for a prescription instance must be parsed and transformed into the target prescription model.  Each patient record may have many prescription instances, each one having one SIG string.  A java program reads one SIG string as a command-line argument, and one prescription instance ID, and writes an RDF graph representing the target prescription instance, corresponding to that SIG string.
 
