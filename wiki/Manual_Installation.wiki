@@ -270,7 +270,7 @@ cpan $MODULES
 
 == Configure apache to find the RDF Pipeline Framework ==
 1. Edit /etc/apache2/sites-available/default .  In the beginning,
-after the "<VirtualHost *:80>" line, add these lines:
+after the {{{<VirtualHost *:80>}}} line, add these lines:
 {{{
 PerlRequire /home/dbooth/rdf-pipeline/trunk/startup.pl
 <Location /node/>
