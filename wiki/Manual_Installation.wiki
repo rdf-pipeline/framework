@@ -474,6 +474,15 @@ HELLO WORLD!
 Goodbye
 }}}
 
+8. (OPTIONAL) Developer performance measurement using NYTProf: In /etc/apache2/apache2.conf add:
+{{{
+###### Perl performance profiling:
+PerlPassEnv NYTPROF
+PerlModule Devel::NYTProf::Apache
+}}}
+
+The pipeline framework also writes some performance statistics to /tmp/rdf-pipeline-timing.tsv , and it writes an activity log to /tmp/rdf-pipeline-log.tsv
+
 = Troubleshooting =
 
 Tips:
