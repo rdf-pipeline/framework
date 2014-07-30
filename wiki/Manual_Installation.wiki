@@ -265,6 +265,11 @@ MODULES=`cat RDF-Pipeline/lib/RDF/Pipeline.pm RDF-Pipeline/lib/RDF/Pipeline/* $T
 # ask for your sudo root password, to install them:
 cpan $MODULES
 }}}
+If this one was missed, install it:
+{{{
+cpan RDF::Helper::Constants
+}}}
+
 
 = Configuration =
 
@@ -490,8 +495,8 @@ Tips:
 {{{
 tail -n 20 /var/log/apache2/error.log
 }}}
-  * Make sure your environment variables are set so that you can
-issue pipeline commands while testing:
+  * Check the RDF Pipeline log file: /tmp/rdf-pipeline-log.txt
+  * Make sure your environment variables are set so that you can issue pipeline commands while testing:
 {{{
 cd /home/dbooth/rdf-pipeline/trunk
 . set_env.sh
