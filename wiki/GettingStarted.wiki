@@ -10,11 +10,11 @@ The RDF Pipeline Framework expects pipeline.ttl to obey certain conventions and 
 }}}
 
 = Updaters: p:updater =
-An updater is a program, function or procedure -- the precise nature depends on the node type -- that is associated with a node and _run_ (a/k/a _fired_ or _executed_) when the RDF Pipeline Framework detects that the state of that node should be _refreshed_ (a/k/a _updated, regenerated_ or _freshened_).  By default the node's updater is assumed to exist (as a file) in the $DOCUMENT_ROOT/node directory.  A node's updater may be specified explicitly using p:updater .  However, by default the updater is expected to have the same name as the node, so the following two examples are equivalent:
+An updater is a program, function or procedure -- the precise nature depends on the node type -- that is associated with a node and _run_ (a/k/a _fired_ or _executed_) when the RDF Pipeline Framework detects that the state of that node should be _refreshed_ (a/k/a _updated, regenerated_ or _freshened_).  By default the node's updater is assumed to exist (as a file) in the $DOCUMENT_ROOT/node directory.  A node's updater may be specified explicitly using p:updater .  However, by default the updater is expected to have *the same name as the node*, so the following two examples are equivalent:
 {{{
 # Updater specified explicitly:
 :foo a p:FileNode ;
-  p:updater "foo" ;
+  p:updater "foo" ; 
   p:inputs ( :bar1 :bar2 :bar3 ) .
 
 # Updater is implicitly "foo":
