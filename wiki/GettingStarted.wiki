@@ -75,3 +75,16 @@ foo: a FileNode ;
   p:inputs ( :bar1 :bar2 :bar3 ) .
   p:dependsOn ( <http://www.timeanddate.com/worldclock/> ) .
 }}}
+
+= Tools directory =
+The tools directory at https://github.com/dbooth-boston/rdf-pipeline/tree/master/tools contains some useful helper scripts.  To use them, you should first set your path so that they can be found.  A script set_env.sh has been provided for this purpose at https://github.com/dbooth-boston/rdf-pipeline/blob/master/set_env.sh .  Modify the line
+{{{
+export RDF_PIPELINE_DEV_DIR=/home/dbooth/rdf-pipeline/trunk
+}}}
+appropriately, according to your installation location, and then run the commands in that script to set your path:
+{{{
+. set_env.sh
+}}}
+
+Some useful scripts in the tools directory:
+  * *flush-caches* Flushes the pipeline caches on the current host.  This is sometimes useful for debugging, to ensure that you are at a virgin starting point in running your pipeline.  If you're running the RDF Pipeline Framework on multiple hosts, you may want to run this command on each host.
