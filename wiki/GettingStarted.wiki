@@ -1,9 +1,5 @@
 #summary Getting Started
 
-= Introduction =
-
-Sorry, installation and configuration documentation have not yet been written.   Contact david@dbooth.org directly if you wish to try out this software.
-
 = RDF conventions in pipeline.ttl =
 The RDF Pipeline Framework expects pipeline.ttl to obey certain conventions and limitations:
   * pipeline.ttl must be written in Turtle.
