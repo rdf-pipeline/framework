@@ -1,8 +1,10 @@
-#summary One-sentence summary of this page.
+#summary GraphNode Wrapper
 
 = Introduction =
 
 A GraphNode represents its state as an RDF named graph in a SPARQL server.  Its updater is a SPARQL 1.1 Update operation or a template that will be expanded by the Simple Template Expansion module (ste.perl) to produce a SPARQL 1.1 Update operation.  See the section on "Simple Template Expansion ste.perl" for templating conventions.
+
+As of this writing (6-Aug-2014) a GraphNode works for Sesame and BigData SPARQL servers.
 
 
 = Simple GraphNode example =
@@ -133,3 +135,18 @@ For more details, see the section on Simple Template Expansion ste.perl .
 
 = Environment variables =
 Environment variables are also available for template expansion, as described in the section on Simple Template Expansion ste.perl .
+
+= SPARQL_SERVER connection information =
+The pipeline definition in pipeline.ttl must specify the URI of the SPARQL server to be used by GraphNodes in the pipeline.  This is done using the p:hostRoot predicate such as:
+{{{
+p:GraphNode p:hostRoot
+  ( "http://localhost" "http://localhost:8080/openrdf-workbench/repositories/rdf-pipeline-test" ) .
+}}
+
+The p:hostRoot predicate is specified on the p:GraphNode class itself -- not on a particular node.  The object of the predicate is a list of <nodePrefix, serverUri> pairs, indicating that each p:GraphNode instance whose URI starts with nodePrefix should have its state stored in the SPARQL server at serverUri.  For convenience, pairs may also be specified as separate lists, such as:
+{{{
+p:GraphNode p:hostRoot
+  ( "http://foo.example/" "http://foo.example:8080/openrdf-workbench/repositories/foo" ) .
+p:GraphNode p:hostRoot
+  ( "http://bar.example" "http://bar.example:8080/openrdf-workbench/repositories/bar" ) .
+}}
