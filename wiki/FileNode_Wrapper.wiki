@@ -24,3 +24,12 @@ Before the _updaterCmd_ is invoked, the following environment variables are set:
  * *$THIS_URI* is set to the current node's URI.
  * *$QUERY_STRING* is set to the query string of this node's latest GET request, as received from one of the node's downstream output nodes or an anonymous requester.
  * *$QUERY_STRINGS* is set to the space-separated list of $QUERY_STRINGs received from all of the node's downstream nodes.  *TODO: Does it include the $QUERY_STRING of an anonymous requester?*
+
+In addition to the above, an environment variable is set for each URL *query parameter* that is passed to the FileNode, provided that query parameter matches the following perl regular expression: `^[a-z][a-zA-Z0-9_]*$` .  
+
+Thus, if FileNode :foo is invoked as `http://localhost/node/foo?patient=43&domain=demographics&Doctor=Clark`, the following additional environment variables will be set prior to invoking the updater:
+{{{
+export patient=43
+export domain=demographics
+}}}
+Note that no environment variable will be set for the `Doctor` query parameter, because it starts with an upper case letter.
