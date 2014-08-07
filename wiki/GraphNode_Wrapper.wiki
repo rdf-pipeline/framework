@@ -1,0 +1,109 @@
+#summary One-sentence summary of this page.
+
+= Introduction =
+
+A GraphNode represents its state as an RDF named graph in a SPARQL server.  Its updater is a SPARQL 1.1 Update operation or a template that will be expanded by the Simple Template Expansion module (ste.perl) to produce a SPARQL 1.1 Update operation.  See the section on "Simple Template Expansion ste.perl" for templating conventions.
+
+
+= Simple GraphNode example =
+
+This example was taken from regression test 0035_GraphNode_Basic: https://github.com/dbooth-boston/rdf-pipeline/tree/master/RDF-Pipeline/t/tests/0035_GraphNode_Basic/setup-files/node 
+
+Assuming you have a Sesame RDF store installed, you can try this example by creating the following files in your $DOCUMENT_ROOT/node directory:
+  * *pipeline.ttl* The pipeline definition.
+  * *bill-presidents.ttl* Some simple RDF data on US presidents named Bill.
+  * *williams* The updater for the :williams node of the pipeline.
+  * *willies* The updater for the :willies node of the pipeline.
+
+*pipeline.ttl:*
+{{{
+# RDF Pipeline definition.
+# Testing GraphNode serialization/deserialization #####
+
+# The RDF Pipeline ontology:
+@prefix p: <http://purl.org/pipeline/ont#> .
+
+# Prefix for nodes in your pipeline:
+@prefix : <http://localhost/node/> .
+
+######################## Pipeline ###############################
+
+:williams a p:GraphNode ;
+        p:inputs ( "bill-presidents.ttl" ) .
+
+:willies a p:GraphNode ;
+        p:inputs ( :williams ) .
+
+##################################################################
+# Supply the SPARQL server connection details for nodes of type p:GraphNode
+# on pipeline host http://localhost :
+p:GraphNode p:hostRoot
+  ( "http://localhost" "http://localhost:8080/openrdf-workbench/repositories/rdf-pipeline-test" ) .
+##################################################################
+}}}
+
+*bill-presidents.ttl:*
+{{{
+@prefix foaf:     <http://xmlns.com/foaf/0.1/> .
+@prefix :         <http://example/> .
+
+:president25 foaf:givenName "Bill" .
+:president25 foaf:familyName "McKinley" .
+:president27 foaf:givenName "Bill" .
+:president27 foaf:familyName "Taft" .
+:president42 foaf:givenName "Bill" .
+:president42 foaf:familyName "Clinton" .
+}}}
+
+*williams*:
+{{{
+#inputs( $in )
+#outputs( $out )
+
+PREFIX foaf:     <http://xmlns.com/foaf/0.1/>
+
+CLEAR SILENT GRAPH <$out> ;
+
+INSERT {
+  GRAPH <$out> {
+    ?president foaf:givenName "William" .
+    ?president foaf:familyName ?familyName .
+    }
+  }
+WHERE {
+  GRAPH <$in> {
+    ?president foaf:givenName "Bill" .
+    ?president foaf:familyName ?familyName .
+    }
+  }
+}}}
+
+*willies:*
+{{{
+#inputs( $in )
+#outputs( $out )
+
+PREFIX foaf:     <http://xmlns.com/foaf/0.1/>
+
+DROP SILENT GRAPH <$out> ;
+
+INSERT {
+  GRAPH <$out> {
+    ?president foaf:givenName "Willy" . 
+    ?president foaf:familyName ?familyName .
+    }
+  }
+WHERE {
+  GRAPH <$in> {
+    ?president foaf:givenName "William" .
+    ?president foaf:familyName ?familyName .
+    }
+  }
+}}}
+
+
+
+Add your content here.  Format your content with:
+  * Text in *bold* or _italic_
+  * Headings, paragraphs, and lists
+  * Automatic links to other wiki pages
