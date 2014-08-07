@@ -101,9 +101,35 @@ WHERE {
   }
 }}}
 
+= Inputs and output =
+A GraphNode receives its inputs as URIs of named graphs.  These URIs will be positionally substituted into the list of `#inputs(...)` that are specified in the updater.  The wrapper will create named graphs as needed to hold the contents of the inputs if the inputs are foreign (i.e., not in the same SPARQL server).  In the example above, the Framework will load the contents of bill-presidents.ttl into a named graph (as a cache) having a URI that it makes up, such as http://localhost/cache/bill-presidents .  When the :williams updater is invoked, http://localhost/cache/bill-presidents will be substituted into the updater (williams) for every occurrence of `$in`.  Thus, `GRAPH <$in>` will become `GRAPH <http://localhost/cache/bill-presidents>`.  Similarly, the Framework will create a URI for the updater's named graph result, such as http://localhost/cache/williams, and this URI will be substituted for every occurrence of $out in template, thus changing `DROP SILENT GRAPH <$out> ;` to `DROP SILENT GRAPH <http://localhost/cache/williams> ;` and `GRAPH <$out>` to `GRAPH <http://localhost/cache/williams> {`.  The resulting updater will look like this after template expansion:
+{{{
 
+PREFIX foaf:     <http://xmlns.com/foaf/0.1/>
 
-Add your content here.  Format your content with:
-  * Text in *bold* or _italic_
-  * Headings, paragraphs, and lists
-  * Automatic links to other wiki pages
+DROP SILENT GRAPH <http://localhost/cache/williams> ;
+
+INSERT {
+  GRAPH <http://localhost/cache/williams> {
+    ?president foaf:givenName "Willy" . 
+    ?president foaf:familyName ?familyName .
+    }
+  }
+WHERE {
+  GRAPH <http://localhost/cache/bill-presidents> {
+    ?president foaf:givenName "William" .
+    ?president foaf:familyName ?familyName .
+    }
+  }
+}}}
+
+= Query parameters =
+URL query parameters received by a GraphNode are also available for template expansion using a `#parameters` line in the updater.  The following line declares query parameters called `patient` and `domain`:
+{{{
+#parameters( $patient $domain )
+}}}
+
+For more details, see the section on Simple Template Expansion ste.perl .
+
+= Environment variables =
+Environment variables are also available for template expansion, as described in the section on Simple Template Expansion ste.perl .
