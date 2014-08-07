@@ -7,7 +7,7 @@ The RDF Pipeline framework is designed to allow new wrappers to be implemented f
 A wrapper must implement the following functions.  In the descriptions that follow, there are three kinds of names:
  * *URIs*, which are used to uniquely identify pipeline nodes and maybe some other things.
  * *Filenames*, which identify files.
- * *Native names*, which may be URIs, filenames or some other kind of names, depending on what kind of wrapper is used.  Native names are used by the wrapper to uniquely identify node states (or local caches of states).  For example, a FileNode works with files, so a FileNode native name is a filename.  A GraphNode works with RDF named graphs, so a GraphNode native name is a URI of an RDF named graph.
+ * *Native names*, which may be URIs, filenames or some other kind of names, depending on what kind of wrapper is used.  Native names are used by the wrapper to uniquely identify node states (or local caches of states).  For example, a FileNode works with files, so a FileNode native name is a filename.  A GraphNode works with RDF named graphs, so a GraphNode native name is a URI of an RDF named graph.  Internally, a native name is always represented as a string.
 
 == fExists(...) -- REQUIRED ==
 *Parameters:*
