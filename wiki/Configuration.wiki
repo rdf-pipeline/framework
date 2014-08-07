@@ -16,7 +16,7 @@ The value is passed as a string literal, so in the above example, RDF_PIPELINE_D
 == Master pipeline definition ==
 When a pipeline has nodes hosted on multiple servers, by default each host must have its own pipeline definition (pipeline.ttl).  To instead have all hosts read a single master pipeline definition from one host, the `RDF_PIPELINE_MASTER_URI` environment variable must be set in each host apache configuration file to specify the URI from which the pipeline definition should be read.  If it is specified, the local pipeline.ttl will be ignored.  To prevent user confusion, it is wise to delete the pipeline.ttl file from each host (except the master) if the Framework is configured to use a master.
 
-Since the Framework normally checks for changes to the pipeline definition on every request, use of a (non-local) master pipeline definition could unacceptably slow down the pipeline.  To prevent this problem, the Framework throttles the frequency with which the freshness of the mater pipeline definition is checked.  The default is 5 seconds, but the throttling frequency may be set using the RDF_PIPELINE_MASTER_DOWNLOAD_THROTTLE_SECONDS environment variable.
+Since the Framework normally checks for changes to the pipeline definition on every request, use of a (non-local) master pipeline definition could unacceptably slow down the pipeline.  To prevent this problem, the Framework throttles the frequency with which it checks for changes to the master.  The default is 5 seconds, but it may be changed by setting the RDF_PIPELINE_MASTER_DOWNLOAD_THROTTLE_SECONDS environment variable.
 {{{
 <Location /node/>
       SetHandler perl-script
