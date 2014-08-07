@@ -2,7 +2,7 @@
 <wiki:toc max_depth="1" />
 
 = Introduction =
-The RDF Pipeline Framework has a regression test suite in RDF-Pipeline/t that is used to test the Framework itself.  The test suite is composed of a set of numbered subdirectories under RDF-Pipeline/t/tests, each directory name starting with the numeral 0.  When features are added or bugs are fixed, this regression test suite should be augmented with more tests, and run to ensure that the changes have not broken anything.  Since mosts of the tests use the RDF Pipeline Framework, the Framework must be properly installed (as a mod_perl2 module) before the test suite can be run.  Once installed, the test suite may be run by issuing the following command from the RDF-Pipeline module directory:
+The RDF Pipeline Framework has a regression test suite in RDF-Pipeline/t that is used to test the Framework itself.  When features are added or bugs are fixed, this regression test suite should be augmented with more tests, and run to ensure that the changes have not broken anything.  Since most of the tests use the RDF Pipeline Framework, the Framework must be properly installed (as a mod_perl2 module) before the test suite can be run.  Once installed, the test suite may be run by issuing the following command from the RDF-Pipeline module directory:
 {{{
   make test
 }}}
