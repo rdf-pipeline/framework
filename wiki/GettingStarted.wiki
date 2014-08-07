@@ -1,5 +1,11 @@
 #summary Getting Started
 
+= Your first pipeline =
+A good starting point for your first pipeline is to copy and modify the example described in "RDF Pipeline Framework - Introduction".  You can use the `curl` command to invoke and look at the output from each node in the pipeline, modify the input files, and see what updaters have fired by watching the log file:
+{{{
+tail -f /tmp/rdf-pipeline-log.txt
+}}}
+
 = RDF conventions in pipeline.ttl =
 The RDF Pipeline Framework expects pipeline.ttl to obey certain conventions and limitations:
   * pipeline.ttl must be written in Turtle.
@@ -88,3 +94,4 @@ appropriately, according to your installation location, and then run the command
 
 Some useful scripts in the tools directory:
   * *flush-caches* Flushes the pipeline caches on the current host.  This is sometimes useful for debugging, to ensure that you are at a virgin starting point in running your pipeline.  If you're running the RDF Pipeline Framework on multiple hosts, you may want to run this command on each host.
+  * *ste.perl* Simple template expansion.  This script is used for SPARQL templates, but can also be used for other template purposes.  See the documentation at "RDF Pipeline Framework - Simple Template Expansion ste.perl" for usage conventions.
