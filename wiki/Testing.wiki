@@ -1,11 +1,19 @@
-#summary Testing the RDF Pipeline framework
+#summary Testing the RDF Pipeline Framework
 <wiki:toc max_depth="1" />
 
 = Introduction =
-The RDF Pipeline ramework has a regression test suite in RDF-Pipeline/t .  Since it runs as a mod_perl2 module in Apache2, the RDF Pipeline framework must be properly installed (as a mod_perl2 module) before the test suite can be run.  Once installed, the test suite may be run by issuing the following command from the RDF-Pipeline module directory:
+The RDF Pipeline Framework has a regression test suite in RDF-Pipeline/t that is used to test the Framework itself.  The test suite is composed of a set of numbered subdirectories under RDF-Pipeline/t/tests, each directory name starting with the numeral 0.  When features are added or bugs are fixed, this regression test suite should be augmented with more tests, and run to ensure that the changes have not broken anything.  Since mosts of the tests use the RDF Pipeline Framework, the Framework must be properly installed (as a mod_perl2 module) before the test suite can be run.  Once installed, the test suite may be run by issuing the following command from the RDF-Pipeline module directory:
 {{{
   make test
 }}}
+
+Alternately the test suite can be run as:
+{{{
+cd RDF-Pipeline/t/tests
+run-test.perl 0*
+}}}
+
+Individual tests can also be run using run-test.perl .
 
 Most of the tests in the test suite involve running pipelines in the RDF Pipeline Framework under Apache, and thus this page and the tools that it describes are mainly oriented toward creating and running such tests.  However, in some cases you may need to add a simple test -- such as a test of a utility script -- that does not require a pipeline or Apache.  For such cases, see the section on "Adding a Non-Pipeline Test" at the end of this page.  
 
