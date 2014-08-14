@@ -142,7 +142,9 @@ Installation guidance:
 https://help.ubuntu.com/community/Java
 
 == Tomcat ==
-See if it is already installed:
+TODO: Figure out instructions for RedHad/CentOS/Fedora systems.  This link may help: http://newpush.com/how-to-install-tomcat-6-on-rhel-6-or-centos-6/
+
+See if tomcat is already installed:
 {{{
 dpkg --list | grep tomcat
 }}}
