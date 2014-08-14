@@ -286,8 +286,8 @@ PerlRequire /home/dbooth/rdf-pipeline/trunk/startup.pl
       # Debugging output is logged to /tmp/rdf-pipeline-log.txt 
       # If you want more detailed debugging output, uncomment
       # the following line and comment out the one after it:
-      # PerlSetEnv RDF_PIPELINE_DEBUG $DEBUG_CHANGES
-      PerlSetEnv RDF_PIPELINE_DEBUG $DEBUG_DETAILS
+      PerlSetEnv RDF_PIPELINE_DEBUG $DEBUG_CHANGES
+      # PerlSetEnv RDF_PIPELINE_DEBUG $DEBUG_DETAILS
 </Location>
 }}}
 
