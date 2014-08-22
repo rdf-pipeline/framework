@@ -264,7 +264,10 @@ TOOLS=`find tools -type f -print | perl -n -e 'chomp; print "$_\n" if !system("f
 MODULES=`cat RDF-Pipeline/lib/RDF/Pipeline.pm RDF-Pipeline/lib/RDF/Pipeline/* $TOOLS |grep -P '^(use|require) ' | perl -p -e 's/^.*? //; s/[ ;].*$//; s/^[0-9].*//; s/^(strict|warnings)$//; s/^RDF::Pipeline.*//; s/^(Apache2::Const)$//' | sort -u`
 # echo $MODULES
 # Download and install them, which can take 10-20 minutes, and will
-# ask for your sudo root password, to install them:
+# ask for your sudo root password.  The PERL_MM_USE_DEFAULT variable
+# tells cpan to use the default instead of prompting to install each of
+# the dependencies.
+export PERL_MM_USE_DEFAULT=1
 cpan $MODULES
 }}}
 If this one was missed, install it:
