@@ -1,6 +1,6 @@
 #summary Installation of the RDF Pipeline Framework
 
-<wiki:toc max_depth="1" />
+<wiki:toc max_depth="2" />
 
 = Introduction =
 
