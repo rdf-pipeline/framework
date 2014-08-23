@@ -1,5 +1,7 @@
 #summary Installation of the RDF Pipeline Framework
 
+<wiki:toc max_depth="1" />
+
 = Introduction =
 
 This page describes the manual process of installing the RDF Pipeline
