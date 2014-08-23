@@ -493,6 +493,14 @@ PerlModule Devel::NYTProf::Apache
 
 The pipeline framework also writes some performance statistics to /tmp/rdf-pipeline-timing.tsv , and it writes an activity log to /tmp/rdf-pipeline-log.tsv
 
+= RedHat / CentOS Notes =
+The RDF Pipeline Framework has been run on CentOS, but as of this writing we do not yet have a complete installation procedure described for it.  Here are some issues observed:
+
+  * selinux causes problems with symbolic links (symlinks).  The RDF Pipeline Framework itself does not create any symlinks, but it will fail if your systems uses some and you have selinux enables.  Solution: Disable selinux.
+
+ * Tomcat and Apache run as different users.  This causes problems when one creates a file that the other needs to read.  Possible solution (untested): make tomcat run under the same user name and group as apache.
+
+
 = Troubleshooting =
 
 Tips:
@@ -559,6 +567,8 @@ reason cannot find them:
 {{{
 [client 127.0.0.1] failed to resolve handler `RDF::Pipeline': Can't locate WWW/Mechanize.pm in @INC (@INC contains: /home/dbooth/rdf-pipeline/trunk/RDF-Pipeline/lib /etc/perl /usr/local/lib/perl/5.14.2 /usr/local/share/perl/5.14.2 /usr/lib/perl5 /usr/share/perl5 /usr/lib/perl/5.14 /usr/share/perl/5.14 /usr/local/lib/site_perl . /etc/apache2) at /home/dbooth/rdf-pipeline/trunk/RDF-Pipeline/lib/RDF/Pipeline.pm line 158.\nBEGIN failed--compilation aborted at /home/dbooth/rdf-pipeline/trunk/RDF-Pipeline/lib/RDF/Pipeline.pm line 158.\nCompilation failed in require at (eval 3) line 2.\n
 }}}
+
+If the permissions are wrong then perl may not find them even though they are there.
 
 3.  Symptom: HTTP 500 Iternal Server Error occurred while testing:
 {{{
