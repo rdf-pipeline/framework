@@ -493,12 +493,17 @@ PerlModule Devel::NYTProf::Apache
 
 The pipeline framework also writes some performance statistics to /tmp/rdf-pipeline-timing.tsv , and it writes an activity log to /tmp/rdf-pipeline-log.tsv
 
+
+
 = RedHat / CentOS Notes =
+
 The RDF Pipeline Framework has been run on CentOS, but as of this writing we do not yet have a complete installation procedure described for it.  Here are some issues observed:
 
-  * selinux causes problems with symbolic links (symlinks).  The RDF Pipeline Framework itself does not create any symlinks, but it will fail if your systems uses some and you have selinux enables.  Solution: Disable selinux.
+  * Things are in different places and called different things.  For example apache is called httpd on RedHat/centos.  Also, the packages to install have different names, and are installed with yum instead of apt-get.
 
- * Tomcat and Apache run as different users.  This causes problems when one creates a file that the other needs to read.  Possible solution (untested): make tomcat run under the same user name and group as apache.
+  * *selinux* causes problems with symbolic links (symlinks).  The RDF Pipeline Framework itself does not create any symlinks, but it will fail if your system uses them and you have selinux enabled.  Solution: Disable selinux.
+
+ * Tomcat and Apache run as different users.  This can problems when apache creates a file tomcat needs to read, such as loading an RDF graph, if the default umask is too restrictive, such as 077.  Solution: Set umask 022 in apache startup.
 
 
 = Troubleshooting =
