@@ -497,11 +497,11 @@ The pipeline framework also writes some performance statistics to /tmp/rdf-pipel
 
 
 
-=RedHat / CentOS Notes=
+= Red Hat / CentOS Notes=
 
 The RDF Pipeline Framework has been run on CentOS, but as of this writing we do not yet have a complete installation procedure described for it.  Here are some issues observed:
 
-  * Things are in different places and called different things.  For example apache is called httpd on RedHat/centos.  Also, the packages to install have different names, and are installed with yum instead of apt-get.
+  * Things are in different places and called different things.  For example apache is called httpd on Red Hat or CentOS.  Also, the packages to install have different names, and are installed with yum instead of apt-get.
 
   * *selinux* causes problems with symbolic links (symlinks).  The RDF Pipeline Framework itself does not create any symlinks, but it will fail if your system uses them and you have selinux enabled.  Solution: Disable selinux.
 
