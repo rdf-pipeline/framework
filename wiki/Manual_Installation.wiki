@@ -497,7 +497,7 @@ The pipeline framework also writes some performance statistics to /tmp/rdf-pipel
 
 
 
-= RedHat / CentOS Notes =
+= RedHat, CentOS Notes =
 
 The RDF Pipeline Framework has been run on CentOS, but as of this writing we do not yet have a complete installation procedure described for it.  Here are some issues observed:
 
