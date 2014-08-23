@@ -499,13 +499,20 @@ The pipeline framework also writes some performance statistics to /tmp/rdf-pipel
 
 = Red Hat / CentOS Notes=
 
-The RDF Pipeline Framework has been run on CentOS, but as of this writing we do not yet have a complete installation procedure described for it.  Here are some issues observed:
+The RDF Pipeline Framework has been run on CentOS, but as of this writing we do not yet have a complete installation procedure described for it.  Here are some issues observed, not necessarily limited to Red Hat and CentOS linux:
 
   * Things are in different places and called different things.  For example apache is called httpd on Red Hat or CentOS.  Also, the packages to install have different names, and are installed with yum instead of apt-get.
 
   * *selinux* causes problems with symbolic links (symlinks).  The RDF Pipeline Framework itself does not create any symlinks, but it will fail if your system uses them and you have selinux enabled.  Solution: Disable selinux.
 
  * Tomcat and Apache run as different users.  This can problems when apache creates a file tomcat needs to read, such as loading an RDF graph, if the default umask is too restrictive, such as 077.  Solution: Set umask 022 in apache startup.
+
+  * One server cannot access the other server -- could not connect to host.  Tried https://www.digitalocean.com/community/tutorials/how-to-setup-a-basic-ip-tables-configuration-on-centos-6 but that didn't fix it.  Temporary solution for testing: Disable the iptables firewall: http://www.cyberciti.biz/faq/disable-linux-firewall-under-centos-rhel-fedora/  
+{{{
+# service iptables save
+# service iptables stop
+# chkconfig iptables off
+}}}
 
 
 = Troubleshooting =
