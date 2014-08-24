@@ -25,6 +25,7 @@ Framework and other important components on which it depends.
   * *cwm* 
   * *curl* 
   * *xsltproc* 
+  * *rapper* From Dave Beckett's Raptor library (for tools/skolemize)
 
 If using GraphNode with Sesame:
   * *Tomcat* Versions known to work:
@@ -277,6 +278,8 @@ If this one was missed, install it:
 cpan RDF::Helper::Constants
 }}}
 
+== Rapper ==
+Rapper is a part of Dave Beckett's Raptor library, and the installation of that library seems to be broken for Red Hat and CentOS, as of this writing.
 
 = Configuration =
 
