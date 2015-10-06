@@ -1,0 +1,12 @@
+# Introduction #
+
+This page lists the major tasks needed to harden the RDF Pipeline Framework for production use.  They are not listed in any particular order.
+
+  * Trim dependencies and create installation packages for various platforms, including Red Hat, Ubuntu, Windows, MacOS
+  * Documentation: Installation and administration, user manual, getting started, videos
+  * Implement "map" functionality for scalability
+  * Review code and implement embedded "TODO" items
+  * Fix outstanding bugs/issues
+  * Invoke upstream GET/HEAD requests in parallel
+
+These could instead be added to the issues list with labels to group them.

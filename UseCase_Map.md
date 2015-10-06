@@ -1,0 +1,10 @@
+This use case motivates the need for map capability: one updater for n dynamically generated nodes, such as _n_ patient records or _m_ prescription instances.
+
+A patient record contains prescription information that includes SIG strings.  A SIG string is an abbreviated description of the drug, dosage, instructions for taking it, etc., that has been prescribed to the patient.  In transforming the patient record, each SIG string for a prescription instance must be parsed and transformed into the target prescription model.  Each patient record may have many prescription instances, each one having one SIG string.  A java program reads one SIG string as a command-line argument, and one prescription instance ID, and writes an RDF graph representing the target prescription instance, corresponding to that SIG string.
+
+There are a few challenges with this use case:
+  * There are many patient records -- each one should be one map instance, identified by patient ID.
+  * There are many prescription instances within each patient record -- each one should be one map instance, identified by prescription ID.
+  * The RDF graphs representing the target prescription instances must be merged back into the target patient record.
+
+A SPARQL SELECT query can retrieve a list of <prescriptionID, sigString> tuples representing the prescription instances for a given patient ID.  Each tuple represents the input for one invocation of the java program that converts sigString to an RDF graph.  The number of prescription tuples defines the cardinality of the prescription instance map.

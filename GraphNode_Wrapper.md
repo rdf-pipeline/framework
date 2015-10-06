@@ -1,0 +1,150 @@
+# Introduction #
+
+A GraphNode represents its state as an RDF named graph in a SPARQL server.  Its updater is a SPARQL 1.1 Update operation or a template that will be expanded by the Simple Template Expansion module (ste.perl) to produce a SPARQL 1.1 Update operation.  See the section on "Simple Template Expansion ste.perl" for templating conventions.
+
+As of this writing (6-Aug-2014) a GraphNode works for Sesame and BigData SPARQL servers.
+
+
+# Simple GraphNode example #
+
+This example was taken from regression test 0035\_GraphNode\_Basic: https://github.com/dbooth-boston/rdf-pipeline/tree/master/RDF-Pipeline/t/tests/0035_GraphNode_Basic/setup-files/node
+
+Assuming you have a Sesame RDF store installed, you can try this example by creating the following files in your $DOCUMENT\_ROOT/node directory:
+  * **pipeline.ttl** The pipeline definition.
+  * **bill-presidents.ttl** Some simple RDF data on US presidents named Bill.
+  * **williams** The updater for the :williams node of the pipeline.
+  * **willies** The updater for the :willies node of the pipeline.
+
+**pipeline.ttl:**
+```
+# RDF Pipeline definition.
+# Testing GraphNode serialization/deserialization #####
+
+# The RDF Pipeline ontology:
+@prefix p: <http://purl.org/pipeline/ont#> .
+
+# Prefix for nodes in your pipeline:
+@prefix : <http://localhost/node/> .
+
+######################## Pipeline ###############################
+
+:williams a p:GraphNode ;
+        p:inputs ( "bill-presidents.ttl" ) .
+
+:willies a p:GraphNode ;
+        p:inputs ( :williams ) .
+
+##################################################################
+# Supply the SPARQL server connection details for nodes of type p:GraphNode
+# on pipeline host http://localhost :
+p:GraphNode p:hostRoot
+  ( "http://localhost" "http://localhost:8080/openrdf-workbench/repositories/rdf-pipeline-test" ) .
+##################################################################
+```
+
+**bill-presidents.ttl:**
+```
+@prefix foaf:     <http://xmlns.com/foaf/0.1/> .
+@prefix :         <http://example/> .
+
+:president25 foaf:givenName "Bill" .
+:president25 foaf:familyName "McKinley" .
+:president27 foaf:givenName "Bill" .
+:president27 foaf:familyName "Taft" .
+:president42 foaf:givenName "Bill" .
+:president42 foaf:familyName "Clinton" .
+```
+
+**williams**:
+```
+#inputs( $in )
+#outputs( $out )
+
+PREFIX foaf:     <http://xmlns.com/foaf/0.1/>
+
+CLEAR SILENT GRAPH <$out> ;
+
+INSERT {
+  GRAPH <$out> {
+    ?president foaf:givenName "William" .
+    ?president foaf:familyName ?familyName .
+    }
+  }
+WHERE {
+  GRAPH <$in> {
+    ?president foaf:givenName "Bill" .
+    ?president foaf:familyName ?familyName .
+    }
+  }
+```
+
+**willies:**
+```
+#inputs( $in )
+#outputs( $out )
+
+PREFIX foaf:     <http://xmlns.com/foaf/0.1/>
+
+DROP SILENT GRAPH <$out> ;
+
+INSERT {
+  GRAPH <$out> {
+    ?president foaf:givenName "Willy" . 
+    ?president foaf:familyName ?familyName .
+    }
+  }
+WHERE {
+  GRAPH <$in> {
+    ?president foaf:givenName "William" .
+    ?president foaf:familyName ?familyName .
+    }
+  }
+```
+
+# Inputs and output #
+A GraphNode receives its inputs as URIs of named graphs.  These URIs will be positionally substituted into the list of `#inputs(...)` that are specified in the updater.  The wrapper will create named graphs as needed to hold the contents of the inputs if the inputs are foreign (i.e., not in the same SPARQL server).  In the example above, the Framework will load the contents of bill-presidents.ttl into a named graph (as a cache) having a URI that it makes up, such as http://localhost/cache/bill-presidents .  When the :williams updater is invoked, http://localhost/cache/bill-presidents will be substituted into the updater (williams) for every occurrence of `$in`.  Thus, `GRAPH <$in>` will become `GRAPH <http://localhost/cache/bill-presidents>`.  Similarly, the Framework will create a URI for the updater's named graph result, such as http://localhost/cache/williams, and this URI will be substituted for every occurrence of $out in template, thus changing `DROP SILENT GRAPH <$out> ;` to `DROP SILENT GRAPH <http://localhost/cache/williams> ;` and `GRAPH <$out>` to `GRAPH <http://localhost/cache/williams> {`.  The resulting updater will look like this after template expansion:
+```
+
+PREFIX foaf:     <http://xmlns.com/foaf/0.1/>
+
+DROP SILENT GRAPH <http://localhost/cache/williams> ;
+
+INSERT {
+  GRAPH <http://localhost/cache/williams> {
+    ?president foaf:givenName "Willy" . 
+    ?president foaf:familyName ?familyName .
+    }
+  }
+WHERE {
+  GRAPH <http://localhost/cache/bill-presidents> {
+    ?president foaf:givenName "William" .
+    ?president foaf:familyName ?familyName .
+    }
+  }
+```
+
+# Query parameters #
+URL query parameters received by a GraphNode are also available for template expansion using a `#parameters` line in the updater.  The following line declares query parameters called `patient` and `domain`:
+```
+#parameters( $patient $domain )
+```
+
+For more details, see the section on Simple Template Expansion ste.perl .
+
+# Environment variables #
+Environment variables are also available for template expansion, as described in the section on Simple Template Expansion ste.perl .
+
+# SPARQL\_SERVER connection information #
+The pipeline definition in pipeline.ttl must specify the URI of the SPARQL server to be used by GraphNodes in the pipeline.  This is done using the p:hostRoot predicate such as:
+```
+p:GraphNode p:hostRoot
+  ( "http://localhost" "http://localhost:8080/openrdf-workbench/repositories/rdf-pipeline-test" ) .
+```
+
+The p:hostRoot predicate is specified on the p:GraphNode class itself -- not on a particular node.  The object of the predicate is a list of <nodePrefix, serverUri> pairs, indicating that each p:GraphNode instance whose URI starts with nodePrefix should have its state stored in the SPARQL server at serverUri.  For convenience, pairs may also be specified as separate lists, such as:
+```
+p:GraphNode p:hostRoot
+  ( "http://foo.example/" "http://foo.example:8080/openrdf-workbench/repositories/foo" ) .
+p:GraphNode p:hostRoot
+  ( "http://bar.example" "http://bar.example:8080/openrdf-workbench/repositories/bar" ) .
+```

@@ -1,0 +1,38 @@
+# Introduction #
+
+The RDF Pipeline Framework has a few configuration parameters that are set in the apache configuration file /etc/apache2/sites-available/default on Ubuntu 12.04 within the `<Location /node/>` block.  A configuration parameter is set using the `PerlSetEnv` directive to set an environment variable that will be seen by the Framework.  PerlSetEnv takes two space-separated arguments: one for the name of the environment variable to set, and the other for its value, such as:
+```
+<Location /node/>
+      SetHandler perl-script
+      PerlSetEnv RDF_PIPELINE_DEBUG $DEBUG_CHANGES
+      PerlResponseHandler  RDF::Pipeline
+</Location>
+```
+
+The value is passed as a string literal, so in the above example, RDF\_PIPELINE\_DEBUG will receive the string literal '$DEBUG\_CHANGES'.
+
+## Master pipeline definition ##
+When a pipeline has nodes hosted on multiple servers, by default each host must have its own pipeline definition (pipeline.ttl).  To instead have all hosts read a single master pipeline definition from one host, the `RDF_PIPELINE_MASTER_URI` environment variable must be set in each host apache configuration file to specify the URI from which the pipeline definition should be read.  If it is specified, the local pipeline.ttl will be ignored.  To prevent user confusion, it is wise to delete the pipeline.ttl file from each host (except the master) if the Framework is configured to use a master.
+
+Since the Framework normally checks for changes to the pipeline definition on every request, use of a (non-local) master pipeline definition could unacceptably slow down the pipeline.  To prevent this problem, the Framework throttles the frequency with which it checks for changes to the master.  The default is 5 seconds, but it may be changed by setting the RDF\_PIPELINE\_MASTER\_DOWNLOAD\_THROTTLE\_SECONDS environment variable.
+```
+<Location /node/>
+      SetHandler perl-script
+      PerlSetEnv RDF_PIPELINE_DEBUG $DEBUG_CHANGES
+      PerlSetEnv RDF_PIPELINE_MASTER_URI http://localhost/node/master.ttl
+      PerlSetEnv RDF_PIPELINE_MASTER_DOWNLOAD_THROTTLE_SECONDS 5
+      PerlResponseHandler  RDF::Pipeline
+</Location>
+```
+
+## Debug level ##
+
+Debug information is written to the apache2 error log, `/var/log/apache2/error.log` on Ubuntu 12.04.  The `$RDF_PIPELINE_DEBUG` environment variable controls the amount of debugging detail:
+```
+<Location /node/>
+      SetHandler perl-script
+      PerlSetEnv RDF_PIPELINE_DEBUG $DEBUG_CHANGES
+      PerlResponseHandler  RDF::Pipeline
+</Location>
+```
+Debug levels start from 0 (debugging off, only warnings and errors are logged) and go up from there.  Look at the RDF::Pipeline source code to see what the levels mean.  They maybe specified numerically or symbolically, such as $DEBUG\_CHANGES.

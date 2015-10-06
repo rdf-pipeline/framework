@@ -1,0 +1,695 @@
+
+
+# Introduction #
+
+This page describes the manual process of installing the RDF Pipeline
+Framework and other important components on which it depends.
+
+
+# Prerequisites #
+
+  * **Linux**  Versions known to work:
+    * Ubuntu 10.04 - This worked in the past, but has not been tested recently.
+    * Ubuntu 12.04
+  * **build-essential** This includes a C compiler and other things that are needed for buildling some software packages.
+  * **Apache** Versions known to work:
+    * 2.2.22
+  * **Perl**  Versions known to work:
+    * 5.10.1
+  * **mod\_perl2** Versions known to work:
+    * 2.000005
+  * **libxml-namespacefactory-perl**
+  * **Several perl modules**  The installation instructions below for the RDF Pipeline Framework include the installation of the necessary perl modules.
+  * **cwm**
+  * **curl**
+  * **xsltproc**
+  * **rapper** From Dave Beckett's Raptor library (for tools/skolemize)
+
+If using GraphNode with Sesame:
+  * **Tomcat** Versions known to work:
+    * 6.0.35-1ubuntu3.4
+    * 7.0.28-4+deb7u1
+  * **Sesame** Versions known to work:
+    * 2.7.11 (tested on tomcat7)
+
+Determine linux version:
+```
+uname -a
+```
+
+# Installing Prerequisites #
+
+## build-essential ##
+```
+sudo apt-get update
+sudo apt-get -y install build-essential
+```
+
+## curl ##
+```
+sudo apt-get update
+sudo apt-get -y install curl
+```
+
+## xsltproc ##
+```
+sudo apt-get update
+sudo apt-get -y install xsltproc
+```
+
+## Apache ##
+See if apache2 is installed already, and check version:
+```
+curl -I http://localhost/
+```
+
+Install apache2:
+```
+sudo apt-get update
+sudo apt-get -y install apache2
+```
+
+## Perl ##
+See if perl is installed already, and check version:
+```
+perl --version
+```
+
+Install perl:
+```
+sudo apt-get update
+sudo apt-get -y install perl
+# Check version:
+perl --version
+```
+
+## mod\_perl2 ##
+See if mod\_perl2 is already installed:
+```
+perl -Mmod_perl2 < /dev/null
+```
+
+Install mod\_perl2:
+```
+sudo apt-get update
+sudo apt-get -y install libapache2-mod-perl2
+sudo service apache2 restart
+# Check version (fails but indicates the current version):
+perl -Mmod_perl2\ 999
+```
+
+## libxml-namespacefactory-perl (for perl package XML::NamespaceFactory) ##
+Apparent, perl package XML::NamespaceFactory must be installed
+via apt-get instead of cpan:
+```
+sudo apt-get update
+sudo apt-get -y install libxml-namespacefactory-perl
+```
+
+## cwm ##
+Installation instructions: http://www.w3.org/2000/10/swap/doc/CwmInstall
+
+As root:
+```
+mkdir /opt/cwm
+cd /opt/cwm
+wget http://www.w3.org/2000/10/swap/cwm.tar.gz
+tar xvzf cwm.tar.gz
+cd cwm-1.2.1
+python setup.py install
+```
+
+Verify the installation and check the version:
+```
+cwm < /dev/null
+#Processed by Id: cwm.py,v 1.197 2007/12/13 15:38:39 syosi Exp 
+        #    using base file:///home/dbooth/rdf-pipeline/trunk/doc/
+        
+#  Notation3 generation by
+#       notation3.py,v 1.200 2007/12/11 21:18:08 syosi Exp
+
+#   Base was: file:///home/dbooth/rdf-pipeline/trunk/doc/
+    
+#ENDS
+```
+
+## Java ##
+See if it is already installed:
+```
+java -version
+```
+
+Installation guidance:
+https://help.ubuntu.com/community/Java
+
+## Tomcat ##
+TODO: Figure out instructions for RedHad/CentOS/Fedora systems.  This link may help: http://newpush.com/how-to-install-tomcat-6-on-rhel-6-or-centos-6/
+
+See if tomcat is already installed:
+```
+dpkg --list | grep tomcat
+```
+
+1. Install it:
+```
+sudo apt-get update
+sudo apt-get -y install tomcat7 tomcat7-admin
+```
+
+2. Enable the tomcat manager.
+Edit /etc/tomcat7/tomcat-users.xml to the these lines just
+before the ending `</tomcat-users>` line (but change them to use a
+more secure password):
+```
+  <role rolename="manager-gui"/>
+  <user username="tomcat" password="tomcat" roles="manager-gui"/>
+```
+
+3. Increase tomcat's java heap memory allocation.  Edit /etc/default/tomcat7
+to change the line that begins {{{JAVA\_OPTS="-Djava.awt.headless=true}}
+to something like the following.  In the example below, "-Xmx2g" means 2GB,
+but you can choose the amount you want to allocate.  "-Xmx1024m" would
+mean 1024MB, or 1GB.
+```
+JAVA_OPTS="-Djava.awt.headless=true -Xmx2g -XX:+UseConcMarkSweepGC"
+```
+
+4. Change ownership to enable tomcat applications to write:
+```
+sudo chown -R tomcat7:tomcat7 /usr/share/tomcat7
+```
+
+5. Restart tomcat:
+```
+sudo service tomcat7 restart
+```
+
+5. Verify that tomcat works by browsing to http://localhost:8080/ .
+You should see an "It works !" message.
+
+## Sesame ##
+Sesame will use two components: the sesame server, which is a SPARQL RDF store
+used as the backend; and the openrdf-workbench, which is a
+browser-based frontend that provides a GUI for managing the sesame server
+and issuing interactive queries.
+
+1. Download Sesame 2.6.2 by following download links from
+http://www.openrdf.org/download_sesame2.jsp to
+http://sourceforge.net/projects/sesame/files/Sesame%202/ to
+http://sourceforge.net/projects/sesame/files/latest/download?source=files
+
+2. Unpack:
+```
+tar xzvf openrdf-sesame-2.7.11-sdk.tar.gz
+```
+
+For some unknown reason, tar seems to give a warning:
+```
+tar: A lone zero block at 174472
+```
+but it does not seem to cause any harm.
+
+3. Deploy the sesame and openrdf war files.  As root:
+```
+# cd to your unpacked sesame directory, which may be different from this:
+cd openrdf-sesame-2.7.11
+cd war
+cp *.war /var/lib/tomcat7/webapps
+service tomcat7 restart
+```
+
+4. After installation of both sesame and openrdf-workbench,
+open a browser and tell the workbench where the sesame server is.
+Assuming they are both installed on localhost:8080, browse to
+http://localhost:8080/openrdf-workbench/repositories/NONE/server
+and change the server to http://localhost:8080/openrdf-sesame
+(unless you deployed tomcat on a different port).
+
+To test sesame, you will also need to create a repository, as described
+below in the section on testing.
+
+# Download the RDF Pipeline Framework #
+
+1. Create the installation directory.
+At present, the RDF Pipeline Framework MUST be installed to
+/home/dbooth/rdf-pipeline/trunk/ .  (See [issue #82](https://code.google.com/p/rdf-pipeline/issues/detail?id=#82):
+http://code.google.com/p/rdf-pipeline/issues/detail?id=82 .)
+Make the directory and set the ownership -- it may be owned
+by any user as long as the apache user (usually www-data)
+has read and execute permission:
+```
+sudo mkdir -p /home/dbooth/rdf-pipeline/trunk/
+# NOTE: If necessary, you should modify the following chown command 
+# to specify the appropriate user and group on your system:
+sudo chown -R $USER':'$USER /home/dbooth
+cd /home/dbooth/rdf-pipeline/trunk/
+```
+
+2. Download the RDF Pipeline Framework project
+from github:
+```
+cd /home/dbooth/rdf-pipeline/trunk/
+git clone https://github.com/dbooth-boston/rdf-pipeline.git .
+```
+
+3. Download required Perl modules.
+This will dynamically determine the list of perl modules needed,
+and then download them:
+```
+# First look for perl programs in tools:
+cd /home/dbooth/rdf-pipeline/trunk/
+TOOLS=`find tools -type f -print | perl -n -e 'chomp; print "$_\n" if !system("file $_ | grep -q -i perl")'`
+# If desired, you can see what programs it found: echo $TOOLS
+# Now scan for module names used in perl programs or modules.
+# Apache2::Const is omitted because it is already installed in mod_perl2.
+MODULES=`cat RDF-Pipeline/lib/RDF/Pipeline.pm RDF-Pipeline/lib/RDF/Pipeline/* $TOOLS |grep -P '^(use|require) ' | perl -p -e 's/^.*? //; s/[ ;].*$//; s/^[0-9].*//; s/^(strict|warnings)$//; s/^RDF::Pipeline.*//; s/^(Apache2::Const)$//' | sort -u`
+# echo $MODULES
+# Download and install them, which can take 10-20 minutes, and will
+# ask for your sudo root password.  The PERL_MM_USE_DEFAULT variable
+# tells cpan to use the default instead of prompting to install each of
+# the dependencies.
+export PERL_MM_USE_DEFAULT=1
+cpan $MODULES
+```
+If this one was missed, install it:
+```
+cpan RDF::Helper::Constants
+```
+
+## Rapper ##
+Rapper is a part of Dave Beckett's Raptor library, and the installation of that library seems to be broken for Red Hat and CentOS, as of this writing.
+
+# Configuration #
+
+## Configure apache to find the RDF Pipeline Framework ##
+1. Edit /etc/apache2/sites-available/default .  In the beginning,
+after the `<VirtualHost *:80>` line, add these lines:
+```
+PerlRequire /home/dbooth/rdf-pipeline/trunk/startup.pl
+<Location /node/>
+      SetHandler perl-script
+      PerlResponseHandler  RDF::Pipeline
+      # Debugging output is logged to /tmp/rdf-pipeline-log.txt 
+      # If you want more detailed debugging output, uncomment
+      # the following line and comment out the one after it:
+      PerlSetEnv RDF_PIPELINE_DEBUG $DEBUG_CHANGES
+      # PerlSetEnv RDF_PIPELINE_DEBUG $DEBUG_DETAILS
+</Location>
+```
+
+2. Modify the "<Directory /var/www/>" section like this:
+```
+        <Directory /var/www/>
+                Options Indexes FollowSymLinks MultiViews
+                AllowOverride None
+                Order allow,deny
+                allow from all
+             ####### Add these lines for the RDF Pipeline Framework:
+                Options +ExecCGI
+                AddHandler cgi-script .cgi .pl
+                # 1/31/12: dbooth: Prevent ETags from including inode info,
+                # as explained in issue #13:
+                # http://code.google.com/p/rdf-pipeline/issues/detail?id=13
+                FileETag MTime Size
+             #######
+        </Directory>
+```
+
+3. Enable perl in apache:
+```
+sudo a2enmod perl
+sudo service apache2 restart
+```
+
+## Specifying a master pipeline definition ##
+If multiple hosts are used in a pipeline, each running the RDF Pipeline
+Framework, they should all use the same pipeline definition,
+which by default will be $DOCUMENT\_ROOT/node/pipeline.ttl on each host.
+Two approaches for sharing a master pipeline definition:
+
+  * Copy the same pipeline definition to each
+host, perhaps using rsync and cron to periodically re-copy a
+master pipeline definition to all hosts.  This approach will
+allow the pipeline to run fastest.
+
+  * Tell the RDF Pipeline Framework to read the
+master pipeline definition from an HTTP source, by setting environment
+variable RDF\_PIPELINE\_MASTER\_URI to the URI of your pipeline definition in
+the apache2 configuration file, /etc/apache2/sites-available/default .
+If set, the pipeline definition will be read from that URI and
+cached locally, ignoring $DOCUMENT\_ROOT/node/pipeline.ttl .
+This approach is convenient, but it
+creates a single point of failure and it could slow down the pipeline
+if the master pipeline definition is downloaded too frequently.
+To avoid dowloading it too frequently, by default the download frequency
+is throttled by an amount that may be specified by also setting
+the $RDF\_PIPELINE\_MASTER\_DOWNLOAD\_THROTTLE\_SECONDS variable.
+If it is set to 0, the master pipeline definition will be requested
+on _every_ pipeline request.  If it is not set, it defaults to 3,
+which means that the master pipeline definition will only be
+re-downloaded (or at least checked for freshness) if at least 3 seconds
+have elapsed since it was last downloaded.  An example:
+```
+<Location /node/>
+      SetHandler perl-script
+      PerlResponseHandler  RDF::Pipeline
+      PerlSetEnv RDF_PIPELINE_DEBUG $DEBUG_CHANGES
+      #
+      # WARNING: If RDF_PIPELINE_MASTER_URI is set to a URI
+      # that is hosted by this server, and the RDF Pipeline Framework
+      # is unable to detect that it is on this server, then it
+      # will cause an infinite HTTP request loop as soon as
+      # this server receives an HTTP request for any node on
+      # this server.  If any node requests on this server work, 
+      # then there is no loop.
+      PerlSetEnv RDF_PIPELINE_MASTER_URI http://localhost/node/myPipelineMaster.ttl
+      # If desired, limit the frequence of getting
+      # from $RDF_PIPELINE_MASTER_URI (default is 3):
+      PerlSetEnv RDF_PIPELINE_MASTER_DOWNLOAD_THROTTLE_SECONDS 5
+</Location>
+```
+
+
+# Test your installation #
+
+## sample-pipeline-FileNode ##
+The sample-pipeline-FileNode pipeline can be used to test the most
+basic functionality of the RDF Pipeline Framework, without using
+sesame.
+
+1. If you previously ran the sample-pipeline-GraphNode
+(or another pipeline), clean
+out /var/www/node before trying sample-pipeline-FileNode:
+```
+rm -r /var/www/node
+```
+
+2. Change to the RDF Pipeline Framework's installation directory,
+copy the sample pipeline into the apache2 web server directory,
+make it owned by the apache user, and restart apache.
+As root:
+```
+cp -rp doc/sample-pipeline-FileNode/www/* /var/www
+chown -R www-data:www-data /var/www
+service apache2 restart
+```
+
+3. If you didn't already, set $PATH and other environment
+variables so that you can run
+pipeline commands such as flushing the cache:
+```
+cd /home/dbooth/rdf-pipeline/trunk
+. set_env.sh
+```
+
+4. Flush the caches and run the pipeline:
+```
+flush-caches
+curl http://localhost/node/both
+```
+
+It should produce the following output:
+```
+HELLO WORLD!
+Goodbye
+```
+
+To understand what the pipeline does, examine the files
+in /var/www/node .
+
+
+## sample-pipeline-GraphNode ##
+The sample-pipeline-GraphNode pipeline can be used to test
+the RDF Pipeline Framework using GraphNodes on the sesame server.
+
+1. If you previously ran the sample-pipeline-FileNode, clean
+out /var/www/node before trying sample-pipeline-GraphNode:
+```
+rm -r /var/www/node
+```
+
+2. As root, change to the RDF Pipeline Framework's installation directory
+and copy the sample pipeline to the web server directory:
+```
+cp -rp doc/sample-pipeline-GraphNode/www/* /var/www
+```
+
+3. Edit the pipeline definition at /var/www/node/pipeline.ttl
+to adjust the hostname, port and/or repository name as needed in the
+SPARQL server connection details at the bottom:
+```
+##################################################################
+# Supply the SPARQL server connection details for nodes of type p:GraphNode
+# on pipeline host http://localhost :
+p:GraphNode p:hostRoot
+  ( "http://localhost" "http://localhost:8080/openrdf-workbench/repositories/rdf-pipeline-test" ) .
+##################################################################
+```
+
+4.  Make sure /var/www is owned by the apache user, and restart apache.
+As root:
+```
+chown -R www-data:www-data /var/www
+service apache2 restart
+```
+
+5. Create a sesame repository.
+Assuming you have installed sesame and the openrdf-workbench
+at localhost:8080, browse to
+http://localhost:8080/openrdf-workbench/repositories/NONE/repositories
+to see your current repositories.  Create one called "rdf-pipeline-test":
+http://localhost:8080/openrdf-workbench/repositories/NONE/create
+Specify:
+  * Type: In Memory Store
+  * ID: rdf-pipeline-test
+  * Title: Test of RDF Pipeline Framework
+Click Next, then specify:
+  * Persist: No
+  * Sync delay: 0
+Click Create.
+
+6. Set $PATH and other environment variables so that you can run
+pipeline commands such as flushing the cache:
+```
+cd /home/dbooth/rdf-pipeline/trunk
+. set_env.sh
+```
+
+7. Flush the caches and run the pipeline:
+```
+flush-caches
+curl http://localhost/node/willies
+```
+
+It should produce the following output:
+```
+HELLO WORLD!
+Goodbye
+```
+
+8. (OPTIONAL) Developer performance measurement using NYTProf: In /etc/apache2/apache2.conf add:
+```
+###### Perl performance profiling:
+PerlPassEnv NYTPROF
+PerlModule Devel::NYTProf::Apache
+```
+
+The pipeline framework also writes some performance statistics to /tmp/rdf-pipeline-timing.tsv , and it writes an activity log to /tmp/rdf-pipeline-log.tsv
+
+
+
+# Red Hat / CentOS Notes #
+
+The RDF Pipeline Framework has been run on CentOS, but as of this writing we do not yet have a complete installation procedure described for it.  Here are some issues observed, not necessarily limited to Red Hat and CentOS linux:
+
+  * Things are in different places and called different things.  For example apache is called httpd on Red Hat or CentOS.  Also, the packages to install have different names, and are installed with yum instead of apt-get.
+
+  * **selinux** causes problems with symbolic links (symlinks).  The RDF Pipeline Framework itself does not create any symlinks, but it will fail if your system uses them and you have selinux enabled.  Solution: Disable selinux.
+```
+setenforce 0
+```
+
+  * Tomcat and Apache run as different users.  This can problems when apache creates a file tomcat needs to read, such as loading an RDF graph, if the default umask is too restrictive, such as 077.  Solution: Set umask 022 in apache startup.
+
+  * One server cannot access the other server -- could not connect to host.  Tried https://www.digitalocean.com/community/tutorials/how-to-setup-a-basic-ip-tables-configuration-on-centos-6 but that didn't fix it.  Temporary solution for testing: Disable the iptables firewall: http://www.cyberciti.biz/faq/disable-linux-firewall-under-centos-rhel-fedora/
+```
+# service iptables save
+# service iptables stop
+# chkconfig iptables off
+```
+
+
+# Troubleshooting #
+
+Tips:
+  * Check the apache2 log for errors:
+```
+tail -n 20 /var/log/apache2/error.log
+```
+  * Check the RDF Pipeline log file: /tmp/rdf-pipeline-log.txt
+  * Make sure your environment variables are set so that you can issue pipeline commands while testing:
+```
+cd /home/dbooth/rdf-pipeline/trunk
+. set_env.sh
+```
+  * Flush the pipeline caches:
+```
+flush-caches
+```
+  * Restart apache:
+```
+sudo service apache2 restart
+```
+
+## Symptoms and solutions ##
+1. **Symptom:** An updater is output verbatim instead of being run,
+like this:$ curl http://127.0.0.1/node/both
+#! /bin/sh
+
+# Inputs are passed positionally as filenames
+
+# Concatenate the content of the two input files:
+cat $1 $2
+}}
+
+*Potential solution:*  The hostname in your test URI may be wrong.  Try
+localhost instead of 127.0.0.1:
+{{{
+$ curl http://localhost/node/both
+HELLO WORLD!
+Goodbye
+}}}
+
+Other possible diagnoses:
+  * mod_perl2 may not be configured correctly.
+  * File permissions for $DOCUMENT_ROOT or its ancestors may be wrong.  The
+RDF Pipeline Framework needs to be able to *write* to this directory
+(for its caches) and *execute* files in this directory (for updaters),
+  * The sesame server URI was specified incorrectly, such as http://192.168.1.125:8080/openrdf-sesame instead of http://localhost:8080/openrdf-sesame .
+
+To determine whether the RDF Pipeline Framework ran at all, see if its
+debugging log file was created:
+{{{
+# ls /tmp/rdf-pipeline-log.txt
+ls: cannot access /tmp/rdf*: No such file or directory
+}}}
+If not, then: (a) verify that mod_perl2 is installed 
+( {{{perl -Mmod_perl2 < /dev/null}}} should return with no error); and (b)
+check its configuration
+
+2. If you see this in the apache2 error log /var/log/apache2/error.log it
+means that you did not download the required perl modules or perl for some
+reason cannot find them:
+{{{
+[client 127.0.0.1] failed to resolve handler `RDF::Pipeline': Can't locate WWW/Mechanize.pm in @INC (@INC contains: /home/dbooth/rdf-pipeline/trunk/RDF-Pipeline/lib /etc/perl /usr/local/lib/perl/5.14.2 /usr/local/share/perl/5.14.2 /usr/lib/perl5 /usr/share/perl5 /usr/lib/perl/5.14 /usr/share/perl/5.14 /usr/local/lib/site_perl . /etc/apache2) at /home/dbooth/rdf-pipeline/trunk/RDF-Pipeline/lib/RDF/Pipeline.pm line 158.\nBEGIN failed--compilation aborted at /home/dbooth/rdf-pipeline/trunk/RDF-Pipeline/lib/RDF/Pipeline.pm line 158.\nCompilation failed in require at (eval 3) line 2.\n
+}}}
+
+If the permissions are wrong then perl may not find them even though they are there.
+
+3.  Symptom: HTTP 500 Iternal Server Error occurred while testing:
+{{{
+curl http://localhost/node/both
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+<html><head>
+<title>500 Internal Server Error</title>
+. . . 
+}}}
+
+and this error was in the apache2 error log /var/log/apache2/error.log :
+{{{
+[client 127.0.0.1] failed to resolve handler `RDF::Pipeline': Can't locate Digest/MD4.pm in @INC (@INC contains: /home/dbooth/rdf-pipeline/trunk/RDF-Pipeline/lib /etc/perl /usr/local/lib/perl/5.14.2 /usr/local/share/perl/5.14.2 /usr/lib/perl5 /usr/share/perl5 /usr/lib/perl/5.14 /usr/share/perl/5.14 /usr/local/lib/site_perl . /etc/apache2) at /home/dbooth/rdf-pipeline/trunk/RDF-Pipeline/lib/RDF/Pipeline.pm line 159.\nBEGIN failed--compilation aborted at /home/dbooth/rdf-pipeline/trunk/RDF-Pipeline/lib/RDF/Pipeline.pm line 159.\nCompilation failed in require at (eval 3) line 2.\n
+}}}
+
+This was caused because the installation of perl module Digest::MD4 failed
+due to the lack of a C compiler:
+{{{
+# cpan Digest::MD4
+Going to read '/root/.cpan/Metadata'
+  Database was generated on Thu, 24 Apr 2014 14:17:02 GMT
+Running install for module 'Digest::MD4'
+Running make for M/MI/MIKEM/DigestMD4/Digest-MD4-1.9.tar.gz
+Checksum for /root/.cpan/sources/authors/id/M/MI/MIKEM/DigestMD4/Digest-MD4-1.9.tar.gz ok
+
+  CPAN.pm: Going to build M/MI/MIKEM/DigestMD4/Digest-MD4-1.9.tar.gz
+
+Checking if your kit is complete...
+Looks good
+Writing Makefile for Digest::MD4
+Writing MYMETA.yml
+cp MD4.pm blib/lib/Digest/MD4.pm
+/usr/bin/perl /usr/share/perl/5.14/ExtUtils/xsubpp  -typemap /usr/share/perl/5.14/ExtUtils/typemap -typemap typemap  MD4.xs > MD4.xsc && mv MD4.xsc MD4.c
+cc -c   -D_REENTRANT -D_GNU_SOURCE -DDEBIAN -fstack-protector -fno-strict-aliasing -pipe -I/usr/local/include -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -O2 -g   -DVERSION=\"1.9\" -DXS_VERSION=\"1.9\" -fPIC "-I/usr/lib/perl/5.14/CORE"   MD4.c
+/bin/sh: 1: cc: not found
+make: *** [MD4.o] Error 127
+  MIKEM/DigestMD4/Digest-MD4-1.9.tar.gz
+  /usr/bin/make -- NOT OK
+'YAML' not installed, will not store persistent state
+Running make test
+  Can't test without successful make
+Running make install
+  Make had returned bad status, install seems impossible
+}}}
+
+Solution: Install build-essential (which includes various things needed
+for compilation), then try again to install Digest::MD4 :
+{{{
+sudo apt-get update
+sudo apt-get install build-essential
+cpan Digest::MD4
+}}}
+
+
+4. *Symptom:* Unknown repository:
+{{{
+$ curl http://localhost/node/willies
+Unknown repository: rdf-pipeline-test
+}}
+
+*Potential solution:* You need to create the sesame 
+repository rdf-pipeline-test .
+See the section on testing sample-pipeline-GraphNode .
+
+5. *Symptom:* Missing perl modules:
+{{{
+  The module XML::NamespaceFactory isn't available on CPAN.
+}}}
+
+*Solution:*
+{{{
+sudo apt-get update
+sudo apt-get -y install libxml-namespacefactory-perl
+}}}
+
+6. *Symptom:* Invalid command 'PerlRequire' when restarting apache:
+{{{
+# service apache2 restart
+Syntax error on line 6 of /etc/apache2/sites-enabled/000-default:
+Invalid command 'PerlRequire', perhaps misspelled or defined by a module not included in the server configuration
+Action 'configtest' failed.
+The Apache error log may have more information.
+ failed!
+}}}
+
+*Solution:* Perl module needs to be enabled in apache.  Run these commands:
+{{{
+sudo a2enmod perl
+sudo service apache2 restart
+}}}
+
+7. *Symptom:* openrdf-workbench gives an "Invalid Server URL" error when 
+attempting to set the server URL at
+http://localhost:8080/openrdf-workbench/repositories/NONE/server
+
+*Possible solution:* Ownership of /usr/share/tomcat7 directory may
+be wrong.  Try accessing the sesame backend directly, by browsing
+to http://localhost:8080/openrdf-sesame/ .   If you get a java
+exception with a stack trace that says (among other things):
+{{{
+java.io.IOException: Unable to create logging directory /usr/share/tomcat7/.aduna/openrdf-sesame/logs
+}}}
+then check the ownership and change it:
+{{{
+ls -ld /usr/share/tomcat7
+sudo chown -R tomcat7:tomcat7 /usr/share/tomcat7
+sudo service apache2 restart
+}}}```

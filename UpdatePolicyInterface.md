@@ -1,0 +1,23 @@
+# Introduction #
+The update policy interface allows arbitrary update policys to be plugged in to the RDF Pipeline framework, such as:
+  * **LazyUpdatePolicy** -- Freshens the node only when data is requested by a GET or HEAD request.
+  * **EagerUpdatePolicy** -- (NOT YET IMPLEMENTED) Freshens the node whenever a NOTIFY event is received (because an upstream node was updated) or when data is requested by a GET or HEAD request.
+  * **EagerThrottledUpdatePolicy** -- (NOT YET IMPLEMENTED) Similar to _EagerUpdatePolicy_, but throttled to avoid updating within _n_ seconds of the previous update.
+  * **PeriodicUpdatePolicy** -- (NOT YET IMPLEMENTED) Node is freshened periodically or as a cron job.
+
+# Interface #
+To implement an update policy, a function with the following signature must be provided.
+
+## fUpdatePolicy(...) ##
+**Parameters:**
+  * **nm** -- Hashmap: Node metadata.
+  * **method** -- String: Method (either "GET" or "NOTIFY") that caused _fUpdatePolicy_ to be invoked.
+  * **thisUri** -- String: URI of the node whose update policy is to be checked.
+  * **callerUri** -- (AT RISK) String: URI of the downstream node (in the case of GET) or upstream node (in the case of NOTIFY) that caused thisUri to be updated.
+  * **callerLM** -- (AT RISK) String: [LM](http://code.google.com/p/rdf-pipeline/wiki/LM) of _callerUri_.
+**Returns:**
+  * Boolean: True (1) iff _thisUri_'s updatePolicy indicates that _thisUri_'s _out_ should be freshened.
+
+Run _thisUri_'s updatePolicy to decide whether: (a) _thisUri_'s _out_ cache should be freshened (if true/1 is returned); or (b) the event indicated by _method_ should be ignored (if false/0 is returned).
+
+("Freshening" a node means: (a) checking to see whether that node's _out_ is stale in relation to its inputs, parameters and dependsOns; and, if so (b) running that node's updater.  Thus, a node's updater is not necessarily run even if _fUpdatePolicy_ returns true/1.)
