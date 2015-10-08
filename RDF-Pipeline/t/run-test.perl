@@ -20,6 +20,9 @@
 use strict;
 use Getopt::Long; # Perl
 
+# Enable files created in /var/www to have the right group permissions:
+umask 002;
+
 # Different apache versions use different names.
 # Find the right one.
 my @apacheConfigs = qw(

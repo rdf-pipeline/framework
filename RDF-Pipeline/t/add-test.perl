@@ -6,6 +6,9 @@
 
 use strict;
 
+# Enable files created in /var/www to have the right group permissions:
+umask 002;
+
 @ARGV >= 1 && $ARGV[0] =~ m/^http(s?)\:/ or die "Usage: $0 URL [description]
 where URL is the RDF Pipeline test URL to invoke for the new test.\n";
 my $url = shift @ARGV;

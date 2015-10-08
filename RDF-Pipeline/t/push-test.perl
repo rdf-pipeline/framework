@@ -6,6 +6,9 @@
 
 use strict;
 
+# Enable files created in /var/www to have the right group permissions:
+umask 002;
+
 my $tmpRoot = "/tmp/rdfp";	# run-test.perl will put actual-files here
 my $currentTest = "$tmpRoot/currentTest";  # Name of most recently run test
 
