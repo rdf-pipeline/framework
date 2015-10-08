@@ -1,0 +1,14 @@
+#! /usr/bin/perl -w
+# Print the count in count.txt and increment it.
+
+open(my $fh, "<count.txt") || die;
+my $count = <$fh>;
+chomp $count;
+close($fh) || die;
+print "count: $count\n";
+
+$count++;
+open($fh, ">count.txt") || die;
+print $fh "$count\n";
+close($fh) || die;
+
