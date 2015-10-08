@@ -21,7 +21,11 @@ $ENV{RDF_PIPELINE_WWW_DIR} = $wwwDir;
 
 ############ CUSTOMIZE HERE ################
 # Invoke the URL, concatenating its output to $wwwDir/test/testout :
-my $testUrl = 'http://localhost/node/UPPERWILLIES?debug=$DEBUG_DETAILS';
+# First, invoke with normal debug setting, to get to stable state:
+my $testUrl = 'http://localhost/node/UPPERWILLIES?debug=$DEBUG_CHANGES';
+!system("../../helpers/pipeline-request.perl GET '$testUrl'") or die;
+# Invoke again with debug DETAILS for some 304 responses:
+$testUrl = 'http://localhost/node/UPPERWILLIES?debug=$DEBUG_DETAILS';
 !system("../../helpers/pipeline-request.perl GET '$testUrl'") or die;
 # Try to reset the debug level.  This may not work because of multiple
 # apache threads using different memory.

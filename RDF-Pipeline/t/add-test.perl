@@ -6,6 +6,9 @@
 
 use strict;
 
+# Enable files created in /var/www to have the right group permissions:
+umask 002;
+
 @ARGV >= 1 && $ARGV[0] =~ m/^http(s?)\:/ or die "Usage: $0 URL [description]
 where URL is the RDF Pipeline test URL to invoke for the new test.\n";
 my $url = shift @ARGV;
@@ -32,7 +35,7 @@ $dir .= "_$description" if $description;
 mkdir($dir) or die;
 
 # Generate an initial test-script, that can later be customized:
-my $content = &ReadFile("<$moduleDir/t/helpers/test-script-template") or die;
+my $content = &ReadFile("<$moduleDir/t/helpers/test-script-TEMPLATE") or die;
 $content =~ s/BEGIN_TEMPLATE_WARNING(.|\n)*END_TEMPLATE_WARNING\s*\n(\n?)//ms;
 $content =~ s/\$URL\b/$url/g;
 &WriteFile("$dir/test-script", $content);

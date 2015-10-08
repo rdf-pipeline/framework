@@ -9,6 +9,9 @@
 
 use strict;
 
+# Enable files created in /var/www to have the right group permissions:
+umask 002;
+
 my $tmpRoot = "/tmp/rdfp";	# run-test.perl will put actual-files here
 my $currentTest = "$tmpRoot/currentTest";  # Name of most recently run test
 
@@ -46,7 +49,7 @@ foreach my $dir (@testDirs) {
 	-e $tmpTDir || die "ERROR: No actual-files to accept: $tmpTDir\n";
 
 	# Copy the $tmpTDir files to expected-files
-	my $copyCmd = "$moduleDir/t/helpers/copy-dir.perl -s '$tmpTDir' '$dir/expected-files'";
+	my $copyCmd = "$moduleDir/t/helpers/copy-dir.perl '$tmpTDir' '$dir/expected-files'";
 	# warn "copyCmd: $copyCmd\n";
 	!system($copyCmd) or die;
 	# Add the test to svn?
@@ -85,7 +88,7 @@ my ($newFilter) = @_;
 open(my $newFh, "<$newFilter") || die;
 my $newFilterString = join("", map {s/\#.*//; s/[\s\n\r]+//ms; $_} <$newFh>);
 close($newFh) || die;
-my $oldFilter = "$moduleDir/t/helpers/filter-original.perl";
+my $oldFilter = "$moduleDir/t/helpers/filter-ORIGINAL.perl";
 open(my $oldFh, "<$oldFilter") || die;
 my $oldFilterString = join("", map {s/\#.*//; s/[\s\n\r]+//ms; $_} <$oldFh>);
 close($oldFh) || die;

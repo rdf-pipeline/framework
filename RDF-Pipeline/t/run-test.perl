@@ -6,21 +6,44 @@
 #
 # Usage:
 #
-#  	./run-test.perl [-q] [nnnn] ...
+#  	./run-test.perl [options] [nnnn] ...
 #
 # where nnnn is the numbered test directory you wish to run, defaulting
 # to the most recently run test directory ($currentTest) if none is specified.  
 #
-# Option:
+# Options:
 #	-q	Quiet.  Less verbose output.
+#
+#	-d	Delete empty directories from actual and expected
+#		files before filtering them.
 
-my $apacheConfig = "/etc/apache2/sites-enabled/000-default";
+use strict;
+use Getopt::Long; # Perl
+
+# Enable files created in /var/www to have the right group permissions:
+umask 002;
+
+# Different apache versions use different names.
+# Find the right one.
+my @apacheConfigs = qw(
+	/etc/apache2/sites-enabled/000-default.conf
+	/etc/apache2/sites-enabled/000-default
+	);
+my $apacheConfig = $apacheConfigs[0];
+foreach my $f ( @apacheConfigs ) {
+	if (-e $f) {
+		$apacheConfig = $f;
+		last;
+		}
+	}
 
 my $quietOption = 0;
-if (@ARGV && $ARGV[0] eq "-q") {
-	shift @ARGV;
-	$quietOption = 1;
-	}
+my $deleteEmptyDirsOption = 0;
+GetOptions(
+                "quiet|q" => \$quietOption,
+                "deleteEmptyDirs|d" => \$deleteEmptyDirsOption,
+                ) or die "$0: Error reading options.
+";
 
 my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
 my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
@@ -132,19 +155,27 @@ foreach my $tDir (@tDirs) {
 	}
 
   # Copy expected-files to tmp dirs for filtering:
+  my $expectedFilteredDir = "$tmpTDir/expected-filtered";
   if (!-e "$tDir/expected-files") {
     # Fail if there's no expected-files
     warn "Failed -- no expected-files: $tDir\n";
     $allPassed = 0;
     next;
     }
-  my $expectedFilteredDir = "$tmpTDir/expected-filtered";
   !system("$moduleDir/t/helpers/copy-dir.perl '$tDir/expected-files' '$expectedFilteredDir'") || die;
 
   # Filter all expected-files
   my $eFindCmd = "find '$expectedFilteredDir' -type f -exec '$moduleDir/t/helpers/filter-expected.perl' '{}' \\;";
   # warn "eFindCmd: $eFindCmd\n";
   !system($eFindCmd) || die;
+
+  # Delete empty directories?
+  if ($deleteEmptyDirsOption) {
+    my $aFindCmd = "find '$actualFilteredDir'   -type d -empty -delete";
+    my $eFindCmd = "find '$expectedFilteredDir' -type d -empty -delete";
+    !system($aFindCmd) || die;
+    !system($eFindCmd) || die;
+    }
 
   # Compare the (filtered) expected with the (filtered) actual files:
   my $checkCmd = "$moduleDir/t/helpers/compare-results.perl '$expectedFilteredDir' '$actualFilteredDir' >> $tmpDiff";
