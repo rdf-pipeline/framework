@@ -1,0 +1,50 @@
+#! /usr/bin/perl -w
+
+# Copyright 2014 by David Booth
+# This software is available as free and open source under
+# the Apache 2.0 software license, which may be viewed at
+# http://www.apache.org/licenses/LICENSE-2.0.html
+# Code home: https://github.com/dbooth-boston/rdf-pipeline/
+
+# Flush the pipeline caches on the current machine.  
+
+use Getopt::Long; # Perl
+my $debug = 0;
+GetOptions(
+                "debug|d" => \$debug,
+                ) or die "$0: Error reading options.
+";
+
+my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
+
+# Strip trailing slash if any:
+$wwwDir =~ s/\/$// if $wwwDir ne "/";
+
+-d $wwwDir || die "$0: [ERROR] Not a directory: $wwwDir\n";
+
+foreach my $subdir (qw(cache lm)) {
+	my $f = "$wwwDir/$subdir";
+	warn "Checking for $f ...\n" if $debug;
+	if (-e "$f") {
+		my $qf = quotemeta($f);
+		my $cmd = "/bin/rm -r $qf";
+		warn "$cmd\n" if $debug;
+		!system($cmd) || die; 
+		}
+	die "$0: Failed to delete $f\n" if -e $f;
+	# To prevent making $f with the wrong user/group, don't make it:
+	# mkdir $f || die "$0: [ERROR] Failed to re-create empty $f\n";
+	}
+exit 0;
+
+
+########## EnvNotSet #########
+sub EnvNotSet
+{
+@_ == 1 or die;
+my ($var) = @_;
+die "ERROR: Environment variable '$var' not set!  Please set it
+by editing set_env.sh and then (in bourne shell) issuing the
+command '. set_env.sh'\n";
+}
+

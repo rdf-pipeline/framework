@@ -1,0 +1,155 @@
+#! /usr/bin/env perl
+
+# Copyright 2014 by David Booth
+# This software is available as free and open source under
+# the Apache 2.0 software license, which may be viewed at
+# http://www.apache.org/licenses/LICENSE-2.0.html
+# Code home: https://github.com/dbooth-boston/rdf-pipeline/
+
+# Convert RDF blank nodes (except lists) to URIs by skolemizing them.
+#
+# Input must be Turtle format; output is ntriples.
+# Reads stdin, writes stdout.
+#
+# Regression test for this code is @@ TODO @@ .
+##################################################################
+
+use warnings;
+use strict;
+
+################# Usage ###################
+sub Usage
+{
+return "Usage: $0 [ options ] [ file.ttl ... ]
+Options:
+  -p, --prefix=prefixUri
+	Use prefixUri as the base in generating skolem URIs.
+	A unique UUID-derived suffix will be appended.
+
+  -u, --unique=uniqueUri
+	Use uniqueUri as the unique base in parsing skolem URIs.
+	A sequence number will be appended to uniqueUri to produce
+	the generated URI corresponding to a bnode.  Suggestion:
+	end uniqueUri with a colon \":\" to separate it from the
+	sequence number.  If this option is specified, the -p
+	option will be ignored.
+
+  -b, --base=baseUri
+	Use baseUri as the base in parsing relative URIs.
+
+  -h, --help
+	Print this usage message.\n";
+}
+
+################# Main ###################
+
+use Data::GUID;
+
+my $prefixUri = "urn:@";
+my $uniqueUri = "";
+my $baseUri = $prefixUri;
+my $help = 0;
+my $debug = 0;
+use Getopt::Long; # Perl
+GetOptions(
+                "debug|d" => \$debug,
+                "help|h" => \$help,
+                "prefix|p=s" => \$prefixUri,
+                "unique|u=s" => \$uniqueUri,
+                "base|b=s" => \$baseUri,
+                ) or die "$0: Error reading options.  " . &Usage();
+
+die &Usage() if $help;
+@ARGV <= 1 || die "$0: Too many arguments.  " . &Usage();
+my $f = shift;
+
+die "$0 [ERROR] prefixUri must not have angle brackets: $prefixUri\n"
+	if $prefixUri =~ m/^\</ || $prefixUri =~ m/\>$/;
+
+$uniqueUri = $prefixUri . &NewUniqueID() if !$uniqueUri;
+
+die "$0 [ERROR] uniqueUri must not have angle brackets: $uniqueUri\n"
+	if $uniqueUri =~ m/^\</ || $uniqueUri =~ m/\>$/;
+
+my $counter = 0;
+my %triples;
+my %terms;
+my %bnodes;
+my %isList;
+my $listFirst = "<http://www.w3.org/1999/02/22-rdf-syntax-ns#first>";
+my $pipe = "rapper -q -i turtle -o ntriples -I $baseUri  - |";
+$pipe    = "rapper -q -i turtle -o ntriples -I $baseUri $f |" if $f;
+open(STDIN, $pipe) || die "$0: [ERROR] Failed to open pipe: $pipe\nIs rapper installed?\n";
+warn "INPUT N-Triples:\n[[\n" if $debug;
+while(<>) {
+	my $line = $_;
+	warn $line if $debug;
+	chomp;
+	s/^\s+//;		# Strip leading whitespace
+	s/\s+$//;		# Strip trailing whitespace
+	next if !m/\S/;		# Skip blank lines
+	s/\s*\.$//;		# Strip terminating "."
+	my($s, $p, $v) = split(/\s/, $_, 3);
+	defined($v) || die "$0: [ERROR] Failed to parse line: $line";
+	$triples{$s}->{$p}->{$v} = 1;;
+	$isList{$s} = 1 if $p eq $listFirst;
+	foreach my $t ($s, $p, $v) {
+		$terms{$t} = $t;
+		$bnodes{$t} = 1 if $t =~ m/^_/;
+		}
+	}
+warn "]]\n" if $debug;
+warn "===================================================\n" if $debug;
+
+# Generate URIs for bnodes that are not lists.
+foreach my $bnode (sort keys %bnodes) {
+	next if $isList{$bnode};
+	$counter++;
+	my $uri = "<" . $uniqueUri . sprintf("%04x", $counter) . ">" ;
+	warn "bnode $bnode -> $uri\n" if $debug;
+	$terms{$bnode} = $uri;
+	}
+warn "===================================================\n" if $debug;
+
+# Dump out the result.
+foreach my $s (sort keys %triples) {
+	my $newS = $terms{$s};
+	print "$newS ";
+	my $pIndent = "";
+	my $pHash = $triples{$s};
+	foreach my $p (sort keys %{$pHash}) {
+		my $newP = $terms{$p};
+		print $pIndent, $newP, " ";
+		my $vIndent = "";
+		my $vHash = $pHash->{$p};
+		foreach my $v (sort keys %{$vHash}) {
+			my $newV = $terms{$v};
+			print $vIndent, $newV, " ";
+			$vIndent = ", ";
+			}
+		print ";\n";
+		$pIndent = "\t";
+		}
+		
+	print "\t.\n";
+	}
+exit 0;
+
+################ NewUniqueID ################
+# Return a new unique ID suitable for use in a URI or filename.
+# It is derived from a base64-encoded string,
+# after changing characters that would not be safe in a filename
+# or URI, and prepending "h" to ensure that it never starts with "-",
+# which might otherwise be mistaken for a command option in linux.
+sub NewUniqueID
+{
+my $guid = Data::GUID->new;
+my $hash = "h" . Data::GUID->new->as_base64;
+# Ensure that it is filename- and URI-friendly, i.e.,
+# it contains only [a-zA-Z0-9_\-]+:
+$hash =~ tr|+/=|\-_|d;
+# Sanity check:
+die if $hash !~ m/\A[a-zA-Z0-9_\-]+\Z/;
+return $hash;
+}
+
