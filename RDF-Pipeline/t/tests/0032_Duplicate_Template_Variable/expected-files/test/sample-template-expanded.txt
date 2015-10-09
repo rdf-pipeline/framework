@@ -1,1 +1,0 @@
-/home/dbooth/rdf-pipeline/trunk/tools/ste.perl: [ERROR] duplicate template variable: $inUri
