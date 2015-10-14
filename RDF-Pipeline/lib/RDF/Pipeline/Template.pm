@@ -2,9 +2,12 @@
 package RDF::Pipeline::Template;
 
 # RDF Pipeline Framework -- Template expansion.
-# Copyright 2011 & 2012 David Booth <david@dbooth.org>
-# Code home: http://code.google.com/p/rdf-pipeline/
-# See license information at http://code.google.com/p/rdf-pipeline/ 
+
+# Copyright 2014 by David Booth
+# This software is available as free and open source under
+# the Apache 2.0 software license, which may be viewed at
+# http://www.apache.org/licenses/LICENSE-2.0.html
+# Code home: https://github.com/dbooth-boston/rdf-pipeline/
 
 use 5.10.1; 	# It *may* work under lower versions, but has not been tested.
 use strict;
@@ -117,16 +120,19 @@ $queryString ||= "";
 my $pVars;
 ($template, $pVars) = &ScanForList("parameters", $template);
 my $qsHash = &ParseQueryString($queryString);
-my %pWanted = map 
-	{
-	my $value = $qsHash->{&BaseVar($_)};
-	($_, defined($value) ? $value : "")
-	} @{$pVars};
-my $errorTemplate = "$0: ERROR: Duplicate template variable: %s\n";
-foreach my $var (@{$pVars}) {
+my $errorTemplate = "$0: [ERROR] Duplicate template variable: %s\n";
+foreach (@{$pVars}) {
+	# Split param1=pVar1 if needed.
+	my ($param, $var) = split(/\=/, $_, 2);
+	if (!defined($var)) {
+		$param = $_;
+		$var = $_;
+		}
 	die sprintf($errorTemplate, $var)
 		if $errorTemplate && exists($pHash->{$var});
-	$pHash->{$var} = $pWanted{$var};
+	my $value = $qsHash->{&BaseVar($param)};
+	$value = "" if !defined($value);
+	$pHash->{$var} = $value;
 	}
 return ($template, $pHash);
 }
@@ -137,7 +143,7 @@ return ($template, $pHash);
 # which is removed from the returned $template.  Also returns a list ref 
 # of the variable names found in the declared list.
 # The given $keyword should normally be "inputs", "outputs" or "parameters",
-# but may be some other word.
+# but may be some other word if this code is used for something else.
 sub ScanForList
 {
 @_ == 2 or confess "Bad args";
@@ -145,19 +151,28 @@ my $keyword = shift or confess "$0: ScanForList called with no keyword\n";
 my $template = shift;
 defined($template) or confess "$0: ScanForList called with undefined template\n";
 my @inVars = ();
-# Given keyword "inputs", the pattern matches the first line like:
-#	#inputs( $foo ${fum} )
-if ($template =~ s/^\#$keyword\(\s*([^\(\)]+?)\s*\)(.*)(\n|$)//m) {
-	my $inList = $1;
-	my $extra = $2;
-	my $line = $&;
-	# warn "FOUND inList: ($inList) extra: ($extra) line: ($line)\n";
-	$extra =~ s/\A\s*//;
-	### Do not allow trailing comment:
-	### $extra =~ s/\A\#.*//;
-	die "$0: ERROR: Extra text after \#$keyword(...): $extra\n" if $extra;
-	push(@inVars, split(/\s+/, $inList));
+# Process one line at a time, to preserve ordering.
+my @lines = split(/\n/, $template, -1);
+my @newLines = ();
+foreach my $template (@lines) {
+	# Given keyword "inputs", the pattern matches a line like:
+	#	#inputs( $foo ${fum} )
+	if ($template =~ s/^\#$keyword\(\s*([^\(\)]+?)\s*\)(.*)(\n|$)//m) {
+		my $inList = $1;
+		my $extra = $2;
+		my $line = $&;
+		# warn "FOUND inList: ($inList) extra: ($extra) line: ($line)\n";
+		$extra =~ s/\A\s*//;
+		### Do not allow trailing comment:
+		### $extra =~ s/\A\#.*//;
+		die "$0: [ERROR] Extra text after \#$keyword(...): $extra\n" if $extra;
+		push(@inVars, split(/\s+/, $inList));
+		}
+	else {
+		push(@newLines, $template);
+		}
 	}
+$template = join("\n", @newLines);
 return ($template, \@inVars);
 }
 
@@ -196,9 +211,9 @@ $pRep ||= {};
 $pVars && $pVals or confess "$0: AddPairsToHash called with insufficient arguments\n";
 my $nVars = scalar(@{$pVars});
 my $nVals = scalar(@{$pVals});
-$nVars >= $nVals or die "$0: ERROR: $nVals values provided for $nVars template variables (@{$pVars})\n";
+$nVars >= $nVals or die "$0: [ERROR] $nVals values provided for $nVars template variables (@{$pVars})\n";
 
-my $errorTemplate = "$0: ERROR: duplicate template variable: %s\n";
+my $errorTemplate = "$0: [ERROR] duplicate template variable: %s\n";
 for (my $i=0; $i<@{$pVars}; $i++) {
 	die sprintf($errorTemplate, ${$pVars}[$i])
 		if $errorTemplate && exists($pRep->{${$pVars}[$i]});
@@ -347,16 +362,16 @@ die "Usage: $0 [template] [ -i iVal1 ...] [ -o oVal1 ...] [ -p pVar1=pVal1 ...]
 Options:
   -i iVal1 ...		
 	Values to be substituted into variables specified
-	by "#inputs( $iVar1 ... )" line in template.
+	by "#inputs( $iVar1 ... )" lines in template.
 
   -o oVal1 ...		
 	Values to be substituted into variables specified
-	by "#outputs( $oVar1 ... )" line in template.
+	by "#outputs( $oVar1 ... )" lines in template.
 
   -p pVar1=pVal1 ...	
 	URI encoded variable/value pairs to be substituted
 	into variables specified by "#parameters( $pVar1 ... )"
-	line in template.  Both variables and
+	lines in template.  Both variables and
 	values will be uri_unescaped before use.  Multiple
 	variable/value pairs may be specified together using
 	"&" as separator: foo=bar&fum=bah&foe=bif .  If -p
@@ -386,7 +401,7 @@ From the command line:
 
   ste.perl [options...] [template] 
 
-with typical options (explained more fully below):
+with typical options (repeatable and explained more fully below):
  -i iVal1 	Provide #inputs value iVal1
  -o oVal1 	Provide #outputs value oVal1
  -p pVar1=pVal1 Set QUERY_STRING to pVar1=pVal1
@@ -426,17 +441,36 @@ Template variables are declared within a template using lines like this:
   #outputs( oVar1 oVar2 ... oVarN )
   #parameters( pVar1 pVar2 ... pVarN )
 
+Alternately parameters may be declared in the following
+form (discussed later) or in a mixture of both forms:
+
+  #parameters( param1=pVar1 qpVar2=qpVal2 ... qpVarN=qpValN )
+
 This declares variables iVar1 ... iVarN, oVar1 ... oVarN and pVar1 ... pVarN
 for use within the template.  Values may be provided when the template is
-processed, as explained later.
-Each of these
-lines is optional and is removed when the template is processed.
+processed, as explained later.  
+
+Variable declaration lines are optional and may be repeated to
+declare as many variables as desired.  They are removed when
+the template is processed.  Declarations of the same
+type are processed in order, so
+
+  #inputs( $v1 $v2 )
+  #inputs( $v3 $v4 $v5 )
+
+is equivalent to:
+
+  #inputs( $v1 $v2 $v3 $v4 $v5 )
+
+Otherwise variable declaration lines of different types (#inputs, #outputs 
+or #parameters) may appear in any order.
 
 The hash (#) MUST be the first character of the line, and there must
 be no space between #inputs, #outputs or #parameters and the open
-parenthesis .  Whitespace is
+parenthesis.  Whitespace is
 required between variable names, and is 
-optional between the parentheses and the variables.
+optional between the parentheses and the variables, though suggested
+for readability.
 Variable names specified in #inputs or #outputs can use any syntax 
 except whitespace or parentheses, i.e., they must
 match the following Perl regular expression
@@ -448,7 +482,9 @@ However, common variable syntax conventions like $foo , ${foo} or %foo% are a
 good idea for both safety and readability.   On the other hand, you could use a
 string like http://example/var# as a variable name, which would
 give you the effect of replacing that string throughout your template
-when the template is processed.
+when the template is processed.   This can be quite useful
+for testing your template with a fixed value prior to enabling
+template expansion.
 
 The #inputs and #outputs directives have exactly the same function unless
 you are using the RDF Pipeline Framework, in which case #inputs is
@@ -463,9 +499,15 @@ following Perl regular expression
 
   [^()\s\w]*\w+[^()\s\w]*
 
-The non-word characters are ignored when looking for the corresponding
-query string variable, as further described below, so ${foo} and %foo% 
-both correspond to query string variable foo.
+Or, if the param1=pVar1 form of parameter declaration is used, they
+must match:
+
+  [^()\s\w]*\w+[^()\s\w]*\=[^()\s]+
+
+The non-word characters, and "=" (if present) and anything thereafter, 
+are ignored when looking for the corresponding
+query string variable, as further described below, so ${foo} , %foo% 
+and $foo=2339 all correspond to query string variable foo.
 
 =head2 Value Substitution
 
@@ -511,8 +553,8 @@ http://perldoc.perl.org/perlre.html#Assertions )
 prepended or appended (or both) to
 the substitution pattern, thus forcing the match to
 only occur on a word boundary.
-Template processing can, however, cause words to be joined together.
-For example, if template variable ${eff} has the value PH , 
+Template processing can, however, cause words to be joined together
+on output.  For example, if template variable ${eff} has the value PH , 
 then a template string "ELE${eff}ANT" will become "ELEPHANT".
 
 =head2 Supplying Values for Template Variables
@@ -530,7 +572,12 @@ respectively, or passed in array references if you are calling
 value specified by the nth -i option (or -o option) is bound to the 
 nth #inputs (or #outputs) variable, respectively.
 
-=item #parameters variables
+=item #parameters variables -- simple pVar1 form
+
+This explanation applies to the simple form of declaring
+a #parameters variable such as pVar1:
+
+  #parameters( pVar1 ... )
 
 By default #parameters variables are set through the $QUERY_STRING environment
 variable, which is assumed to provide an ampersand-delimited list of 
@@ -564,6 +611,31 @@ same syntax as the $QUERY_STRING.
 
 If you specify the same variable name twice, such as in min=2&max=99&min=5 , 
 the earlier value will be silently ignored, so $min will be 5.
+
+=item #parameters variables -- param1=pVar1 form
+
+This form of #parameters variable declaration allows the name of
+the query parameter (param1) to be specified in addition to specifying
+the variable (pVar1) that will be replaced
+with the value of that query parameter during template expansion.
+For example, if a query parameter foo has a value
+of "9977", such as by http://.../?foo=9977 , or by
+
+  ste.perl -p 'foo=9977' temp.txt
+
+then template temp.txt
+
+  #parameters( foo=2339 )
+  GetPatient(2339)
+
+will be expanded to:
+
+  GetPatient(9977)
+
+This form of #parameters variable declaration is especially useful 
+when you wish to make a template that can be tested using fixed
+values prior to template expansion, such as using a value of "2339"
+for foo.
 
 =back 
 
@@ -711,7 +783,7 @@ David Booth <david@dbooth.org>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2011 & 2012 David Booth <david@dbooth.org>
+Copyright 2011 - 2014 David Booth <david@dbooth.org>
 See license information at http://code.google.com/p/rdf-pipeline/ 
 
 =cut

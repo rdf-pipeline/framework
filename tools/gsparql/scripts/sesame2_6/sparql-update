@@ -1,10 +1,12 @@
 #!/usr/bin/env perl
 
+# Copyright 2014 by David Booth
+# This software is available as free and open source under
+# the Apache 2.0 software license, which may be viewed at
+# http://www.apache.org/licenses/LICENSE-2.0.html
+# Code home: https://github.com/dbooth-boston/rdf-pipeline/
+
 # Sesame 2.6.x SPARQL UPDATE operation.
-#
-# Copyright 2013 by David Booth
-# Code home: http://code.google.com/p/rdf-pipeline/
-# See license information at http://code.google.com/p/rdf-pipeline/ 
 #
 # Usage: $0 [ filename.ru ]
 
@@ -12,7 +14,16 @@
 
 ################### Generic preparation ####################
 use warnings;
+my $help = 0;
 my $debug = 0;
+use Getopt::Long; # Perl
+GetOptions(
+                "debug|d" => \$debug,
+                "help|h" => \$help,
+                ) or die "$0: Error reading options.
+";
+die "Usage: $0 [ filename.ru ]\n" if $help;
+
 $ENV{SPARQL_SERVER} or die "$0: ERROR: SPARQL_SERVER env var is not set.  Example:
   export SPARQL_SERVER=http://localhost:8080/openrdf-workbench/repositories/rdf-pipeline-test\n";
 @ARGV == 1 || @ARGV == 0 || die "Usage: $0 [ filename.ru ]\n";

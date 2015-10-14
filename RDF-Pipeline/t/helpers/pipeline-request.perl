@@ -17,6 +17,9 @@
 
 use strict;
 
+# Enable files created in /var/www to have the right group permissions:
+umask 002;
+
 my $sleepSeconds = 0;	# Time to wait for Apache to finish writing log files.
 
 my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');

@@ -3,56 +3,47 @@
 # ----------------------------------
 # Per guidance in http://perl.apache.org/docs/2.0/user/intro/start_fast.html
 # added by dbooth 2/12/11:
-PerlRequire /home/dbooth/pcache/startup.pl
-<Location /rocks>
+PerlRequire /home/dbooth/rdf-pipeline/trunk/startup.pl
+# 1/3/12: If the above fails, then try "a2enmod perl" as suggested at:
+# http://list.georgialibraries.org/pipermail/open-ils-general/2009-May/001581.html
+
+### Test:
+# <Location /rocks>
+      # SetHandler perl-script
+      # PerlResponseHandler  RDF::Rocks
+# </Location>
+# 
+# <Location /chain>
+      # SetHandler perl-script
+      # PerlResponseHandler  RDF::Pipeline
+# </Location>
+
+# <Location /hello>
+      # SetHandler perl-script
+      # PerlResponseHandler  RDF::Pipeline
+# </Location>
+
+# This is to match single-word locations composed only of letters.
+# It will not match something like "hello-stdout".  This is a totally
+# kludgey way to distinguish between requests that should be
+# intercepted and processed by the PerlResponseHandler and
+# other requests (such as regular file requests).
+# A better way to handle this would be to use separate subdirectories
+# for nodes and caches.
+#
+# For some unknown reason, "f" does not work as the first character:
+#### 9/2/11: Disabled this in order to run pangenx cytoscope:
+# <LocationMatch "/[a-eg-zA-Z][a-zA-Z]*$">
+      # SetHandler perl-script
+      # PerlResponseHandler  RDF::Pipeline
+# </LocationMatch>
+#### 1/14/12: Trying this:
+<Location /node/>
       SetHandler perl-script
-      PerlResponseHandler  MyApache2::Rocks
+      PerlSetEnv RDF_PIPELINE_DEBUG $DEBUG_CHANGES
+      PerlResponseHandler  RDF::Pipeline
 </Location>
 
-<Location /chain>
-      SetHandler perl-script
-      PerlResponseHandler  MyApache2::Chain
-</Location>
-
-<Location /a >
-      SetHandler perl-script
-      PerlResponseHandler  MyApache2::Chain
-</Location>
-
-<Location /b >
-      SetHandler perl-script
-      PerlResponseHandler  MyApache2::Chain
-</Location>
-
-<Location /c >
-      SetHandler perl-script
-      PerlResponseHandler  MyApache2::Chain
-</Location>
-
-<Location /d >
-      SetHandler perl-script
-      PerlResponseHandler  MyApache2::Chain
-</Location>
-
-<Location /e >
-      SetHandler perl-script
-      PerlResponseHandler  MyApache2::Chain
-</Location>
-
-<Location /cp >
-      SetHandler perl-script
-      PerlResponseHandler  MyApache2::Chain
-</Location>
-
-<Location /dp >
-      SetHandler perl-script
-      PerlResponseHandler  MyApache2::Chain
-</Location>
-
-<Location /ep >
-      SetHandler perl-script
-      PerlResponseHandler  MyApache2::Chain
-</Location>
 
 # ----------------------------------
 
@@ -60,20 +51,28 @@ PerlRequire /home/dbooth/pcache/startup.pl
 
 	ServerAdmin webmaster@localhost
 
+	# 12/16/13: DBooth changed DocumentRoot and Directory
+	# to be under trunk/Private, which is a symlink to an
+	# encrypted dir, so that confidential pipelines can
+	# be tested.
 	# 2/10/11: DBooth changed DocumentRoot and Directory.
 	# Previous value was: /var/www
-	DocumentRoot /home/dbooth/pcache/www
+	DocumentRoot /home/dbooth/rdf-pipeline/trunk/Private/www
 	<Directory />
 		Options FollowSymLinks
 		AllowOverride None
 	</Directory>
-	<Directory "/home/dbooth/pcache/www">
+	<Directory "/home/dbooth/rdf-pipeline/trunk/Private/www">
 		Options Indexes FollowSymLinks MultiViews
 		AllowOverride All
 		Order allow,deny
 		allow from all
 		Options +ExecCGI
 		AddHandler cgi-script .cgi .pl
+		# 1/31/12: dbooth: Prevent ETags from including inode info, 
+		# as explained in issue #13: 
+		# http://code.google.com/p/rdf-pipeline/issues/detail?id=13
+		FileETag MTime Size
 	</Directory>
 
 	ScriptAlias /cgi-bin/ /usr/lib/cgi-bin/
