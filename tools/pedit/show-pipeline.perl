@@ -6,8 +6,9 @@
 use strict;
 
 # Temporarily output a fixed pipeline diagram.
-
-my $all = `cat /home/dbooth/rdf-pipeline/trunk/tools/pedit/nodes.html`;
+use File::Basename;
+my $dirname = dirname(__FILE__);
+my $all = `cat $dirname/nodes.html`;
 print $all;
 exit 0;
 
