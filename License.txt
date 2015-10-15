@@ -1,7 +1,7 @@
    RDF Pipeline Framework
    http://code.google.com/p/rdf-pipeline/
 
-   Copyright 2011-2012 David Booth <david@dbooth.org>
+   Copyright 2011-2014 David Booth <david@dbooth.org>
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use any file in this directory, or in any subdirectory 

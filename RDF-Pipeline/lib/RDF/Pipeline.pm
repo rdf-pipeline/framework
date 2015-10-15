@@ -2,17 +2,23 @@
 package RDF::Pipeline;
 
 # RDF Pipeline Framework
-# Copyright 2011 & 2012 David Booth <david@dbooth.org>
+# 
+# Copyright 2015 by David Booth <david@dbooth.org>
+# This software is available as free and open source under
+# the Apache 2.0 software license, which may be viewed at
+# http://www.apache.org/licenses/LICENSE-2.0.html
 # Code home: http://code.google.com/p/rdf-pipeline/
-# See license information at http://code.google.com/p/rdf-pipeline/ 
 
 # Command line test (cannot currently be used, due to bug #9 fix):
 #  MyApache2/Chain.pm --test --debug http://localhost/hello
 # Maybe command line test could be made to work again using:
 #   https://metacpan.org/module/Test::Mock::Apache2
+# 4/29/14: No, Test::Mock::Apache2 has a bug that causes a seg fault if used.
 #
 # To restart apache (under root):
-#  apache2ctl stop ; sleep 5 ; truncate -s 0 /var/log/apache2/error.log ; apache2ctl start
+#  apache2ctl stop ; sleep 2 ; truncate -s 0 /var/log/apache2/error.log ; apache2ctl start
+# To also restart sesame:
+#  apache2ctl stop ; service tomcat6 restart ; sleep 3 ; truncate -s 0 /var/log/apache2/error.log ; apache2ctl start
 
 use 5.10.1; 	# It has not been tested on other versions.
 use strict;
@@ -66,6 +72,8 @@ our %EXPORT_TAGS = ( 'all' => [ qw(
 	MTimeAndInode
 	MTime
 	QuickName
+	HashName
+	HashTemplateName
 	NodeAbsUri
 	AbsUri
 	UriToPath
@@ -75,7 +83,7 @@ our %EXPORT_TAGS = ( 'all' => [ qw(
 	PrintLog
 	Warn
 	MakeParentDirs
-	IsSameServer
+	IsLocalNode
 	IsSameType
 	FormatTime
 	FormatCounter
@@ -86,7 +94,7 @@ our %EXPORT_TAGS = ( 'all' => [ qw(
 
 	$DEBUG_DETAILS
 
-	$pipelinePrefix
+	$ontologyPrefix
 	$baseUri
 	$baseUriPattern
 	$basePath
@@ -130,28 +138,35 @@ our $VERSION = '0.01';
 
 # See http://perl.apache.org/docs/2.0/user/intro/start_fast.html
 use Carp;
+use POSIX qw(strftime);
 # use diagnostics;
 use Apache2::RequestRec (); # for $r->content_type
+use Apache2::ServerRec (); # for $s->server_hostname and $s->port
 use Apache2::SubRequest (); # for $r->internal_redirect
 use Apache2::RequestIO ();
 # use Apache2::Const -compile => qw(OK SERVER_ERROR NOT_FOUND);
-use Apache2::Const -compile => qw(:common REDIRECT HTTP_NO_CONTENT DIR_MAGIC_TYPE HTTP_NOT_MODIFIED);
+use Apache2::Const -compile => qw(:common REDIRECT HTTP_NO_CONTENT DIR_MAGIC_TYPE HTTP_NOT_MODIFIED HTTP_METHOD_NOT_ALLOWED );
 use Apache2::Response ();
 use APR::Finfo ();
 use APR::Const -compile => qw(FINFO_NORM);
 use Apache2::RequestUtil ();
-use Apache2::Const -compile => qw( HTTP_METHOD_NOT_ALLOWED );
 use Fcntl qw(LOCK_EX O_RDWR O_CREAT);
 
 use HTTP::Date;
 use APR::Table ();
 use LWP::UserAgent;
+use LWP::Simple;
 use HTTP::Status;
 use Apache2::URI ();
 use URI::Escape;
 use Time::HiRes ();
 use File::Path qw(make_path remove_tree);
-use WWW::Mechanize;
+use Digest::MD4 qw(md4_base64);
+use Getopt::Long;
+use Socket;
+use URI;
+use URI::Split qw(uri_split uri_join);
+use IO::Interface::Simple;
 
 ################## Node Types ###################
 # use lib qw( /home/dbooth/rdf-pipeline/trunk/RDF-Pipeline/lib );
@@ -179,16 +194,22 @@ $debug = eval $debug if defined($debug) && $debug =~ m/^\$\w+$/;
 die "ERROR: debug not defined: $rawDebug " if !defined($debug);
 
 our $debugStackDepth = 0;	# Used for indenting debug messages.
-
 our $test;
 
 ##################  Constants for this server  ##################
-our $pipelinePrefix = "http://purl.org/pipeline/ont#";	# Pipeline ont prefix
-$ENV{DOCUMENT_ROOT} ||= "/home/dbooth/rdf-pipeline/trunk/www";	# Set if not set
+our $ontologyPrefix = "http://purl.org/pipeline/ont#";	# Pipeline ont prefix
+$ENV{DOCUMENT_ROOT} ||= "/home/dbooth/rdf-pipeline/Private/www";	# Set if not set
 ### TODO: Set $baseUri properly.  Needs port?
 $ENV{SERVER_NAME} ||= "localhost";
+$ENV{SERVER_PORT} ||= "80";
+our $thisHost = "$ENV{SERVER_NAME}:$ENV{SERVER_PORT}";
+&IsLocalHost($ENV{SERVER_NAME}) || die "[ERROR] Non-local \$SERVER_NAME: $ENV{SERVER_NAME}\n";
+our $serverName = "localhost";
+$serverName = "127.0.0.1" if !&IsLocalHost($serverName);
+&IsLocalHost($serverName) || die "[ERROR] 127.0.0.1 not recognized as local! ";
 # $baseUri is the URI prefix that corresponds directly to DOCUMENT_ROOT.
-our $baseUri = "http://$ENV{SERVER_NAME}";  # TODO: Should become "scope"?
+our $baseUri = &CanonicalizeUri("http://127.0.0.1:$ENV{SERVER_PORT}");
+# $baseUri will normally now be "http://localhost" -- ready for use.
 our $baseUriPattern = quotemeta($baseUri);
 our $basePath = $ENV{DOCUMENT_ROOT};	# Synonym, for convenience
 our $basePathPattern = quotemeta($basePath);
@@ -201,9 +222,11 @@ our $rdfsPrefix = "http://www.w3.org/2000/01/rdf-schema#";
 # our $subClassOf = $rdfsPrefix . "subClassOf";
 our $subClassOf = "rdfs:subClassOf";
 
+# This $configFile will be used only if $RDF_PIPELINE_MASTER_URI is not set:
 our $configFile = "$nodeBasePath/pipeline.ttl";
 our $ontFile = "$basePath/ont/ont.n3";
 our $internalsFile = "$basePath/ont/internals.n3";
+our $tmpDir = "$basePath/tmp";
 
 #### $nameType constants used by SaveLMs/LookupLMs:
 #### TODO: Change to "use Const".
@@ -222,6 +245,7 @@ our $ontLastInode = 0;
 our $internalsLastInode = 0;
 
 our $logFile = "/tmp/rdf-pipeline-log.txt";
+our $timingLogFile = "/tmp/rdf-pipeline-timing.tsv";
 # unlink $logFile || die;
 
 my %config = ();		# Maps: "?s ?p" --> "v1 v2 ... vn"
@@ -253,8 +277,6 @@ my $nm;
 my $hasHiResTime = &Time::HiRes::d_hires_stat()>0;
 $hasHiResTime || die;
 
-use Getopt::Long;
-
 &GetOptions("test" => \$test,
 	"debug" => \$debug,
 	);
@@ -268,7 +290,35 @@ if ($testUri =~ m/\A([^\?]*)\?/) {
 	}
 if ($test)
 	{
+	my $name = "/home/dbooth/rdf-pipeline/Private/www/cache/URI/file%3A%2F%2F%2Ftmp%2Ffile-uri-test/serCache";
+	my $s = &ShortName($name);
+	print "$name -->\n$s\n\n";
+	print "=================================\n";
+	$name = "/home/dbooth/rdf-pipeline/Private/www/cache/URI/file%3A%2F%2F%2Ftmp%2Ffile-uri-test";
+	$s = &ShortName($name);
+	print "$name -->\n$s\n\n";
+	print "=================================\n";
+	$name = "/home/dbooth/rdf-pipeline/Private/www/cache/URI/file%3A%2F%2F%2Ftmp%2Ffile-uri-test/";
+	$s = &ShortName($name);
+	print "$name -->\n$s\n\n";
+	print "=================================\n";
+	$name = "test/";
+	$s = &ShortName($name);
+	print "$name -->\n$s\n\n";
+	print "=================================\n";
+	$name = "multiplier.txt";
+	$s = &ShortName($name);
+	my $t = &OldQuickName($name);
+	print "$name -->\n$s old: $t\n\n";
+	print "=================================\n";
+	$name = "node/bill-presidents.txt";
+	$s = &ShortName($name);
+	$t = &OldQuickName($name);
+	print "$name -->\n$s old: $t\n\n";
+	print "=================================\n";
+	
 	die "COMMAND-LINE TESTING IS NO LONGER IMPLEMENTED!\n";
+	die "HELLO!  Hello!  hello!  Bye.\n";
 	# Invoked from the command line, instead of through Apache.
 	# Fake a RequestReq object:
 	my $r = &MakeFakeRequestReq();
@@ -300,6 +350,8 @@ sub handler
 my $r = shift || die;
 # construct_url omits the query params
 my $thisUri = $r->construct_url(); 
+my $oldThisUri = $thisUri;
+$thisUri = &CanonicalizeUri($thisUri);
 my $args = $r->args() || "";
 my %args = &ParseQueryString($args);
 $debug = $args{debug} if exists($args{debug});
@@ -309,8 +361,40 @@ $debugStackDepth = $args{debugStackDepth} || 0;
 # warn("="x30 . " handler " . "="x30 . "\n");
 &Warn("="x30 . " handler " . "="x30 . "\n", $DEBUG_DETAILS);
 &Warn("" . `date`, $DEBUG_DETAILS);
-&Warn("SERVER_NAME: $ENV{SERVER_NAME}\n", $DEBUG_DETAILS);
+&Warn("SERVER_NAME: $ENV{SERVER_NAME} serverName: $serverName\n", $DEBUG_DETAILS);
+&Warn("oldThisUri: $oldThisUri\n", $DEBUG_DETAILS);
+&Warn("thisUri: $thisUri\n", $DEBUG_DETAILS);
+&Warn("baseUri: $baseUri\n", $DEBUG_DETAILS);
+&Warn("basePath: $basePath\n", $DEBUG_DETAILS);
 &Warn("DOCUMENT_ROOT: $ENV{DOCUMENT_ROOT}\n", $DEBUG_DETAILS);
+# Set $RDF_PIPELINE_DEV_DIR and $PATH so that updaters will inherit them.
+# For some reason, it does not work to set this only once when the thread
+# starts.  $ENV{PATH}, at least, seems to be reset each time the handler
+# is called after the first time.
+if (!$ENV{RDF_PIPELINE_DEV_DIR}) {
+	#### TODO: Avoid hard-coding this:
+	my $p = "/home/dbooth/rdf-pipeline/trunk/RDF-Pipeline/lib/RDF/Pipeline.pm";
+	# /home/dbooth/rdf-pipeline/trunk/RDF-Pipeline/lib/RDF/Pipeline.pm
+	#   -->
+	# /home/dbooth/rdf-pipeline/trunk
+	$p =~ s|(\/[^\/]+){4}$|| or die "Failed to parse Pipeline.pm file path: $p ";
+	# Maybe let set_env.sh set this instead:
+	# $ENV{RDF_PIPELINE_DEV_DIR} = $p;
+	my $both = `. $p/set_env.sh ; echo \$PATH \$RDF_PIPELINE_DEV_DIR`;
+	chomp $both;
+	my ($path, $dev, $extra) = split(/ /, $both);
+	die "[ERROR] \$PATH or \$RDF_PIPELINE_DEV_DIR contains a space "
+		if $extra;
+	die "[ERROR] Failed to parse PATH and RDF_PIPELINE_DEV_DIR from {$both} "
+		if !$path || !$dev;
+	$ENV{PATH} = $path;
+	$ENV{RDF_PIPELINE_DEV_DIR} = $dev;
+	}
+die "[INTERNAL ERROR] RDF_PIPELINE_DEV_DIR not set in environment! "
+	if !$ENV{RDF_PIPELINE_DEV_DIR};
+my $qToolsDir = quotemeta("$ENV{RDF_PIPELINE_DEV_DIR}/tools");
+die "[INTERNAL ERROR] PATH not set properly: $ENV{PATH} "
+	if $ENV{PATH} !~ m/$qToolsDir/;
 my @args = %args;
 my $nArgs = scalar(@args);
 &Warn("Query string (elements $nArgs): $args\n", $DEBUG_DETAILS);
@@ -322,7 +406,7 @@ return $ret;
 }
 
 ##################### FilterArgs ######################
-# Remove internal args from query parameter args.
+# Remove RDF Pipeline internal args from query parameter args.
 sub FilterArgs
 {
 my ($pargs, @toRemove) = @_;
@@ -358,14 +442,65 @@ foreach my $k (sort keys %args) {
 	&Warn("  $dk=$dv\n", $DEBUG_DETAILS);
 	}
 
-# Reload config file?
+my $masterUri = $ENV{RDF_PIPELINE_MASTER_URI} || "";
+$masterUri = &CanonicalizeUri($masterUri);
+if ($masterUri) {
+  if (&IsLocalNode($masterUri)) {
+    # Master is on the same server.  Do a direct file access instead of an 
+    # HTTP request, to avoid infinite recursion of HTTP requests. 
+    $configFile = &UriToPath($masterUri);
+    &Warn("Using LOCAL masterUri: $masterUri with configFile: $configFile:\n", $DEBUG_DETAILS);
+    # Since $masterUri is local, it does not need to be mirrored:
+    $masterUri = "";
+    }
+  else {
+    # Master is on a differnet server.
+    # This is where it will be cached when mirrored:
+    $configFile = "$basePath/cache/pipeline_master.ttl";
+    }
+  }
+my $throttleSeconds = $ENV{RDF_PIPELINE_MASTER_DOWNLOAD_THROTTLE_SECONDS};
+$throttleSeconds = 3 if !defined($throttleSeconds);	# Default
+our $lastMasterMirrorTime; 	# Time last mirroring finished
+my $mirrorWasUpdated = 0;
+if ($masterUri) {
+  # Master is on a different server.  Do we need to re-mirror it?
+  if ($lastMasterMirrorTime && $throttleSeconds
+		&& time < $lastMasterMirrorTime + $throttleSeconds
+		&& -e $configFile) {
+    # No need to mirror it again.  Nothing to do.
+    }
+  else {
+    # Refresh the master by mirroring again.
+    &Warn("[INFO] Mirroring $masterUri to $configFile\n", $DEBUG_DETAILS);
+    &MakeParentDirs($configFile);
+    my $code = mirror($masterUri, $configFile);
+    # Set $lastMasterMirrorTime *after* mirroring, so that $throttleSeconds 
+    # will be the minimum time from *after* the last mirror to *before* 
+    # the next mirror.  I.e., prevent it from including the time spent 
+    # doing the mirroring, in case the mirroring takes a long time.
+    $lastMasterMirrorTime = time;
+    $code == RC_OK || $code == RC_NOT_MODIFIED || die "[ERROR] Failed to GET pipeline definition from \$RDF_PIPELINE_MASTER_URI: $masterUri\n";
+    $mirrorWasUpdated = 1 if $code == RC_OK;
+    }
+  }
+
+# At this point $configFile should exist, either from mirroring
+# or from being local.  So now we should be able to just rely on the local
+# file modification date to determine whether to reload the
+# pipeline definition.  However, we also check $mirrorWasUpdated in case
+# it was updated from mirroring faster than the file modification
+# time can detect.
 my ($cmtime, $cinode) = &MTimeAndInode($configFile);
 my ($omtime, $oinode) = &MTimeAndInode($ontFile);
 my ($imtime, $iinode) = &MTimeAndInode($internalsFile);
-$cmtime || die "ERROR: File not found: $configFile\n";
-$omtime || die "ERROR: File not found: $ontFile\n";
-$imtime || die "ERROR: File not found: $internalsFile\n";
-if ($configLastModified != $cmtime
+$cmtime || die "[ERROR] File not found: $configFile\n";
+$omtime || die "[ERROR] File not found: $ontFile\n";
+$imtime || die "[ERROR] File not found: $internalsFile\n";
+
+# Reload the pipeline definition?
+if ( $mirrorWasUpdated
+ 		|| $configLastModified != $cmtime
 		|| $ontLastModified != $omtime
 		|| $internalsLastModified != $imtime
 		|| $configLastInode != $cinode
@@ -384,22 +519,6 @@ if ($configLastModified != $cmtime
 	$configLastInode = $cinode;
 	$ontLastInode = $oinode;
 	$internalsLastInode = $iinode;
-	if (1) {
-		%config = &CheatLoadN3($ontFile, $configFile);
-		%configValues = map { 
-			my $hr; 
-			map { $hr->{$_}=1; } split(/\s+/, ($config{$_}||"")); 
-			($_, $hr)
-			} keys %config;
-		# &Warn("configValues:\n", $DEBUG_DETAILS);
-		foreach my $sp (sort keys %configValues) {
-			last if !$debug;
-			my $hr = $configValues{$sp};
-			foreach my $v (sort keys %{$hr}) {
-				# &Warn("  $sp $v\n", $DEBUG_DETAILS);
-				}
-			}
-		}
 	&LoadNodeMetadata($nm, $ontFile, $configFile);
 	&PrintNodeMetadata($nm) if $debug;
 
@@ -407,7 +526,43 @@ if ($configLastModified != $cmtime
 	# return Apache2::Const::OK;
 	# %config || return Apache2::Const::SERVER_ERROR;
 	}
-
+##### BEGIN updaters/translators library
+# Intercept 'updaters' request and forward to the updaters/translators libary.
+# TODO: Change this from using the path /node/updaters to
+# something that cannot clash with a node name.
+if ($r->uri() eq "/node/updaters") {
+	my $startTime = Time::HiRes::time();
+	my $updatersUri = "https://github.com/dbooth-boston/rdf-pipeline/tree/master/tools/updaters";
+	$r->headers_out->set('Location' => $updatersUri); 
+	&LogDeltaTimingData("HandleHttpEvent", $thisUri, $startTime, 1);
+	return Apache2::Const::REDIRECT;
+	}
+##### END updaters/translators library
+##### BEGIN pedit
+# Intercept admin request and return the pipeline editor.
+# TODO: Instead of using the path /node/admin for this,
+# change the apache config to make it use /admin ,
+# perhaps using <LocationMatch ...>:
+# http://httpd.apache.org/docs/current/mod/core.html#locationmatch
+if ($r->uri() eq "/node/admin") {
+	my $method = $r->method;
+	return Apache2::Const::HTTP_METHOD_NOT_ALLOWED if $method ne 'GET' && $method ne 'HEAD';
+	my $startTime = Time::HiRes::time();
+	$r->content_type("text/html");
+	my $qToolsDir = quotemeta("$ENV{RDF_PIPELINE_DEV_DIR}/tools");
+	# TODO: provide the pipeline definition as input to show-pipeline.perl:
+	my $content = `$qToolsDir/pedit/show-pipeline.perl`;
+	my $size = length($content);
+	$r->set_content_length($size) if defined($size);
+	if($r->header_only) {
+		&LogDeltaTimingData("HandleHttpEvent", $thisUri, $startTime, 1);
+		return Apache2::Const::OK;
+		}
+	$r->print($content);
+	&LogDeltaTimingData("HandleHttpEvent", $thisUri, $startTime, 1);
+	return Apache2::Const::OK;
+	}
+##### END pedit
 my $subtype = $nm->{value}->{$thisUri}->{nodeType} || "";
 &Warn("NOTICE: $thisUri is not a Node.\n", $DEBUG_DETAILS) if !$subtype;
 &Warn("thisUri: $thisUri subtype: $subtype\n", $DEBUG_DETAILS);
@@ -415,6 +570,54 @@ my $subtype = $nm->{value}->{$thisUri}->{nodeType} || "";
 return Apache2::Const::DECLINED if !$subtype;
 # return Apache2::Const::NOT_FOUND if !$subtype;
 return &HandleHttpEvent($nm, $r, $thisUri, %args);
+}
+
+################### GetFromUri ##################
+# Conditionally GET content from a Uri, returning cached
+# content if not modified (304).
+# UNTESTED AND UNUSED!
+# I decided to use the mirror function from LWP::Simple instead.
+sub GetFromUri_UNTESTED_AND_UNUSED
+{
+@_ == 1 or die;
+my ($requestUri) = @_;
+&Warn("GetFromUri($requestUri) called\n", $DEBUG_DETAILS);
+$requestUri =~ s/\#.*//;  # Strip any frag ID
+my $ua = WWW::UserAgent->new();
+$ua->agent("$0/0.01 " . $ua->agent);
+# Set If-Modified-Since and If-None-Match headers in request, if available.
+our $oldHeaders;
+my $oldLMHeader = $oldHeaders->{$requestUri}->{'Last-Modified'} || "";
+my $oldETagHeader = $oldHeaders->{$requestUri}->{'ETag'} || "";
+&Warn("GetFromUri: Setting req L-MH: $oldLMHeader If-N-M: $oldETagHeader\n", $DEBUG_REQUESTS);
+my $req = HTTP::Request->new('GET' => $requestUri);
+$req || confess "Failed to make a new request object ";
+$req->header('If-Modified-Since' => $oldLMHeader) if $oldLMHeader;
+$req->header('If-None-Match' => $oldETagHeader) if $oldETagHeader;
+my $reqString = $req->as_string;
+&Warn("GetFromUri: GET {$requestUri}\n", $DEBUG_REQUESTS);
+&Warn("... with L-MH: $oldLMHeader ETagH: $oldETagHeader\n", $DEBUG_DETAILS);
+&PrintLog("[[\n$reqString\n]]\n");
+#### Send the HTTP request ####
+my $res = $ua->request($req) or confess "HTTP request failed! ";
+my $code = $res->code;
+$code == RC_NOT_MODIFIED || $code == RC_OK or confess "ERROR: Unexpected HTTP response code $code ";
+my $newLMHeader = $res->header('Last-Modified') || "";
+my $newETagHeader = $res->header('ETag') || "";
+if ($code == RC_NOT_MODIFIED) {
+	# Apache does not seem to send the Last-Modified header on 304.
+	$newLMHeader ||= $oldLMHeader;
+	$newETagHeader ||= $oldETagHeader;
+	}
+&Warn("GetFromUri: Got response code: $code\n", $DEBUG_DETAILS);
+&Warn("... with newL-MH: $newLMHeader newETagH: $newETagHeader\n", $DEBUG_DETAILS);
+if ($code == RC_OK) {
+	$oldHeaders->{$requestUri}->{'Last-Modified'} = $newLMHeader || "";
+	$oldHeaders->{$requestUri}->{'ETag'} = $newETagHeader || "";
+	$oldHeaders->{$requestUri}->{'content'} = $ua->content();
+	}
+my $content = $oldHeaders->{$requestUri}->{'content'};
+return ($code, $content);
 }
 
 ################### ForeignSendHttpRequest ##################
@@ -434,8 +637,7 @@ sub ForeignSendHttpRequest
 my ($nm, $method, $thisUri, $depUri, $depLM, $depQuery) = @_;
 &Warn("ForeignSendHttpRequest(nm, $method, $thisUri, $depUri, $depLM, $depQuery) called\n", $DEBUG_DETAILS);
 # Send conditional GET, GRAB or HEAD to depUri with depUri*/serCacheLM
-# my $ua = LWP::UserAgent->new;
-my $ua = WWW::Mechanize->new();
+my $ua = LWP::UserAgent->new;
 $ua->agent("$0/0.01 " . $ua->agent);
 my $requestUri = $depUri;
 my $httpMethod = $method;
@@ -463,7 +665,7 @@ if ($depLM && $oldLM && $oldLM eq $depLM) {
 # This is only for prettier debugging output:
 $queryParams .= "&debugStackDepth=" . ($debugStackDepth + &CallStackDepth())
 	if $debug && $nm->{value}->{$depUri}->{nodeType}
-		&& &IsSameServer($baseUri, $depUri);
+		&& &IsLocalNode($depUri);
 $requestUri =~ s/\#.*//;  # Strip any frag ID
 $queryParams =~ s/\A\&/\?/ if $queryParams && $requestUri !~ m/\?/;
 $requestUri .= $queryParams;
@@ -481,7 +683,7 @@ my $reqString = $req->as_string;
 # TODO: http://tinyurl.com/cbxgu4y says:
 #   If you want to get a large result it is better to write to a file directly:
 #   my $res = $ua->request($req,'file_name.txt');
-my $res = $ua->request($req) or die;
+my $res = $ua->request($req) || die;
 my $code = $res->code;
 &Warn("Code: $code\n", $DEBUG_DETAILS);
 $code == RC_NOT_MODIFIED || $code == RC_OK or die "ERROR: Unexpected HTTP response code $code ";
@@ -510,8 +712,10 @@ if ($code == RC_OK && $newLM && $newLM ne $oldLM) {
 	# http://search.cpan.org/~gaas/libwww-perl-6.03/lib/LWP/UserAgent.pm
 	if ($method ne 'HEAD') {
 		&Warn("UPDATING $depUri inSerCache: $inSerCache of $thisUri\n", $DEBUG_CACHES); 
-		&MakeParentDirs( $inSerCache );
-		$ua->save_content( $inSerCache );
+		# &MakeParentDirs( $inSerCache );
+		# $ua->save_content( $inSerCache );
+		my $content = $res->decoded_content();
+		&WriteFile( $inSerCache, $content );
 		}
 	&SaveLMHeaders($inSerCache, $newLM, $newLMHeader, $newETagHeader);
 	}
@@ -550,7 +754,7 @@ my $depSerCache = $thisHHash->{dependsOnSerCache}->{$depUri} || "";
 my $depCache = $thisHHash->{dependsOnCache}->{$depUri} || "";
 my ($oldCacheLM) = &LookupLMs($thisType, $depCache);
 $oldCacheLM ||= "";
-my $fExists = $nmv->{$thisType}->{fExists} or die;
+my $fExists = $nmv->{$thisType}->{fExists} || die;
 my $thisHostRoot = $nmh->{$thisType}->{hostRoot}->{$baseUri} || $basePath;
 $oldCacheLM = "" if $oldCacheLM && !&{$fExists}($depCache, $thisHostRoot);
 if (!$depLM || $depLM eq $oldCacheLM) {
@@ -564,8 +768,10 @@ my $contentType = $thisVHash->{contentType}
 	|| $nmv->{$thisType}->{defaultContentType}
 	|| "text/plain";
 &Warn("UPDATING $depUri local cache: $depCache of $thisUri\n", $DEBUG_CACHES); 
+my $startTime = Time::HiRes::time();
 &{$fDeserializer}($depSerCache, $depCache, $contentType, $thisHostRoot) 
 	or die "ERROR: Failed to deserialize $depSerCache to $depCache with Content-Type: $contentType\n";
+&LogDeltaTimingData("Deserialize", $thisUri, $startTime, 0);
 &SaveLMs($thisType, $depCache, $depLM);
 &Warn("DeserializeToLocalCache returning (finished).\n", $DEBUG_DETAILS);
 }
@@ -576,6 +782,7 @@ sub HandleHttpEvent
 @_ >= 3 or die;
 my ($nm, $r, $thisUri, %args) = @_;
 &Warn("HandleHttpEvent called: thisUri: $thisUri\n", $DEBUG_DETAILS);
+my $startTime = Time::HiRes::time();
 my $thisVHash = $nm->{value}->{$thisUri} || {};
 my $thisType = $thisVHash->{nodeType} || "";
 if (!$thisType) {
@@ -655,6 +862,7 @@ $r->headers_out->set('Content-Location' => &PathToUri($serState));
 # &Warn("  $contents\n", $DEBUG_DETAILS);
 # &Warn("]]\n", $DEBUG_DETAILS);
 $r->sendfile($serStateAbsPath);
+&LogDeltaTimingData("HandleHttpEvent", $thisUri, $startTime, 1);
 return Apache2::Const::OK;
 }
 
@@ -663,6 +871,7 @@ sub FreshenSerState
 {
 @_ == 5 or die;
 my ($nm, $method, $thisUri, $callerUri, $callerLM) = @_;
+my $fssStartTime = Time::HiRes::time();
 &Warn("FreshenSerState $method $thisUri From: $callerUri\n", $DEBUG_REQUESTS);
 &Warn("... callerLM: $callerLM\n", $DEBUG_DETAILS);
 my $thisVHash = $nm->{value}->{$thisUri} || die;
@@ -697,11 +906,14 @@ if (!$serStateLM || !-e $serState || ($newThisLM && $newThisLM ne $serStateLM)) 
   $fSerializer || die;
   &Warn("UPDATING $thisUri serState: $serState\n", $DEBUG_CACHES); 
   my $thisHostRoot = $nm->{hash}->{$thisType}->{hostRoot}->{$baseUri} || $basePath;
+  my $startTime = Time::HiRes::time();
   &{$fSerializer}($serState, $state, $contentType, $thisHostRoot) 
     or die "ERROR: Failed to serialize $state to $serState with Content-Type: $contentType\n";
+  &LogDeltaTimingData("Serialize", $thisUri, $startTime, 0);
   $serStateLM = $newThisLM;
   &SaveLMs($FILE, $serState, $serStateLM);
   }
+&LogDeltaTimingData("FreshenSerState", $thisUri, $fssStartTime, 0);
 &Warn("FreshenSerState: Returning serStateLM: $serStateLM\n", $DEBUG_DETAILS);
 return $serStateLM
 }
@@ -721,10 +933,11 @@ defined($thisUri) || confess;
 defined($latestUri) || confess;
 defined($latestQuery) || confess;
 &Warn("UpdateQueries(nm, $thisUri, $latestUri, $latestQuery)\n", $DEBUG_DETAILS);
+my $startTime = Time::HiRes::time();
 my $pOutputs = $nm->{multi}->{$thisUri}->{outputs} || {};
 $latestUri = "" if !$pOutputs->{$latestUri};	# Treat as anonymous requester?
-my $thisVHash = $nm->{value}->{$thisUri} or die;
-my $parametersFile = $thisVHash->{parametersFile} or die;
+my $thisVHash = $nm->{value}->{$thisUri} || die;
+my $parametersFile = $thisVHash->{parametersFile} || die;
 my ($lm, $oldLatestQuery, @oldRequesterQueries) = 
 	&LookupLMs($FILE, $parametersFile);
 # my @results = &LookupLMs($FILE, $parametersFile);
@@ -754,6 +967,7 @@ if (!$lm || $isNewLatest || $isNewOutQuery) {
 		|| ($isNewLatest && !$thisVHash->{parametersFilter});
 	&SaveLMs($FILE, $parametersFile, $lm, $latestQuery, %newRequesterQueries);
 	}
+&LogDeltaTimingData("UpdateQueries", $thisUri, $startTime, 0);
 return $lm;
 }
 
@@ -801,16 +1015,16 @@ my ($oldThisLM, %oldDepLMs) = &LookupLMs($URI, $thisUri);
 $oldThisLM ||= "";
 return $oldThisLM if $method eq "GRAB";
 # Run thisUri's update policy for this event:
-my $fUpdatePolicy = $thisVHash->{fUpdatePolicy} or die;
+my $fUpdatePolicy = $thisVHash->{fUpdatePolicy} || die;
 my $policySaysFreshen = 
 	&{$fUpdatePolicy}($nm, $method, $thisUri, $callerUri, $callerLM);
 return $oldThisLM if !$policySaysFreshen;
 my ($thisIsStale, $newDepLMs) = 
 	&RequestLatestDependsOns($nm, $thisUri, $oldThisLM, $callerUri, $callerLM, \%oldDepLMs);
-my $thisType = $thisVHash->{nodeType} or die;
-my $state = $thisVHash->{state} or die;
+my $thisType = $thisVHash->{nodeType} || die;
+my $state = $thisVHash->{state} || die;
 my $thisTypeVHash = $nm->{value}->{$thisType} || {};
-my $fExists = $thisTypeVHash->{fExists} or die;
+my $fExists = $thisTypeVHash->{fExists} || die;
 my $thisHostRoot = $nm->{hash}->{$thisType}->{hostRoot}->{$baseUri} || $basePath;
 $oldThisLM = "" if !&{$fExists}($state, $thisHostRoot);	# state got deleted?
 $thisIsStale = 1 if !$oldThisLM;
@@ -826,7 +1040,7 @@ my $thisParameters = $thisLHash->{parameterCaches} || [];
 # have changed but there is no updater.
 die "ERROR: Node $thisUri is STUCK: Inputs but no updater. " 
 	if @{$thisInputs} && !$thisUpdater;
-my $fRunUpdater = $thisTypeVHash->{fRunUpdater} or die;
+my $fRunUpdater = $thisTypeVHash->{fRunUpdater} || die;
 # If there is no updater then it is up to $fRunUpdater to generate
 # an LM for the static state.
 if ($thisUpdater) {
@@ -835,8 +1049,10 @@ if ($thisUpdater) {
 else	{
 	&Warn("Generating LM of static node: $thisUri\n", $DEBUG_CHANGES); 
 	}
+my $startTime = Time::HiRes::time();
 my $newThisLM = &{$fRunUpdater}($nm, $thisUri, $thisUpdater, $state, 
 	$thisInputs, $thisParameters, $oldThisLM, $callerUri, $callerLM);
+&LogDeltaTimingData("Update", $thisUri, $startTime, 0);
 &Warn("WARNING: fRunUpdater on $thisUri $thisUpdater returned false LM\n") if !$newThisLM;
 $newThisLM or die;
 &SaveLMs($URI, $thisUri, $newThisLM, %{$newDepLMs});
@@ -866,7 +1082,7 @@ my ($nm, $thisUri, $callerUri, $callerLM) = @_;
 }
 
 ################### RequestLatestDependsOns ################### 
-# Logic table for each $depUri:
+# Logic table for each $depUri (where x means "don't care"):
 #       is      known   is      same    same
 #       Input   Fresh   Node    Server  Type    Action
 #       0       0       0       x       x       Foreign HEAD
@@ -905,11 +1121,11 @@ my $thisIsStale = 0;
 my $newDepLMs = {};
 #### TODO QUERY: lookup this node's query parameters and filter them 
 #### so that they can be passed upstream.
-my $parametersFile = $thisVHash->{parametersFile} or die;
+my $parametersFile = $thisVHash->{parametersFile} || die;
 my ($parametersLM, $latestQuery, %requesterQueries) = 
 	&LookupLMs($FILE, $parametersFile);
 $parametersLM ||= "";
-my $parametersFileUri = $thisVHash->{parametersFileUri} or die;
+my $parametersFileUri = $thisVHash->{parametersFileUri} || die;
 my $oldParametersLM = $oldDepLMs->{$parametersFileUri};
 # Treat first time as changed:
 my $pChanged = !defined($oldParametersLM) || 0;
@@ -917,14 +1133,14 @@ $oldParametersLM ||= "";
 $pChanged = 1 if ($parametersLM ne $oldParametersLM);
 $thisIsStale = 1 if $pChanged;
 if ($pChanged) {
-  &Warn("UPDATED query parameters of $thisUri\n", $DEBUG_PARAM_UPDATES);
+  &Warn("UPDATED      query parameters of $thisUri\n", $DEBUG_PARAM_UPDATES);
 } else {
   &Warn("NO CHANGE to query parameters of $thisUri\n", $DEBUG_CHANGES);
   }
 &Warn("... oldParametersLM: $oldParametersLM parametersLM: $parametersLM\n", $DEBUG_DETAILS);
 $newDepLMs->{$parametersFileUri} = $parametersLM;
 #### TODO QUERY: Make this call the user's parameterFilter
-my $fRunParametersFilter = $thisTypeVHash->{fRunParametersFilter} or die;
+my $fRunParametersFilter = $thisTypeVHash->{fRunParametersFilter} || die;
 my $parametersFilter = $thisVHash->{parametersFilter} || "";
 $fRunParametersFilter = \&LatestRunParametersFilter if !$parametersFilter;
 my $pThisInputs = $nm->{list}->{$thisUri}->{inputs} || [];
@@ -932,7 +1148,8 @@ my @requesterQueries = sort values %requesterQueries;
 my $pUpstreamQueries = &{$fRunParametersFilter}($nm, $thisUri, $parametersFilter, $pThisInputs, $latestQuery, \@requesterQueries);
 &Warn("Ran parametersFilter\n", $DEBUG_DETAILS);
 ####
-foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
+my @dependsOn = (sort keys %{$thisMHashDependsOn});
+foreach my $depUri (@dependsOn) {
   # In case $thisUri dependsOn itself, ignore it.
   # See issue 58.
   next if $depUri eq $thisUri;
@@ -958,7 +1175,7 @@ foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
   elsif (!$isInput) {
     $method = 'HEAD';
     }
-  my $isSameServer = &IsSameServer($thisUri, $depUri) || 0;
+  my $isSameServer = &IsLocalNode($depUri) || 0;
   my $isSameType   = &IsSameType($nm, $thisType, $depType) || 0;
   #### TODO QUERY: Update local $depUri's requester queries:
   &UpdateQueries($nm, $depUri, $thisUri, $depQuery) 
@@ -999,14 +1216,17 @@ foreach my $depUri (sort keys %{$thisMHashDependsOn}) {
   my $depChanged = !$oldDepLM || ($newDepLM && $newDepLM ne $oldDepLM);
   $thisIsStale = 1 if $depChanged;
   $newDepLMs->{$depUri} = $newDepLM;
-  my $status = $depChanged ? "UPDATED" : "NO CHANGE to";
   if ($depChanged) {
-    &Warn("UPDATED depUri $depUri of $thisUri\n", $DEBUG_CHANGES);
+    &Warn("UPDATED      depUri $depUri of $thisUri\n", $DEBUG_CHANGES);
     } else {
     &Warn("NO CHANGE to depUri $depUri of $thisUri\n", $DEBUG_CHANGES);
     }
   &Warn("... oldDepLM: $oldDepLM newDepLM: $newDepLM stale: $thisIsStale\n", $DEBUG_DETAILS);
   }
+# If a node dependsOn nothing, then treat it as always stale.
+# Otherwise it will never fire after the first time, which would be useless.
+####### TODO: Not sure this works.  See test 0054 also.
+# $thisIsStale = 1 if !@dependsOn;
 &Warn("RequestLatestDependsOn(nm, $thisUri, $oldThisLM, $callerUri, $callerLM, $oldDepLMs) returning: $thisIsStale\n", $DEBUG_DETAILS);
 return( $thisIsStale, $newDepLMs )
 }
@@ -1017,6 +1237,11 @@ sub LoadNodeMetadata
 {
 @_ == 3 or die;
 my ($nm, $ontFile, $configFile) = @_;
+my $oSize = -s $ontFile;
+my $cSize = -s $configFile;
+&Warn("LoadNodeMetadata loading $ontFile ($oSize bytes) $configFile ($cSize bytes)\n", $DEBUG_DETAILS);
+$oSize || &Warn("[ERROR] Empty ontFile: $ontFile\n"); 
+$cSize  || &Warn("[ERROR] Empty configFile: $configFile\n"); 
 my %config = &CheatLoadN3($ontFile, $configFile);
 my $nmv = $nm->{value};
 my $nml = $nm->{list};
@@ -1024,10 +1249,17 @@ my $nmh = $nm->{hash};
 my $nmm = $nm->{multi};
 foreach my $k (sort keys %config) {
 	# &Warn("LoadNodeMetadata key: $k\n", $DEBUG_DETAILS);
-	my ($s, $p) = split(/\s+/, $k) or die;
+	my ($s, $p) = split(/\s+/, $k);
+	defined($p) || die;
+	$s = &CanonicalizeUri($s);
+	# $p should never be a local node URI anyway, but
+	# I might as well canonicalize it for completeness:
+	$p = &CanonicalizeUri($p);
 	my $v = $config{$k};
 	die if !defined($v);
 	my @vList = split(/\s+/, $v); 
+	@vList = map { &CanonicalizeUri($_) } @vList;
+	$v = join(" ", @vList);		# Ensure $v is canonicalized
 	# If there is an odd number of items, then it cannot be a hash.
 	my %hHash = ();
 	%hHash = @vList if (scalar(@vList) % 2 == 0);
@@ -1081,9 +1313,9 @@ my @allNodes = sort keys %{$nmm->{Node}->{member}};
 foreach my $thisUri (@allNodes) 
   {
   # Make life easier in this loop:
-  my $thisVHash = $nmv->{$thisUri} or die;
-  my $thisLHash = $nml->{$thisUri} or die;
-  my $thisMHash = $nmm->{$thisUri} or die;
+  my $thisVHash = $nmv->{$thisUri} || die;
+  my $thisLHash = $nml->{$thisUri} || die;
+  my $thisMHash = $nmm->{$thisUri} || die;
   # Set nodeType, which should be most specific node type.
   my @types = sort keys %{$thisMHash->{a}};
   my @nodeTypes = &LeafClasses($nm, @types);
@@ -1092,13 +1324,14 @@ foreach my $thisUri (@allNodes)
   my $thisType = $nodeTypes[0];
   $thisVHash->{nodeType} = $thisType;
   # Nothing more to do if $thisUri is not hosted on this server:
-  next if !&IsSameServer($baseUri, $thisUri);
+  next if !&IsLocalNode($thisUri);
   # Save original state before setting it to a default value:
   $thisVHash->{stateOriginal} = $thisVHash->{state};
   # Set state and serState if not set.  
   # state is a native name; serState is a file path.
   my $fUriToNativeName = $nmv->{$thisType}->{fUriToNativeName} || "";
-  my $defaultStateUri = "$baseUri/cache/" . &QuickName($thisUri) . "/state";
+  # my $defaultStateUri = "$baseUri/cache/" . &HashName($URI, $thisUri) . "/state";
+  my $defaultStateUri = "$baseUri/cache/$URI/" . &QuickName($thisUri) . "/state";
   my $thisHostRoot = $nmh->{$thisType}->{hostRoot}->{$baseUri} || $basePath;
   my $defaultState = $defaultStateUri;
   $defaultState = &{$fUriToNativeName}($defaultState, $baseUri, $thisHostRoot) 
@@ -1107,7 +1340,7 @@ foreach my $thisUri (@allNodes)
   $thisName = &{$fUriToNativeName}($thisUri, $baseUri, $thisHostRoot)
 	if $fUriToNativeName;
   ### Default each Node to have an updater that is the node name
-  ### with an option file extension:
+  ### with an optional file extension:
   my $thisPath = &UriToPath($thisUri);
   my $updaterFileExtensionsListRef = $nml->{$thisType}->{updaterFileExtensions}
 	|| [];
@@ -1117,19 +1350,21 @@ foreach my $thisUri (@allNodes)
   $thisVHash->{updater} or &Warn("WARNING: $thisUri has no updater!\n");
   $thisVHash->{state} ||= 
     $thisVHash->{updater} ? $defaultState : $thisName;
+  # my $hash = &HashName($URI, $thisUri);
   $thisVHash->{serState} ||= 
     $nmv->{$thisType}->{fSerializer} ?
-      "$basePath/cache/" . &QuickName($thisUri) . "/serState"
+      "$basePath/cache/$URI/" . &QuickName($thisUri) . "/serState"
       : $thisVHash->{state};
   #### TODO QUERY: Add parametersFile as an implicit input:
   $nmv->{$thisUri}->{parametersFile} ||= 
-	  "$basePath/cache/" . &QuickName($thisUri) . "/parametersFile";
+	  "$basePath/cache/$URI/" . &QuickName($thisUri) . "/parametersFile";
   $nmv->{$thisUri}->{parametersFileUri} ||= 
-	  "file://$basePath/cache/" . &QuickName($thisUri) . "/parametersFile";
+	  # "file://$basePath/cache/$URI/" . &QuickName($thisUri) . "/parametersFile";
+	  "file://" . $nmv->{$thisUri}->{parametersFile};
   ####
   # For capturing stderr:
   $nmv->{$thisUri}->{stderr} ||= 
-	  "$basePath/cache/" . &QuickName($thisUri) . "/stderr";
+	  "$basePath/cache/$URI/" . &QuickName($thisUri) . "/stderr";
   $thisVHash->{fUpdatePolicy} ||= \&LazyUpdatePolicy;
   #### TODO: If we change to use the node name as the updater name, then
   #### MakeValuesAbsoluteUris will no longer be needed.
@@ -1151,7 +1386,7 @@ foreach my $thisUri (@allNodes)
 foreach my $thisUri (@allNodes) 
   {
   # Nothing to do if $thisUri is not hosted on this server:
-  next if !&IsSameServer($baseUri, $thisUri);
+  next if !&IsLocalNode($thisUri);
   # Make life easier in this loop:
   my $thisVHash = $nmv->{$thisUri};
   my $thisLHash = $nml->{$thisUri};
@@ -1195,12 +1430,10 @@ foreach my $thisUri (@allNodes)
     $nml->{$depUri} ||= {};
     $nmh->{$depUri} ||= {};
     $nmm->{$depUri} ||= {};
-    # my $depUriEncoded = uri_escape($depUri);
-    my $depUriEncoded = &QuickName($depUri);
     # $depType will be false if $depUri is not a node:
     my $depType = $nmv->{$depUri}->{nodeType} || "";
     # First set dependsOnSerCache.
-    if ($depType && &IsSameServer($baseUri, $depUri)) {
+    if ($depType && &IsLocalNode($depUri)) {
       # Same server, so re-use the input's serState.
       $thisHHash->{dependsOnSerCache}->{$depUri} = $nmv->{$depUri}->{serState};
       }
@@ -1208,13 +1441,13 @@ foreach my $thisUri (@allNodes)
       # Different servers, so make up a new file path.
       # dependsOnSerCache file path does not need to contain $thisType, because 
       # different node types on the same server can share the same serCaches.
-      my $depSerCache = "$basePath/cache/$depUriEncoded/serCache";
+      my $depSerCache = "$basePath/cache/$URI/" . &QuickName($depUri) . "/serCache";
       $thisHHash->{dependsOnSerCache}->{$depUri} = $depSerCache;
       }
     # Now set dependsOnCache.
     my $isInput = $thisMHashInputs->{$depUri} 
 	|| $thisMHashParameters->{$depUri} || 0;
-    if (&IsSameServer($baseUri, $depUri) && &IsSameType($nm, $thisType, $depType)) {
+    if (&IsLocalNode($depUri) && &IsSameType($nm, $thisType, $depType)) {
       # Same env.  Reuse the input's state.
       $thisHHash->{dependsOnCache}->{$depUri} = $nmv->{$depUri}->{state};
       # warn "thisUri: $thisUri depUri: $depUri Path 1\n";
@@ -1226,7 +1459,7 @@ foreach my $thisUri (@allNodes)
       my $fUriToNativeName = $nmv->{$thisType}->{fUriToNativeName};
       my $thisHostRoot = $nmh->{$thisType}->{hostRoot}->{$baseUri} || $basePath;
       # Default to a URI if there is no fUriToNativeName:
-      my $cache = "$baseUri/cache/$thisType/$depUriEncoded/cache";
+      my $cache = "$baseUri/cache/$thisType/" . &QuickName($depUri) . "/cache";
       $cache = &{$fUriToNativeName}($cache, $baseUri, $thisHostRoot) 
 		if $fUriToNativeName;
       $thisHHash->{dependsOnCache}->{$depUri} = $cache;
@@ -1418,7 +1651,7 @@ return %args;
 ################### CheatLoadN3 #####################
 # Not proper n3 parsing, but good enough for simple POC.
 # Returns a hash map that maps: "$s $p" --> $o
-# Global $pipelinePrefix is also stripped off from terms.
+# Global $ontologyPrefix is also stripped off from terms.
 # Example: "http://localhost/a state" --> "c/cp-state.txt"
 sub CheatLoadN3
 {
@@ -1434,6 +1667,7 @@ my $nc = " " . join(" ", map { chomp;
 	s/\.(\W)/ .$1/g; 	# Add space before period except in a word
 	$_ } <$fh>) . " ";
 close($fh);
+&PrintLog("================= CheatLoadN3 cwm results: ==================\n$nc\n=========================================\n");
 # &PrintLog("-" x 60 . "\n") if $debug;
 # &PrintLog("nc: $nc\n") if $debug;
 # &PrintLog("-" x 60 . "\n") if $debug;
@@ -1452,13 +1686,13 @@ my $nTriples = scalar @triples;
 my %config = ();
 foreach my $t (@triples) {
 	# Strip ont prefix from terms:
-	$t = join(" ", map { s/\A$pipelinePrefix([a-zA-Z])/$1/;	$_ }
+	$t = join(" ", map { s/\A$ontologyPrefix([a-zA-Z])/$1/;	$_ }
 		split(/\s+/, $t));
 	# Convert rdfs: namespace to "rdfs:" prefix:
 	$t = join(" ", map { s/\A$rdfsPrefix([a-zA-Z])/rdfs:$1/;	$_ }
 		split(/\s+/, $t));
 	my ($s, $p, $o) = split(/\s+/, $t, 3);
-	next if !$o;
+	next if !defined($o) || $0 eq "";
 	# $o may actually be a space-separate list of URIs
 	# &PrintLog("  s: $s p: $p o: $o\n") if $debug;
 	# Append additional values for the same property:
@@ -1482,9 +1716,9 @@ sub WriteFile
 my ($f, $all) = @_;
 my $ff = (($f =~ m/\A\>/) ? $f : ">$f");    # Default to ">$f"
 my $nameOnly = $ff;
-$nameOnly =~ s/\A\>(\>?)//;
+$nameOnly =~ s/\A\>(\>?)\s*//;
 &MakeParentDirs($nameOnly);
-open(my $fh, $ff) || die;
+open(my $fh, $ff) || confess "WriteFile: open failed of $ff : $!";
 print $fh $all;
 close($fh) || die;
 }
@@ -1503,8 +1737,251 @@ close($fh) || die;
 return $all;
 }
 
+################ SafeBase64Hash ################
+# Hash a given string, returning the hash as a base64-encoded string,
+# after changing characters that would not be safe in a filename
+# or URI into filename- and URI-safe characters.
+# Also prepend "h" to the resulting hash ensure that it never starts with "-",
+# which might otherwise be mistaken for a command option in linux.
+sub SafeBase64Hash
+{
+my $n = shift || die;
+my $hash = "h" . md4_base64($n);
+# Ensure that it is filename- and URI-friendly, i.e.,
+# it contains only [a-zA-Z0-9_\-]+:
+$hash =~ tr|+/=|\-_|d;
+# Sanity check:
+die if $hash !~ m/\A[a-zA-Z0-9_\-]+\Z/;
+return $hash;
+}
+
+############### OldShortName ###############
+# Return a short portion of the given name,
+# including only letters, digits.
+sub OldShortName
+{
+my $name = shift;
+# Un-percent encode ":"
+$name =~ s|\%3A|\/|;
+# Un-percent encode "/"
+$name =~ s|\%2F|\/|;
+# Split into components -- continuous letters/digits:
+my @components = split(/[^a-zA-Z0-9]+/, $name);
+# Ensure that we have at least two components:
+push(@components, "x") if @components < 2;
+push(@components, "x") if @components < 2;
+@components = @components[-2, -1];
+my $maxPerComponent = 8;
+my $sanitized = join("_", map {substr($_, 0, $maxPerComponent)} @components);
+return $sanitized;
+}
+
+############### ShortName ###############
+# ShortName is sort of like OldQuickName, but it returns
+# limited length names, and they are prefixed with "SHORT_",
+# so that then can be identified more easily in regression test
+# filter scripts.
+# It is used while in transition to hashed names.
+sub ShortName
+{
+my $name = shift;
+my $originalName = $name;
+# Remove any hash codes:
+$name =~ s/_HASH[a-zA-Z0-9_\-]+//g;
+# Un-percent encode "/"
+$name =~ s|\%2F|\/|g;
+$name =~ s|\%3A|\:|g;
+$name = &OldQuickName($name);
+$name =~ s/_HASH[a-zA-Z0-9_\-]+//g;
+# Un-percent encode ":"
+$name =~ s|\%3A|\:|g;
+# Un-percent encode "/"
+$name =~ s|\%2F|\/|g;
+# Split into components -- contiguous letters/digits/hyphens/periods:
+my @components = split(/[^a-zA-Z0-9_\-\.]+/, $name);
+# Ensure that we have at least two components:
+unshift(@components, "x") if @components < 2;
+unshift(@components, "x") if @components < 2;
+# my $components = join("|", @components);
+# print "originalName: $originalName components: $components\n";
+my $maxLength = 20;
+my $last       = substr($components[-1], 0, $maxLength);
+my $nextToLast = substr($components[-2], 0, $maxLength);
+my $sanitized = $last;
+my %known = map {($_,$_)} qw(cache serCache state serState parametersFile stderr);
+$sanitized = $nextToLast . "_$last" if $known{$last};
+my $final = "SHORT_$sanitized";
+# `echo $name $final >> /tmp/names`;
+return $final;
+}
+
+############### HashName ###############
+# $nameType must match m/\A[a-zA-Z_]\w*\Z/
+sub HashName
+{
+@_ == 2 || die;
+my ($nameType, $name) = @_;
+our %templates;
+my $template = $templates{$nameType};
+if (!$template) {
+	our $hashMapTemplate ||= "$basePath/cache/NAMETYPE/{}/hashMap.txt";
+	$template = $hashMapTemplate;
+	confess "Bad basePath: $basePath" if $basePath =~ m/NAMETYPE/;
+	confess "Bad nameType: $nameType" if $nameType !~ m/\A[a-zA-Z_]\w*\Z/;
+	$template =~ s/NAMETYPE/$nameType/;
+	$templates{$nameType} = $template;
+	}
+return &HashTemplateName($template, $name);
+}
+
+############### HashTemplateName ###############
+# Called as: my $hash = &HashTemplateName($template, $name);
+#
+# Create a unique, filename- and URI-friendly hash of the given $name,
+# (which must not: be the empty string, contain newline, or
+# have leading or trailing whitespace) using $template as a filename 
+# template for persisting the $hash-to-$name association.
+# Actually the hash is only guaranteed to be unique within a template:
+# the same hash may be used for different templates.
+# The $template must contain {}, which will be replaced with
+# the generated hash, which is guaranteed filename and URI friendly
+# by &SafeBase64Hash.  Each $name-to-$hash association is stored
+# in a separate file whose name is determined by the $template.
+# However, the associations are also cached in memory in
+# %nameToHashCache and %hashToNameCache to avoid file access
+# when possible.
+#
+# The algorithm computes a hash, and if there is a collision,
+# then the hash is appended to the current $name and we try again
+# until we find a hash that is unique.  For example, if foo hashes to
+# 44, but the slot for 44 is already taken (collision), then we
+# try hashing foo44.  If that hashes to xx, and that slot is also
+# taken (collision), then we try hashing foo44xx, etc.  Once we
+# find an unused slot (hash), we store the hash and original name
+# in the $hashMapFile for that hash.  
+#
+# When checking for collisions, there
+# are basically three cases to handle: empty hashMapFile (unique hash);
+# matching hashMapFile (found); or collision. However, the cases are 
+# complicated by the fact that we cache the hashMapFile contents
+# for fast lookup.
+sub HashTemplateName
+{
+my $template = shift || confess "[INTERNAL ERROR] Missing template argument";
+my $name = shift;
+confess "[INTERNAL ERROR] Missing name argument" if !defined($name);
+confess "[INTERNAL ERROR] Empty name argument" if $name eq "";
+# $name must not contain newline char:
+confess "[ERROR] Attempt to HashTemplateName a name containing a newline: {$name}" 
+	if $name =~ m/\n/s;
+confess "[ERROR] Attempt to HashTemplateName a name with leading or trailing whitespace: {$name}" 
+	if $name =~ m/\A\s/ || $name =~ m/\s\Z/;
+my $originalName = $name;
+# Repeatedly try until we've found (or looked up) the unique hash for $name.
+my $maxCollisions = 20;
+my $nCollisions = 0;
+while (1) {
+	if ($nCollisions >= $maxCollisions) {
+		confess "[ERROR] Too many hash collisions ($nCollisions) when hashing $originalName";
+		}
+	$nCollisions++;
+	# Use cache if available.
+	my $oldHash = $RDF::Pipeline::HashTemplateName::nameToHashCache{$template}->{$name} || "";
+	#
+	# On the first iteration, the mere existence of $oldHash means
+	# that we found it and can return it immediately.
+	return $oldHash if $oldHash && 1 == $nCollisions;
+	#
+	# Either this is not the first iteration (so $name ne $originalName)
+	# or we didn't find $name in the cache.  If $name was found
+	# in the cache *after* the first iteration, then it indicates
+	# another collision, because $name is not the same as $originalName
+	# and its hash ($oldHash) is already in the cache, so its slot 
+	# is already taken (for $name).  For example, $originalName
+	# might be foo, and $name might be foo44 (if 44 had been the
+	# hash of foo), and coicidentally foo44 already had a hash ($oldHash)
+	# registered in the cache, so we cannot use $oldHash for $originalName.
+	if ($oldHash) {
+		# Collision.  Append the hash and try again.
+		$name .= $oldHash;
+		next;
+		}
+	#
+	# Didn't find it in the cache.  Compute the hash.
+	my $hash = &SafeBase64Hash($name);
+	# Again, if it is in the cache then it must be a collision.
+	my $oldName = $RDF::Pipeline::HashTemplateName::hashToNameCache{$template}->{$hash} || "";
+	if ($oldName) {
+		# Collision.  Append the hash and try again.
+		$name .= $hash;
+		next;
+		}
+	# Sanity check -- this should never happen, otherwise
+	# we would have found it in the cache when we first checked:
+	confess "[INTERNAL ERROR] Algorithm error! Found name in memory hash cache: $name"
+		if $oldName eq $originalName;
+	# Need to check $hashMapFile.  There are three possible outcomes:
+	# 1. Empty file ($hash is unique) 2. Found. 3. Collision.
+	my $hashMapFile = $template;
+	($hashMapFile =~ s/\{\}/$hash/g) or confess "[INTERNAL ERROR] hashMapFile template lacks {}: $template";
+	&MakeParentDirs($hashMapFile);
+	# Got this flock code pattern from
+	# http://www.stonehenge.com/merlyn/UnixReview/col23.html
+	# See also http://docstore.mik.ua/orelly/perl/cookbook/ch07_12.htm
+	sysopen(my $fh, $hashMapFile, O_RDWR|O_CREAT) 
+		or confess "[ERROR] Cannot open $hashMapFile: $!";
+	flock $fh, 2;			# LOCK_EX -- exclusive lock
+	# I could not figure out from the documentation whether
+	# there is read-ahead buffering done when the file is opened
+	# using sysopen.   So AFAIK this code could be unsafe.  See:
+	# http://www.perlmonks.org/?node_id=1082675
+	my $line = <$fh> || "";
+	my $originalLine = $line;
+	chomp $line;
+	$line =~ s/^\s+//;	# Strip leading spaces
+	if (!$line) {
+		# $hashMapFile was empty: $hash is unique (no collision).
+		# Cache it:
+		$RDF::Pipeline::HashTemplateName::nameToHashCache{$template}->{$originalName} = $hash;
+		$RDF::Pipeline::HashTemplateName::hashToNameCache{$template}->{$hash} = $originalName;
+		# Write it, release the lock and be done.
+		seek $fh, 0, 0;
+		truncate $fh, 0;
+		print $fh "$hash $originalName\n";
+		close $fh or die;	# Releases lock
+		my $nc = $nCollisions - 1;
+		&Warn("[WARNING] Hash collision $nc for $originalName\n") if $nc;
+		return $hash;
+		}
+	# $hashMapFile contains something.  See if it matches.
+	# Hash must not contain spaces, but $oldName could:
+	($oldHash, $oldName) = split(/ /, $line, 2);
+	$oldName = "" if !defined($oldName);
+	# Strip leading/trailing whitespace:
+	$oldName =~ s/\A\s+//;
+	$oldName =~ s/\s+\Z//;
+	if (!$oldHash || $oldName eq "" || $oldHash ne $hash) {
+		close $fh;	# Release lock before dying
+		confess "[INTERNAL ERROR] Corrupt hashMapFile: $hashMapFile!  Contents: $originalLine";
+		}
+	# Cache what we found, whether it matches or not:
+	$RDF::Pipeline::HashTemplateName::nameToHashCache{$template}->{$oldName} = $hash;
+	$RDF::Pipeline::HashTemplateName::hashToNameCache{$template}->{$hash} = $oldName;
+	close $fh or die;	# Releases lock
+	return $hash if ($oldName eq $originalName);
+	#
+	# Collision.  Try again.
+	$name .= $hash;
+	}
+confess "[INTERNAL ERROR] Should never get here!";
+return "";
+}
+
 ############# NameToLmFile #############
-# Convert $name to a LM file path.
+# Convert $nameType + $name to a LM file path.
+# The combination must be unique -- a composite key.
+# $nameType will be either $URI, $FILE or a nodeType (which can
+# never be either $URI or $FILE).
 sub NameToLmFile
 {
 my $nameType = shift || confess;
@@ -1513,8 +1990,16 @@ my $name = shift || die;
 my $lmFile = $RDF::Pipeline::NameToLmFile::lmFile{$nameType}->{$name} || "";
 if (!$lmFile) {
 	my $t = uri_escape($nameType);
-	my $f = uri_escape($name);
-	$lmFile = "$basePath/lm/$t/$f";
+	my $n = $name;
+	$n =~ s|\A$basePathPattern\/|| if $nameType eq $FILE;
+	$n =~ s|\A$nodeBaseUriPattern\/|| if $nameType eq $URI;
+	my $f = uri_escape($n);
+	# my $f = &ShortName($n);
+	# my $f = &QuickName($n);
+	my $hash = &HashName($nameType, $name);
+	# $lmFile = "$basePath/lm/$t/$f";
+	$lmFile = "$basePath/lm/$t/$f" . "_HASH$hash";
+	# $lmFile = "$basePath/cache/$t/$f/lm.txt";
 	$RDF::Pipeline::NameToLmFile::lmFile{$nameType}->{$name} = $lmFile;
 	}
 return $lmFile;
@@ -1630,6 +2115,21 @@ $nm->{value}->{FileNode}->{fExists} = \&FileExists;
 $nm->{value}->{FileNode}->{defaultContentType} = "text/plain";
 }
 
+############# ConstructQueryStringExports ##############
+# Create export statements for setting environment variables
+# named after query parameters.  For safety, only export query parameters 
+# starting with a lowercase letter and thereafter containing only
+# letters, digits or underscore.
+sub ConstructQueryStringExports
+{
+my $qs = shift;
+defined($qs) || die;
+my %params = &ParseQueryString($qs);
+my @allowed = grep { m/^[a-z][a-zA-Z0-9_]*$/ } sort keys %params;
+my @exports = map { "export $_=" . quotemeta($params{$_}) . " ; " } @allowed;
+return join("", @exports) || "";
+}
+
 ############# FileNodeRunParametersFilter ##############
 # Run the parametersFilter, returning a listRef of input queryStrings.
 sub FileNodeRunParametersFilter
@@ -1653,9 +2153,10 @@ my $qInputUris = join(" ", map {quotemeta($_)} @{$pInputUris});
 &Warn("qInputUris: $qInputUris\n", $DEBUG_DETAILS);
 my $qLatestQuery = quotemeta($latestQuery);
 my $exportqs = "export QUERY_STRING=$qLatestQuery";
+$exportqs = &ConstructQueryStringExports($latestQuery) . " $exportqs";
 my $qss = quotemeta(join(" ", @{$pOutputQueries}));
 my $exportqss = "export QUERY_STRINGS=$qss";
-my $tmp = "/tmp/parametersFilterOut" . &GenerateNewLM() . ".txt";
+my $tmp = "$tmpDir/parametersFilterOut" . &GenerateNewLM() . ".txt";
 my $stderr = $nm->{value}->{$thisUri}->{stderr};
 # Make sure parent dirs exist for $stderr and $tmp:
 &MakeParentDirs($stderr, $tmp);
@@ -1665,8 +2166,16 @@ my $qTmp = quotemeta($tmp);
 my $qUpdater = quotemeta($parametersFilter);
 my $qStderr = quotemeta($stderr);
 my $useStdout = 1;
+die "[INTERNAL ERROR] RDF_PIPELINE_DEV_DIR not set in environment! "
+	if !$ENV{RDF_PIPELINE_DEV_DIR};
+my $qToolsDir = quotemeta("$ENV{RDF_PIPELINE_DEV_DIR}/tools");
+die "[INTERNAL ERROR] PATH not set properly: $ENV{PATH} "
+	if $ENV{PATH} !~ m/$qToolsDir/;
+&Warn("ENV{PATH}: $ENV{PATH}\n", $DEBUG_DETAILS);
+&Warn("ENV{RDF_PIPELINE_DEV_DIR}: $ENV{RDF_PIPELINE_DEV_DIR}\n", $DEBUG_DETAILS);
+my $qPath = quotemeta($ENV{PATH}) || die;
 #### TODO QUERY:
-my $cmd = "( cd '$nodeBasePath' ; export THIS_URI=$qThisUri ; $exportqs ; $exportqss ; $qUpdater $qInputUris > $qTmp 2> $qStderr )";
+my $cmd = "( cd '$nodeBasePath' ; export THIS_URI=$qThisUri ; export PATH=$qPath ; $exportqs ; $exportqss ; $qUpdater $qInputUris > $qTmp 2> $qStderr )";
 ####
 &Warn("cmd: $cmd\n", $DEBUG_DETAILS);
 my $result = (system($cmd) >> 8);
@@ -1750,13 +2259,14 @@ my $ipFiles = "$inputFiles $parameterFiles";
 #### TODO: Move this code out of this function and pass $latestQuery
 #### as a parameter to FileNodeRunUpdater.
 #### TODO QUERY:
-my $thisVHash = $nm->{value}->{$thisUri} or die;
-my $parametersFile = $thisVHash->{parametersFile} or die;
+my $thisVHash = $nm->{value}->{$thisUri} || die;
+my $parametersFile = $thisVHash->{parametersFile} || die;
 my ($lm, $latestQuery, %requesterQueries) = 
 	&LookupLMs($FILE, $parametersFile);
 $lm = $lm;				# Avoid unused var warning
 my $qLatestQuery = quotemeta($latestQuery);
 my $exportqs = "export QUERY_STRING=$qLatestQuery";
+$exportqs = &ConstructQueryStringExports($latestQuery) . " $exportqs";
 # my $qss = quotemeta(&BuildQueryString(%requesterQueries));
 my $qss = quotemeta(join(" ", sort values %requesterQueries));
 my $exportqss = "export QUERY_STRINGS=$qss";
@@ -1773,12 +2283,20 @@ my $useStdout = 0;
 my $stateOriginal = $nm->{value}->{$thisUri}->{stateOriginal} || "";
 &Warn("stateOriginal: $stateOriginal\n", $DEBUG_DETAILS);
 $useStdout = 1 if $updater && !$stateOriginal;
-my $cmd = "( cd '$nodeBasePath' ; export THIS_URI=$qThisUri ; $qUpdater $qState $ipFiles > $qStderr 2>&1 )";
-$cmd =    "( cd '$nodeBasePath' ; export THIS_URI=$qThisUri ; $qUpdater         $ipFiles > $qState 2> $qStderr )"
+die "[INTERNAL ERROR] RDF_PIPELINE_DEV_DIR not set in environment! "
+	if !$ENV{RDF_PIPELINE_DEV_DIR};
+my $qToolsDir = quotemeta("$ENV{RDF_PIPELINE_DEV_DIR}/tools");
+die "[INTERNAL ERROR] PATH not set properly: $ENV{PATH} "
+	if $ENV{PATH} !~ m/$qToolsDir/;
+&Warn("ENV{PATH}: $ENV{PATH}\n", $DEBUG_DETAILS);
+&Warn("ENV{RDF_PIPELINE_DEV_DIR}: $ENV{RDF_PIPELINE_DEV_DIR}\n", $DEBUG_DETAILS);
+my $qPath = quotemeta($ENV{PATH}) || die;
+my $cmd = "( cd '$nodeBasePath' ; export THIS_URI=$qThisUri ; export PATH=$qPath ; $qUpdater $qState $ipFiles > $qStderr 2>&1 )";
+$cmd =    "( cd '$nodeBasePath' ; export THIS_URI=$qThisUri ; export PATH=$qPath ; $qUpdater         $ipFiles > $qState 2> $qStderr )"
 	if $useStdout;
 #### TODO QUERY:
-$cmd = "( cd '$nodeBasePath' ; export THIS_URI=$qThisUri ; $exportqs ; $exportqss ; $qUpdater $qState $ipFiles > $qStderr 2>&1 )";
-$cmd = "( cd '$nodeBasePath' ; export THIS_URI=$qThisUri ; $exportqs ; $exportqss ; $qUpdater         $ipFiles > $qState 2> $qStderr )"
+$cmd = "( cd '$nodeBasePath' ; export THIS_URI=$qThisUri ; export PATH=$qPath ; $exportqs ; $exportqss ; $qUpdater $qState $ipFiles > $qStderr 2>&1 )";
+$cmd = "( cd '$nodeBasePath' ; export THIS_URI=$qThisUri ; export PATH=$qPath ; $exportqs ; $exportqss ; $qUpdater         $ipFiles > $qState 2> $qStderr )"
 	if $useStdout;
 ####
 &Warn("cmd: $cmd\n", $DEBUG_DETAILS);
@@ -1824,16 +2342,18 @@ my $MAGIC = "# Hi-Res Last Modified (LM) Counter\n";
 &MakeParentDirs($lmCounterFile);
 # Got this flock code pattern from
 # http://www.stonehenge.com/merlyn/UnixReview/col23.html
+# See also http://docstore.mik.ua/orelly/perl/cookbook/ch07_12.htm
 # open(my $fh, "+<$lmCounterFile") or croak "Cannot open $lmCounterFile: $!";
 sysopen(my $fh, $lmCounterFile, O_RDWR|O_CREAT) 
-	or croak "Cannot open $lmCounterFile: $!";
+	or confess "Cannot open $lmCounterFile: $!";
 flock $fh, 2;
 my ($oldTime, $counter) = ($newTime, 0);
 my $magic = <$fh>;
 # Remember any warning, to avoid other I/O while $lmCounterFile is locked:
 my $warning = "";	
 if (defined($magic)) {
-	$warning = "Corrupt lmCounter file (bad magic string): $lmCounterFile\n" if $magic ne $MAGIC;
+	$warning = "Corrupt lmCounter file (bad magic string): $lmCounterFile\n"
+		if $magic ne $MAGIC;
 	chomp( $oldTime = <$fh> );
 	chomp( $counter = <$fh> );
 	if (!$counter || !$oldTime || $oldTime>$newTime || $counter<=0) {
@@ -1849,7 +2369,7 @@ print $fh $MAGIC;
 print $fh "$newTime\n";
 print $fh "$counter\n";
 close $fh;	# Release flock
-&Warn("WARNING: $warning") if $warning;
+&Warn("[WARNING] $warning") if $warning;
 return &TimeToLM($newTime, $counter);
 }
 
@@ -1878,13 +2398,28 @@ sub MTime
 return (&MTimeAndInode(@_))[0];
 }
 
-############## QuickName ##############
-# Generate a relative filename based on the given URI.
-sub QuickName
+############## OldQuickName ##############
+# Generate a relative path or filename based on the given URI.
+sub OldQuickName
 {
-my $t = shift;
+my $uri = shift;
+my $t = $uri;
 $t =~ s|$nodeBaseUriPattern\/||;	# Simplify if it's local
 $t = uri_escape($t);
+return $t;
+}
+
+############## QuickName ##############
+# Generate a relative path or filename based on the given URI.
+sub QuickName
+{
+my $uri = shift;
+my $t = $uri;
+$t =~ s|$nodeBaseUriPattern\/||;	# Simplify if it's local
+# $t = uri_escape($t);
+$t = &ShortName($t);
+my $hash = &HashName($URI, $uri);
+$t .= "_HASH$hash";
 return $t;
 }
 
@@ -1894,7 +2429,7 @@ sub NodeAbsUri
 {
 my $uri = shift;
 ##### TODO: Should this pattern be more general than just http:?
-if ($uri !~ m/\Ahttp(s?)\:/) {
+if ($uri !~ m/\Ahttp(s?)\:/ && $uri !~ m/\Afile\:/) {
 	# Relative URI
 	$uri =~ s|\A\/||;	# Chop leading / if any
 	$uri = "$nodeBaseUri/$uri";
@@ -1907,8 +2442,11 @@ return $uri;
 sub AbsUri
 {
 my $uri = shift;
-##### TODO: Should this pattern be more general than just http:?
-if ($uri !~ m/\Ahttp(s?)\:/) {
+# From RFC 3986:
+#    scheme  = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
+#### TODO: change this to use the perl URI module:
+#### http://lwp.interglacial.com/ch04_04.htm
+if ($uri !~ m/\A[a-zA-Z][a-zA-Z0-9\+\-\.]*\:/) {
 	# Relative URI
 	$uri =~ s|\A\/||;	# Chop leading / if any
 	$uri = "$baseUri/$uri";
@@ -1925,7 +2463,11 @@ sub UriToPath
 my $uri = shift;
 ### Ignore these parameters and use globals $baseUriPattern and $basePath:
 my $path = &AbsUri($uri);
-if ($path =~ s/\A$baseUriPattern\b/$basePath/e) {
+#### TODO: Make this work for IPv6 addresses.
+#### TODO: use the URI module: http://lwp.interglacial.com/ch04_01.htm
+# Get rid of superfluous port 80 before converting:
+$path =~ s|\A(http(s?)\:\/\/[^\/\:]+)\:80\/|$1\/|;
+if ($path =~ s|\A$baseUriPattern\/|$basePath\/|) {
 	return $path;
 	}
 return "";
@@ -1964,7 +2506,7 @@ sub PathToUri
 {
 my $path = shift;
 my $uri = &AbsPath($path);
-if ($uri =~ s/\A$basePathPattern\b/$baseUri/e) {
+if ($uri =~ s|\A$basePathPattern\/|$baseUri\/|) {
 	return $uri;
 	}
 return "";
@@ -1979,6 +2521,16 @@ print $fh @_ or die;
 # print $fh @_;
 close($fh) || die;
 return 1;
+}
+
+########## ISO8601 ############
+# Convert the given epoch time to ISO8601 format in UTC timezone.
+sub ISO8601
+{
+use DateTime;
+my $time = shift;
+my $dt = DateTime->from_epoch(epoch => $time, time_zone => 'UTC');
+return $dt->iso8601;
 }
 
 ########## CallStackDepth ###########
@@ -2022,6 +2574,63 @@ print STDERR $msg if !defined($level) || $debug >= $level;
 return 1;
 }
 
+########## LogDeltaTimingData ############
+# Log performance timing data per node.  Used as:
+#   my $startTime = Time::HiRes::time();
+#   ... Do something being timed ...
+#   &LogDeltaTimingData($function, $thisUri, $startTime, $flush);
+# Where $flush is a boolean indicating whether the file buffer
+# should be flushed.  This logs the delta seconds between the current
+# time and $startTime, for $function and $thisUri.
+sub LogDeltaTimingData
+{
+die if @_ < 4 || @_ > 4;
+my ($function, $thisUri, $startTime, $flush) = @_;
+return if !$timingLogFile;
+my $endTime = Time::HiRes::time();
+&LogTimingData($endTime, $function, $thisUri, $endTime - $startTime, $flush);
+return;
+}
+
+########## LogTimingData ############
+# *** Normally &LogDeltaTimingData is called instead of this function. ***
+#
+# Log performance timing data per node:
+#   &LogTimingData($timestamp, $function, $thisUri, $seconds, $flush);
+# Where $flush is a boolean indicating whether the file buffer
+# should be flushed.
+sub LogTimingData
+{
+die if @_ < 5 || @_ > 5;
+my ($timestamp, $function, $thisUri, $seconds, $flush) = @_;
+return if !$timingLogFile;
+our $timingLogFileIsOpen;
+our $timingLogFH;
+our $timingLogExists;
+if (!$timingLogFileIsOpen) {
+	$timingLogExists ||= (-e $timingLogFile && -s $timingLogFile);
+	open($timingLogFH, ">>$timingLogFile") || die "[ERROR] Failed to open timingLogFile: $timingLogFile\n";
+	$timingLogFileIsOpen = 1;
+	if (!$timingLogExists) {
+		print $timingLogFH "Timestamp\tFunction\tHost\tNode\tSeconds\n";
+		$timingLogExists = 1;
+		}
+	}
+# ISO8601 timestamp
+my $isoTS = &ISO8601($timestamp);
+my $s = sprintf("%8.6f", $seconds);
+$thisUri =~ m|\/node\/| or die;
+my $host = $`;
+my $node = $';
+$host =~ s|^http(s?):\/\/||;
+print $timingLogFH "$isoTS\t$function\t$host\t$node\t$s\n";
+if ($flush) {
+	close $timingLogFH || die;
+	$timingLogFileIsOpen = 0;
+	}
+return;
+}
+
 ########## MakeParentDirs ############
 # Ensure that parent directories exist before creating these files.
 # Optionally, directories that have already been created are remembered, so
@@ -2042,9 +2651,9 @@ foreach my $f (@_) {
 	}
 }
 
-########## IsSameServer ############
+########## IsSameServer_OBSOLETE ############
 # Is $thisUri on the same server as $baseUri?
-sub IsSameServer
+sub IsSameServer_OBSOLETE
 {
 @_ == 2 or die;
 my ($baseUri, $thisUri) = @_;
@@ -2084,7 +2693,7 @@ my ($time) = @_;
 return "" if !$time || $time == 0;
 # Enough digits to work through year 2286:
 my $lm = sprintf("%010.6f", $time);
-length($lm) == 10+1+6 or croak "Too many digits in time!";
+length($lm) == 10+1+6 or confess "Too many digits in time!";
 return $lm;
 }
 
@@ -2100,7 +2709,7 @@ my ($counter) = @_;
 $counter = 0 if !$counter;
 my $counterWidth = 6;
 my $sCounter = sprintf("%0$counterWidth" . "d", $counter);
-croak "Need more than $counterWidth digits in counter!"
+confess "Need more than $counterWidth digits in counter!"
 	if length($sCounter) > $counterWidth;
 return $sCounter;
 }
@@ -2188,7 +2797,7 @@ my $nmv = $nm->{value} || {};
 my $nml = $nm->{list}  || {};
 my $nmh = $nm->{hash}  || {};
 my $nmm = $nm->{multi} || {};
-&PrintLog("Node Metadata:\n") if $debug;
+&PrintLog("\nNode Metadata:\n") if $debug;
 my %allSubjects = (%{$nmv}, %{$nml}, %{$nmh}, %{$nmm});
 foreach my $s (sort keys %allSubjects) {
 	last if !$debug;
@@ -2230,11 +2839,109 @@ foreach my $s (sort keys %allSubjects) {
 		  }
 		}
 	}
+&PrintLog("\n") if $debug;
 }
+
+
+################ CanonicalizeUri #################
+# Canonicalize the given URI:  If it is an absolute local http URI,
+# then canonicalize it to localhost or 127.0.0.1 .
+# Other URIs are passed through unchanged.
+# The reason for canonicalizing only node URIs on this host is because
+# the RDF Popeline Framework will be handling requests for them, so
+# it needs to be able to distinguish them from foreign URIs, both
+# to avoid an infinite recursion of HTTP requests and to lookup
+# metadata based on the URI.  If the URI were a synonym, such as
+# http://127.0.0.1/node/foo instead of http://localhost/node/foo ,
+# then the metadata lookup would fail to find the metadata.
+sub CanonicalizeUri
+{
+@_ == 1 || die;
+my ($oldUri) = @_;
+my $u = URI->new($oldUri);
+defined($u) || confess "[ERROR] Unable to parse URI: $oldUri ";
+# http: or https:  URI?
+my $uScheme = $u->scheme;
+return $oldUri if !$uScheme;
+# defined($uScheme) || confess "[ERROR] Undefined scheme from URI: $oldUri ";
+return $oldUri if $uScheme !~ m/^http(s?)$/;
+# Local?
+my $host = $u->host;
+return $oldUri if !&IsLocalHost($host);
+$host = "localhost";
+# Use 127.0.0.1 if localhost is not known:
+$host = "127.0.0.1" if !&IsLocalHost($host);
+$host || die "$0: [ERROR] $host is not recognized as a local address ";
+# At this point we know it is a local http URI.
+# Canonicalize the URI.
+# It seems silly to parse the URI again, but I was unable to find
+# a perl module that would parse an http URI into all of its components
+# in such a way that it could be put back together which changing
+# only $scheme and $auth..
+my $uPort = $u->port;
+my ($scheme, $auth, $path, $query, $frag) = uri_split($oldUri);
+# $auth consists of: [ userinfo "@" ] host [ ":" port ]
+$auth = $host;
+$auth .= ":$uPort" if $uPort && $uPort != $u->default_port;
+$scheme = "http";
+my $newUri = uri_join($scheme, $auth, $path, $query, $frag);
+return $newUri;
+}
+
+################ IsLocalNode #################
+# Is the given URI for a node on this host?
+# The given URI must already be canonicalized by &CanonicalizeUri().
+sub IsLocalNode
+{
+my $uri = shift || die;
+my $isLocal = ($uri =~ m|\A$nodeBaseUriPattern\/|);
+return $isLocal;
+}
+
+################ IsLocalHost #################
+# Is the given host name, which may be either a domain name or
+# an IP address, hosted on this local host machine?
+# Results are cached in a hash for fast repeated lookup.
+sub IsLocalHost
+{
+my $host = shift || return 0;
+our %isLocal;	# Cache
+return $isLocal{$host} if exists($isLocal{$host});
+my $packedIp = gethostbyname($host);
+if (!$packedIp) {
+	$isLocal{$host} = 0;
+	return 0;
+	}
+my $ip = inet_ntoa($packedIp) || "";
+our %localIps;
+%localIps = map { ($_, 1) } &GetIps() if !%localIps;
+#### TODO: is there an IPv6 localhost convention that also needs to be checked?
+#### TODO: Do I really need to check for the ^127\. pattern?
+my $isLocal = $localIps{$ip} || $ip =~ m/^127\./ || 0;
+$isLocal{$host} = $isLocal;
+# Maybe this would speed up a subsequent lookup by IP address,
+# but it probably is not worth the memory use:
+# $isLocal{$ip} = $isLocal;
+return $isLocal;
+}
+
+################ GetIps #################
+# Lookup IP addresses on this host.
+sub GetIps
+{
+my @interfaces = IO::Interface::Simple->interfaces;
+my @ips = grep {$_} map { $_->address } @interfaces;
+return @ips;
+}
+
 
 ##### DO NOT DELETE THE FOLLOWING TWO LINES!  #####
 1;
 __END__
+
+#############################################################
+# Documentation starts here
+#############################################################
 
 =head1 NAME
 

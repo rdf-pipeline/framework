@@ -2,9 +2,12 @@
 package RDF::Pipeline::GraphNode;
 
 # RDF Pipeline Framework -- GraphNode
-# Copyright 2012 David Booth <david@dbooth.org>
-# Code home: http://code.google.com/p/rdf-pipeline/
-# See license information at http://code.google.com/p/rdf-pipeline/ 
+
+# Copyright 2014 by David Booth
+# This software is available as free and open source under
+# the Apache 2.0 software license, which may be viewed at
+# http://www.apache.org/licenses/LICENSE-2.0.html
+# Code home: https://github.com/dbooth-boston/rdf-pipeline/
 
 
 use 5.10.1; 	# It *may* work under lower versions, but has not been tested.
@@ -69,6 +72,8 @@ my ($nm, $thisUri, $updater, $state, $thisInputs, $thisParameters,
 &RDF::Pipeline::Warn("GraphNodeRunUpdater(nm, $thisUri, $updater, $state, ...) called.\n", $RDF::Pipeline::DEBUG_DETAILS);
 # warn "GraphNodeRunUpdater(nm, $thisUri, $updater, $state, ...) called.\n";
 $updater = &RDF::Pipeline::NodeAbsPath($updater) if $updater;
+#### TODO: Is this next line correct? MTime returns a file mod time,
+#### but $state isn't a file if $thisUri is a GraphNode.
 return &TimeToLM(&MTime($state)) if !$updater;
 # TODO: Move this warning to when the metadata is loaded?
 if (!-e $updater) {
@@ -119,15 +124,18 @@ if (!$thisHostRoot) {
   return "";
   }
 #### TODO: Make this non-Sesame specific:
+$thisHostRoot =~ m|/openrdf-workbench/| or &RDF::Pipeline::Warn("GraphNodeRunUpdater: [WARNING] hostRoot does not contain \"/openrdf-workbench/\": $thisHostRoot\n");
 my $cmd = "/usr/bin/curl  -s -S --data-urlencode  'update\@$tmp' '${thisHostRoot}/update'";
 &RDF::Pipeline::Warn("GraphNodeRunUpdater cmd: $cmd\n", $RDF::Pipeline::DEBUG_DETAILS);
-my $result = (system($cmd) >> 8);
+# my $result = (system($cmd) >> 8);
+my $stdout = `$cmd`;
+my $result = $? >> 8;
 my $saveError = $?;
 &RDF::Pipeline::Warn("GraphNodeRunUpdater: Updater returned " . ($result ? "error code:" : "success:") . " $result.\n", $RDF::Pipeline::DEBUG_DETAILS);
-if (-s $stderr) {
-	&RDF::Pipeline::Warn("GraphNodeRunUpdater: Updater stderr" . ($useStdout ? "" : " and stdout") . ":\n[[\n", $RDF::Pipeline::DEBUG_DETAILS);
-	&RDF::Pipeline::Warn(&RDF::Pipeline::ReadFile("<$stderr"), $RDF::Pipeline::DEBUG_DETAILS);
-	&RDF::Pipeline::Warn("]]\n", $RDF::Pipeline::DEBUG_DETAILS);
+if (length($stdout)>2) {
+	my $e = ($stdout =~ m/\bERROR\b/i ? " containing \"$&\"" : "");
+	&RDF::Pipeline::Warn("GraphNodeRunUpdater: Updater unexpectedly produced stdout$e:\n[[\n$stdout\n]]\nTreating it an error.\n", $RDF::Pipeline::DEBUG_DETAILS);
+	$result = 1;
 	}
 unlink $tmp;
 # unlink $stderr;
@@ -162,7 +170,9 @@ $deserName or die;
 $contentType ||= "text/turtle";
 $hostRoot || die "GraphNodeSerializer: ERROR: \$hostRoot not specified\n";
 ### TODO: Make this non-Sesame specific:
-$hostRoot =~ s|/openrdf-workbench/|/openrdf-sesame/| or die;
+$hostRoot =~ m|/openrdf-workbench/| or &RDF::Pipeline::Warn("GraphNodeSerializer: [WARNING] hostRoot does not contain \"/openrdf-workbench/\": $hostRoot\n");
+$hostRoot =~ s|/openrdf-workbench/|/openrdf-sesame/|;
+# $hostRoot =~ m|/openrdf-sesame/| or confess "[ERROR] GraphNode hostRoot does not match sesame pattern: $hostRoot ";
 # $hostRoot = "http://localhost:28080/openrdf-sesame/repositories/owlimlite";
 # http://localhost:28080/openrdf-sesame/repositories/owlimlite/rdf-graphs/service?graph=http://example/in
 my $curlUrl =  "${hostRoot}/rdf-graphs/service?graph=$deserName";
@@ -178,6 +188,10 @@ my $curlCmd = "/usr/bin/curl -s -H 'Accept: text/turtle' -X GET '$curlUrl' -o '$
 &RDF::Pipeline::Warn("GraphNodeSerializer curlCmd: $curlCmd\n", $RDF::Pipeline::DEBUG_DETAILS);
 my $success = !system($curlCmd);
 &RDF::Pipeline::Warn("GraphNodeSerializer($serFilename, $deserName, $contentType, $hostRoot) FAILED\n", $RDF::Pipeline::DEBUG_OFF) if !$success;
+if ($RDF::Pipeline::debug >= $RDF::Pipeline::DEBUG_DETAILS) {
+	my $t = `head -n 20 $serFilename`;
+	&RDF::Pipeline::Warn("GraphNodeSerializer produced  $serFilename :\n[[\n$t\n. . . .\n]]\n", $RDF::Pipeline::DEBUG_DETAILS);
+	}
 return $success;
 }
 
@@ -194,6 +208,8 @@ $hostRoot || die "GraphNodeSerializer: ERROR: \$hostRoot not specified\n";
 # $hostRoot = "http://localhost:28080/openrdf-sesame/repositories/owlimlite";
 # http://localhost:28080/openrdf-workbench/repositories/owlimlite/update
 my $curlUrl = "${hostRoot}/update";
+$curlUrl =~ s|/openrdf-sesame/|/openrdf-workbench/|;
+$hostRoot =~ m|/openrdf-workbench/| or &RDF::Pipeline::Warn("GraphNodeDeserializer: [WARNING] hostRoot does not contain \"/openrdf-workbench/\": $hostRoot\n");
 ### TODO: Make this safer by using quotemeta for everything in the command:
 ### TODO: Make this non-Sesame specific.  Might need to pass $nm to wrapper
 ### functions to achieve this.  
@@ -206,6 +222,10 @@ my $curlCmd = "/bin/cp $serFilename $tmp ; /usr/bin/curl  -s -S --data-urlencode
 &RDF::Pipeline::Warn("GraphNodeDeserializer curlCmd: $curlCmd\n", $RDF::Pipeline::DEBUG_DETAILS);
 my $success = !system($curlCmd);
 &RDF::Pipeline::Warn("GraphNodeDeserializer($serFilename, $deserName, $contentType, $hostRoot) FAILED\n", $RDF::Pipeline::DEBUG_OFF) if !$success;
+if ($RDF::Pipeline::debug >= $RDF::Pipeline::DEBUG_DETAILS) {
+	my $t = `head -n 20 $tmp`;
+	&RDF::Pipeline::Warn("GraphNodeDeserializer loaded  $serFilename / $tmp :\n[[\n$t\n. . . .\n]]\n", $RDF::Pipeline::DEBUG_DETAILS);
+	}
 unlink $tmp;
 return $success;
 }

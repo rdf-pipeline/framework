@@ -1,13 +1,17 @@
 #!/usr/bin/perl -w
 
+# Copyright 2014 by David Booth
+# This software is available as free and open source under
+# the Apache 2.0 software license, which may be viewed at
+# http://www.apache.org/licenses/LICENSE-2.0.html
+# Code home: https://github.com/dbooth-boston/rdf-pipeline/
+
+use strict;
+
 # Summary of schema implied by RDF instance data -- classes and predicates.
 # Files are read from command line or stdin, in Turtle format.
 #
-# Copyright 2013 by David Booth
-# Code home: http://code.google.com/p/rdf-pipeline/
-# See license information at http://code.google.com/p/rdf-pipeline/ 
-#
-# Runtime: ~30 minutes / 600k triples
+# Runtime: ~30 minutes / 600k triples on a 2012 laptop (quad processor)
 #
 # EXAMPLE INPUT:
 #    1. @prefix p: <http://purl.org/pipeline/ont#> .
@@ -25,29 +29,31 @@
 #   13. p:URI <http://www.w3.org/2000/01/rdf-schema#subClassOf> p:Node .
 #
 # EXAMPLE OUTPUT:
-#    1. ===== Input Summary =====
-#    2. Parsing turtle: /tmp/pipeline.ttl 
-#    3. Total triples: 19
-#    4. Nodes by kind:  BLANK:4  LITERAL:3  URI:7  
-#    5. Literals by datatype:  UNTYPED:3  
-#    6. 
-#    7. ===== Predicates by Subject Class =====
-#    8. p1:FileNode|4
-#    9.   p1:inputs -> { rdf:List|3 }|3
-#   10.   p1:updater -> { (UNTYPED)|3 }|3
-#   11.   rdf:type -> { rdfs:Class|1 }|1
-#   12. 
-#   13. rdf:List|4
-#   14.   rdf:first -> { p1:FileNode|3 UNKNOWN|1 }|4
-#   15.   rdf:rest -> { rdf:List|2 }|2
-#   16. 
-#   17. rdfs:Class|1
-#   18.   rdfs:subClassOf -> { rdfs:Class|1 }|1
-#   19. 
-#   20. ===== Namespaces =====
-#   21. PREFIX p1: <http://purl.org/pipeline/ont#> 
-#   22. PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> 
-#   23. PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> 
+#     1. ===== Input Summary =====
+#     2. Parsing turtle: /tmp/jin.ttl
+#     3. Total triples: 19
+#     4. Nodes by kind:  BLANK 4  LITERAL 3  URI 7
+#     5. Literals by datatype:  UNTYPED 3
+#     6.
+#     7. ===== Predicates by Subject Class =====
+#     8. p1:FileNode 4
+#     9.   p1:inputs 3 -> { rdf:List 3 } 3
+#    10.   p1:updater 3 -> { (UNTYPED) 3 } 3
+#    11.   rdf:type 4 -> { rdfs:Class 1 } 1
+#    12.
+#    13. rdf:List 4
+#    14.   rdf:first 4 -> { p1:FileNode 3 UNKNOWN 1 } 4
+#    15.   rdf:rest 4 -> { rdf:List 2 } 2
+#    16.
+#    17. rdfs:Class 1
+#    18.   rdfs:subClassOf 1 -> { rdfs:Class 1 } 1
+#    19.
+#    20. * Indicates a root class, whose instances are never objects.
+#    21.
+#    22. ===== Namespaces =====
+#    23. PREFIX p1: <http://purl.org/pipeline/ont#>
+#    24. PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+#    25. PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 #
 # EXPLANATION OF OUTPUT:
 # Numbers are instance counts.  Braces group a list of classes,
@@ -56,7 +62,7 @@
 # For brevity, class and predicate names have been shortened by
 # stripping a presumed namespace (though not necessarily a namespace
 # that you declared using @prefix).  Namespace prefixes are listed
-# at the end (on lines 21-23), but they are not necessarily the
+# at the end (on lines 23-25), but they are not necessarily the
 # same as the prefixes that were used in the input turtle, because
 # the original prefixes are lost in parsing.
 #
@@ -69,13 +75,15 @@
 # in the subject position of a triple.
 #
 # Line 9 indicates that the domain of p1:inputs included p1:FileNode,
-# and the range included rdf:List, and there were 3 distinct rdf:List
-# values in the object position of a triple.  
+# range included rdf:List, there were 3 triples having a p1:FileNode
+# instance in the subject position and p1:inputs as predicate, and 
+# there were 3 distinct rdf:List values in the object position of a triple.  
 #
 # Line 10 indicates that the range of p1:updater was a set of
 # untyped literal values, and there were 3 distinct literals.
 # A datatype range (as opposed to a class range) is indicated 
-# in parentheses.
+# in parentheses.  It also indiates that there were 3 triples
+# with subject class p1:FileNode and predicate p1:updater.
 #
 # Line 14 indicates that the rdf:first predicate has a range that
 # includes both the p1:FileNode class (having 3 instances) and 
@@ -89,21 +97,30 @@
 # Line 17 indicates that there was one distinct instance of class 
 # rdf:Class as a subject.
 #
+# Line 20: In this example there were no root classes, i.e., 
+# classes whose instances never appear in the object position,
+# but if there had been, then each would have been marked
+# with an asterisk.
+#
 # DEPENDENCIES
 # This script depends on some other perl modules.  To install
 # them, execute the following shell commands:
 #
-#   cpan  RDF::Helper::Constants
 #   cpan  RDF::Trine
 #   cpan  RDF::Trine::Model
 #   cpan  RDF::Trine::Statement
 #   cpan  RDF::Trine::Node::Resource
 #
+# TROUBLESHOOTING
+# If summarize-rdf is run with the Perl Redland binding installed
+# (which do not work as of this writing 7/30/14), then Trine will
+# try to load the Redland turtle parser but it will fail with:
+#   Name "_p_librdf_world_s::OWNER" used only once: possible typo at /usr/share/perl5/RDF/Redland.pm line 49.
+# In this case the solution is to uninstall the Redland Perl binding
+# using the Ubuntu Software Center.
+
 ############################################################
 
-use strict;
-
-use RDF::Helper::Constants qw( :all );
 use RDF::Trine;
 use RDF::Trine::Model;
 use RDF::Trine::Statement;
@@ -120,21 +137,56 @@ my %inverseStandardNamespaces = (
         'time',   'http://www.w3.org/2006/time#',
         'xsd',    'http://www.w3.org/2001/XMLSchema#',
         );
-my %standardNamespaces = map {($inverseStandardNamespaces{$_}, $_)}
-		keys %inverseStandardNamespaces;
-keys %standardNamespaces == keys %inverseStandardNamespaces or die;
 
 my %namespaces;		# Remembers namespaces seen, stripped by &ShortenUri
 my $nextPrefix = "p1";
 
-my $RDF_TYPE = RDF::Trine::Node::Resource->new(RDF_TYPE);
-my $RDF_NIL = RDF::Trine::Node::Resource->new(RDF_NIL);
-my $RDF_LIST = RDF::Trine::Node::Resource->new(RDF_LIST);
-my $RDF_FIRST = RDF::Trine::Node::Resource->new(RDF_FIRST);
-my $RDF_REST = RDF::Trine::Node::Resource->new(RDF_REST);
-my $RDFS_CLASS = RDF::Trine::Node::Resource->new(RDFS_CLASS);
-my $RDFS_SUBCLASS_OF = RDF::Trine::Node::Resource->new(RDFS_SUBCLASS_OF);
+my $RDF_TYPE         = RDF::Trine::Node::Resource->new($inverseStandardNamespaces{rdf} . "type");
+my $RDF_NIL          = RDF::Trine::Node::Resource->new($inverseStandardNamespaces{rdf} . "nil");
+my $RDF_LIST         = RDF::Trine::Node::Resource->new($inverseStandardNamespaces{rdf} . "List");
+my $RDF_FIRST        = RDF::Trine::Node::Resource->new($inverseStandardNamespaces{rdf} . "first");
+my $RDF_REST         = RDF::Trine::Node::Resource->new($inverseStandardNamespaces{rdf} . "rest");
+my $RDFS_CLASS       = RDF::Trine::Node::Resource->new($inverseStandardNamespaces{rdfs} . "Class");
+my $RDFS_SUBCLASS_OF = RDF::Trine::Node::Resource->new($inverseStandardNamespaces{rdfs} . "subClassOf");
 
+my $program = $0;
+$program =~ s/^.*[\\\/]//;
+
+################## Get options ###################
+
+my $impliedRanges = 0;
+my $diagram = 0;
+my $help = 0;
+use Getopt::Long; # Perl
+GetOptions(
+                "help|h" => \$help,
+                "impliedRanges|i" => \$impliedRanges,
+                "diagram|d" => \$diagram,
+                ) or die "$0: Error reading options.\n";
+
+die "Usage: $program [ options ] [ turtleFiles...]
+Options:
+	-i, --impliedRanges
+		Include implied classes (based on predicate ranges) 
+		for nodes with no declared class.  For example, given
+		  :s :p :o .
+		then :o is implicitly declared as:
+		  :o a :pRange .
+		Implied classes are shown in parentheses: \"(:pRange)\"
+
+	-d, --diagram
+		Generate pseudo-Turtle, suitable for input to
+		diagram-sparql, for generating a diagram of
+		class relationships.  You will probably want
+		to filter out relationships involving rdf:type
+		declarations and UNTYPED values:
+		  $program -d infile.ttl | grep -v -E 'rdf:type|UNTYPED|owl:imports'
+
+	-h, --help
+		Print usage info and exit
+" if $help;
+
+###################### Read RDF ######################
 # my $subject = RDF::Trine::Node::Resource->new('http://example.org/aircraft/B787');
 # my $predicate = RDF::Trine::Node::Resource->new('http://purl.org/dc/terms/title');
 # my $object = RDF::Trine::Node::Literal->new('Boeing 787', 'en');
@@ -144,9 +196,9 @@ my $RDFS_SUBCLASS_OF = RDF::Trine::Node::Resource->new(RDFS_SUBCLASS_OF);
 my $model = RDF::Trine::Model->temporary_model;
 my $parser = RDF::Trine::Parser->new( 'turtle' );
 my $base_uri = "http://example/";
-print "===== Input Summary =====\n";
+print "===== Input Summary =====\n" if !$diagram;
 foreach my $file (@ARGV) {
-	print "Parsing turtle: $file \n";
+	print "Parsing turtle: $file \n" if !$diagram;
 	$parser->parse_file_into_model( $base_uri, $file, $model );
 	}
 if (!@ARGV) {
@@ -154,7 +206,20 @@ if (!@ARGV) {
 	$parser->parse_into_model( $base_uri, $turtle, $model );
 	}
 my $n = $model->size();
-print "Total triples: $n\n";
+print "Total triples: $n\n" if !$diagram;
+
+# Seed the namespace map with whatever prefixes were defined
+# in the input:
+my $ns = $parser->{map};
+foreach ($ns->list_prefixes()) {
+	my $u = $ns->namespace_uri($_)->uri()->as_string();
+	$u =~ s/^\<(.*)\>$/$1/;
+	$inverseStandardNamespaces{$_} = $u;
+	}
+
+my %standardNamespaces = map {($inverseStandardNamespaces{$_}, $_)}
+		keys %inverseStandardNamespaces;
+keys %standardNamespaces == keys %inverseStandardNamespaces or die;
 
 my %typesOf;		# Node -> hash of declared types or datatypes
 my %typeInstances;	# {URI, LITERAL, BLANK} -> hash of instances
@@ -163,12 +228,18 @@ my %predicateSubjects;	# predicates -> hash of subjects
 my %predicateObjects;	# predicates -> hash of objects
 my %isDatatype;		# Remember whether a URI is a datatype
 my %subjectPredicates;	# Maps subjects -> hash of predicates
+my %objectPredicates;	# Maps objects -> hash of predicates
+my %isImpliedClass;	# True if this class was range implied by predicate
 my $si = $model->get_statements(undef, undef, undef);
 while (my $ts = $si->next()) {
 	my $s = $ts->subject();
 	my $p = $ts->predicate();
 	my $o = $ts->object();
+	# WARNING: when $s $p or $o are used as hash indexes they
+	# are silently turned into strings first, so if you use keys %hash
+	# to get them back from a hash, you will get strings -- NOT objects.
 	$subjectPredicates{$s}->{$p} = 1;
+	$objectPredicates{$o}->{$p} = 1;
 	# print "\t$s $p $o\n";
 	if ($p->equal($RDF_TYPE)) {
 		$typesOf{$s}->{$o} = 1;
@@ -202,23 +273,44 @@ while (my $ts = $si->next()) {
 	# print "\t$s $p $o type: $t\n";
 	}
 
-print "Nodes by kind:  ";
-foreach my $t (sort keys %typeInstances) {
-	my @instances = keys %{$typeInstances{$t}};
-	my $ni = scalar(@instances);
-	print "$t|$ni  ";
-	}
-print "\n";
+if ($impliedRanges) {
+  # Load implied range classes into %typesOf.  This is done in
+  # two steps in order to load *all* implied range classes for a
+  # given object, rather than stopping after the first.
+  foreach my $o (sort keys %objectPredicates) {
+    next if !&IsObjectInteresting($o);
+    my $shortO = &ShortenUri($o);
+    # warn "TypesOf($shortO) = " . join(" ", map {&ShortenUri($_)} &TypesOf($o)) . "\n";
+    next if keys %{$typesOf{$o}};
+    foreach my $p (sort keys %{$objectPredicates{$o}}) {
+      next if !&IsPredicateInteresting($p);
+      my $pUri = $p;
+      $pUri =~ s/\>$/Range\>/ or die "0: [ERROR] Bad predicate: $p\n";
+      # my $pClass = RDF::Trine::Node::Resource->new($pUri);
+      $isImpliedClass{$pUri} = 1;
+      $typesOf{$o}->{$pUri} = 1;
+      }
+    }
+  # The rest of the work will be done by ShortenUri.
+  }
 
-print "Literals by datatype:  ";
+print "Nodes by kind:  " if !$diagram;
+foreach my $t (sort keys %typeInstances) {
+my @instances = keys %{$typeInstances{$t}};
+my $ni = scalar(@instances);
+print "$t $ni  " if !$diagram;
+}
+print "\n" if !$diagram;
+
+print "Literals by datatype:  " if !$diagram;
 foreach my $dt (sort keys %datatypeValues) {
 	my @values = keys %{$datatypeValues{$dt}};
 	my $nv = scalar(@values);
 	my $sdt = &ShortenUri($dt);
-	print "$sdt|$nv  ";
+	print "$sdt $nv  " if !$diagram;
 	}
-print "\n";
-print "\n";
+print "\n" if !$diagram;
+print "\n" if !$diagram;
 
 # Determine the classes for each subject (including any that are UNK):
 my %classInstances;	# Maps subject classes -> hash of instances
@@ -234,20 +326,53 @@ foreach my $s (keys %subjectPredicates) {
 		}
 	}
 
-print "===== Predicates by Subject Class =====\n";
+# Figure out which subject classes are root classes.  A root class is
+# a class whose instances never appear in the object position of a triple.
+my %isRootClass = map {($_,1)} keys %classInstances;
+foreach my $o (keys %objectPredicates) {
+	my @types = &TypesOf($o);
+	foreach my $t (@types) {
+		$isRootClass{$t} = 0;
+		}
+	}
+
+# Count the triples by subject class and predicate.
+my %nTriples;
+$si = $model->get_statements(undef, undef, undef);
+while (my $ts = $si->next()) {
+	my $s = $ts->subject();
+	my $p = $ts->predicate();
+	my $o = $ts->object();
+	foreach my $t (&TypesOf($s)) {
+		$nTriples{$t}->{$p}++;
+		}
+	}
+
+# Prefixes for diagram option:
+foreach my $ns (sort {$namespaces{$a} cmp $namespaces{$b}} keys %namespaces) {
+	my $p = $namespaces{$ns};
+	print "PREFIX $p: <$ns> \n" if $diagram;
+	}
+
+print "===== Predicates by Subject Class =====\n" if !$diagram;
 my @sortedClasses = sort {&ShortenUri($a) cmp &ShortenUri($b)}
 		keys %classInstances;
+my $nRootClasses = 0;
 foreach my $c (@sortedClasses) {
+	my $isRoot = "";
+	$isRoot = "*" if $isRootClass{$c};
+	$nRootClasses++ if $isRoot;
 	my $sc = &ShortenUri($c);
 	my @instances = keys %{$classInstances{$c}};
 	my $ni = scalar(@instances);
-	print "$sc|$ni\n";
+	print "$isRoot$sc $ni\n" if !$diagram;
 	my @sortedPredicates = sort {&ShortenUri($a) cmp &ShortenUri($b)}
 			keys %{$classPredicates{$c}};
 	foreach my $p (@sortedPredicates) {
 		my $sp = &ShortenUri($p);
-		print "  $sp -> { ";
-		#### TODO: include the count of triples using this predicate
+		# Number of triples using this predicate:
+		my $nt = $nTriples{$c}->{$p} || die;
+		print "  $sp $nt -> { " if !$diagram;
 		my %oClasses;
 		my @objects = keys %{$predicateObjects{$p}};
 		foreach my $o (@objects) {
@@ -258,22 +383,62 @@ foreach my $c (@sortedClasses) {
 			}
 		foreach my $c (sort keys %oClasses) {
 			my $nc = $oClasses{$c};
-			my $sc = &ShortenUri($c);
-			$sc = "($sc)" if $isDatatype{$c};
-			print "$sc|$nc ";
+			my $stc = &ShortenUri($c);
+			$stc = "($stc)" if $isDatatype{$c};
+			print "$stc $nc " if !$diagram;
+			print "$sc $sp $stc .\n" if $diagram;
 			}
 		my $no = scalar(@objects);
-		print "}|$no\n";
+		print "} $no\n" if !$diagram;
 		}
-	print "\n";
+	print "\n" if !$diagram;
 	}
 
-print "===== Namespaces =====\n";
+print "* Root class whose instances are never objects of a triple\n"
+	if $nRootClasses && !$diagram;
+print "\n" if !$diagram;
+
+print "===== Namespaces =====\n" if !$diagram;
 foreach my $ns (sort {$namespaces{$a} cmp $namespaces{$b}} keys %namespaces) {
 	my $p = $namespaces{$ns};
-	print "PREFIX $p: <$ns> \n";
+	print "PREFIX $p: <$ns> \n" if !$diagram;
 	}
 exit 0;
+
+############################################################################
+#                          END OF MAIN                                     #
+############################################################################
+
+############## IsPredicateInteresting ##############
+# This is a helper for determining implied range classes based on predicates,
+# given predicate $p.
+sub IsPredicateInteresting
+{
+@_ == 1 || die;
+my ($p) = @_;
+return 0 if $p->equal($RDF_NIL);
+return 0 if $p->equal($RDF_FIRST);
+return 0 if $p->equal($RDF_REST);
+return 0 if $p->equal($RDF_TYPE);
+return 0 if $p->equal($RDFS_SUBCLASS_OF);
+return 1;
+}
+
+############## IsObjectInteresting ##############
+# This is a helper for determining implied range classes based on predicates,
+# given object $o.
+sub IsObjectInteresting
+{
+@_ == 1 || die;
+my ($o) = @_;
+return 0 if $o->is_literal();
+return 0 if $o->equal($RDF_NIL);
+return 0 if $o->equal($RDF_FIRST);
+return 0 if $o->equal($RDF_REST);
+return 0 if $o->equal($RDF_LIST);
+return 0 if $o->equal($RDFS_CLASS);
+return 1;
+}
 
 ######################## TypesOf ########################
 # Look up the type of a subject (from global %typesOf) or default to UNK.
@@ -287,17 +452,20 @@ return ( "UNKNOWN" );
 
 ######################## ShortenUri ########################
 # Shorten the URI by stripping and remembering (in global %namespaces)
-# the part before last slash or hash.
+# the part before last slash or hash.  Also uses global %isImpliedClass.
 sub ShortenUri
 {
 my $uri = shift;
-$uri = $uri->as_string() if RDF::Trine::Node->is_node();
+my $originalUri = $uri;
+$uri = $uri->as_string() if ref $uri && $uri->is_node();
 $uri = $1 if $uri =~ m/^\<(.*)\>$/;
 return $uri if $uri =~ m/^\"/ || $uri =~ m/\"$/;	# Ignore literals
 return $uri if $uri !~ s/(^.*[\/\#])(.)/$2/;
 my $ns = $1;
 my $prefix = $namespaces{$ns} || $standardNamespaces{$ns} || $nextPrefix++;
 $namespaces{$ns} = $prefix;
-return "$prefix:$uri";
+my $result = "$prefix:$uri";
+$result = "($result)" if $isImpliedClass{$originalUri};
+return $result;
 }
 

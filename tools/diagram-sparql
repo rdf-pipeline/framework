@@ -1,8 +1,16 @@
 #! /usr/bin/env perl
 
+# Copyright 2014 by David Booth
+# This software is available as free and open source under
+# the Apache 2.0 software license, which may be viewed at
+# http://www.apache.org/licenses/LICENSE-2.0.html
+# Code home: https://github.com/dbooth-boston/rdf-pipeline/
+
 # This is a dirty hack for generating a diagram of a SPARQL query 
 # pattern, either from a WHERE clause or a CONSTRUCT clause.
-# graphical notation so that it can be rendered as a drawing.  
+# It should also work for generating a diagram from turtle,
+# though there are much better tools available for that.
+#
 # The parsing is very stupid and does not understand much about
 # the SPARQL grammar.  To use this program, copy and paste the 
 # desired query pattern into the input, as it does not know how to 
@@ -17,10 +25,6 @@
 # layout using CmapTools.
 #  
 # Reads stdin, writes stdout.
-#
-# Copyright 2013 by David Booth
-# Code home: http://code.google.com/p/rdf-pipeline/
-# See license information at http://code.google.com/p/rdf-pipeline/ 
 #
 # Regression test for this code is 0041_Test_tools_diagram-sparql .
 ##################################################################
@@ -83,6 +87,8 @@ if ($all =~ s/\A.*?\bwhere[\s\n\r]*\{/ /si) {
 	$all = $& if $all =~ m/\A.*\}/s;
 	}
 
+# TODO: Strip LIMIT clause
+
 # Easier pattern matching:
 $all .= " .\n";  
 
@@ -144,7 +150,7 @@ while (1) {
 	my $p = $2;
 	my $v = $3;
 	my $terminator = $8;
-	# print "s:{$1} p:{$p} v:{$v} terminator:{$terminator}\n";
+	# print "s:{$s} p:{$p} v:{$v} terminator:{$terminator}\n";
 	if ($v =~ m/\.\Z/s && $v !~ m/^[\+\-]?[0-9]+\.\Z/) {
 		# Damned statement terminator without a precedeing space:
 		#   p:foo p:p p:bar.  instead of   p:foo p:p p:bar .
@@ -174,7 +180,10 @@ while (1) {
 		$all = "$s $p $v .\n$s $p $all";
 		next;
 		}
-	else { die; }
+	else 	{ 
+		warn "$0: [ERROR] Unknown terminator: $terminator\n";
+		die "s:{$s} p:{$p} v:{$v} terminator:{$terminator}\n";
+		}
 	}
 
 # TODO: Change this to be extensible, so that new formats can be added easily.

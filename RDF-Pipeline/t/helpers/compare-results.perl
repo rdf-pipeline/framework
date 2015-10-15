@@ -9,6 +9,9 @@
 
 use strict;
 
+# Enable files created in /var/www to have the right group permissions:
+umask 002;
+
 my $debug = 0;
 my $quiet = "";
 $quiet = shift @ARGV if @ARGV && $ARGV[0] eq "-q";
