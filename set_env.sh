@@ -1,5 +1,6 @@
 #! /bin/sh
 
+<<<<<<< HEAD
 # This script sets the environment variables needed for testing RDF::Pipeline.
 # These should be customized for your installation.
 
@@ -19,6 +20,42 @@ contains() {
         return 1    # $substring is not in $string
     fi
 }
+=======
+# Set environment variables needed for testing RDF::Pipeline.
+
+# Only the RDF_PIPELINE_DEV_DIR and APACHECONFIG must be set manually.
+# All others are (normally) set automatically by this script.
+#
+# RDF_PIPELINE_DEV_DIR must be set to the top development directory 
+# for the RDF::Pipeline project (as checked out from github), which must
+# contain the module directory "RDF-Pipeline".
+
+export RDF_PIPELINE_DEV_DIR=/home/dbooth/rdf-pipeline/trunk
+APACHECONFIG="/etc/apache2/sites-enabled/000-default"
+
+#################################################################
+# All variables beyond this point are set automatically (unless
+# something goes wrong).
+#################################################################
+
+# Set RDF_PIPELINE_WWW_DIR.  Use $DOCUMENT_ROOT if set, or look
+# in the default Apache2 config file for the DocumentRoot definition.
+if [ ! "$DOCUMENT_ROOT" ]
+then
+	DOCROOT=`expand "$APACHECONFIG" | grep '^ *DocumentRoot ' | sed 's/^ *DocumentRoot *//'`
+	WORDCOUNT=`echo "$DOCROOT" | wc -w`
+	if [ $WORDCOUNT = 1 ]
+	then
+		export DOCUMENT_ROOT="$DOCROOT"
+	elif [ $WORDCOUNT = 0 ]
+	then
+		echo '[ERROR] DocumentRoot not found in' "$APACHECONFIG" 1>&2
+	else
+		echo '[ERROR] Multiple DocumentRoot definitions found in' "$APACHECONFIG": "$DOCROOT" 1>&2
+	fi
+fi
+export RDF_PIPELINE_WWW_DIR="$DOCUMENT_ROOT"
+>>>>>>> deb2898aa51980190bdc824d340d997befd84a55
 
 # Perl library path - avoid duplicate additions to it  
 RDF_PIPELINE_PERL_PATH="${RDF_PIPELINE_DEV_DIR}/RDF-Pipeline/lib"
