@@ -35,7 +35,7 @@ export APACHE_LOG_DIR=/var/log/apache2$SUFFIX
 
 # User MUST set the RDF_PIPELINE_HOME at installation time
 # e.g., /home/dbooth/rdf-pipeline
-export RDF_PIPELINE_DEV_DIR=/home/glenna/rdf-pipeline
+export RDF_PIPELINE_DEV_DIR="<Your RDF Pipeline Github checkout directory.>"
 export RDF_PIPELINE_PERL_REQ="${RDF_PIPELINE_DEV_DIR}/startup.pl"
 
 ## The locale used by some modules like mod_dav

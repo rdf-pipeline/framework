@@ -3,11 +3,6 @@
 # This script sets the environment variables needed for testing RDF::Pipeline.
 # These should be customized for your installation.
 
-# Pick up the directory where this script is currently executing.  We use $_ 
-# here because our script may be sourced or simply executed manually - we want
-# to handle both cleanly
-export RDF_PIPELINE_DEV_DIR=$(dirname "$_")
-
 # Helper function to see if a substring is contained within a string or not.  
 contains() {
     string="$1"
@@ -19,6 +14,26 @@ contains() {
         return 1    # $substring is not in $string
     fi
 }
+
+# Depending on apache version, we may have 000-default or 000-default.conf
+# get the right config file for this system
+if [ -f /etc/apache2/sites-enabled/000-default ]; then
+    APACHECONFIG="/etc/apache2/sites-enabled/000-default"
+elif [ -f /etc/apache2/sites-enabled/000-default.conf ]; then
+    APACHECONFIG="/etc/apache2/sites-enabled/000-default.conf"
+else
+    echo "Apache configuration was not found!"
+    exit 1
+fi
+
+# Get the RDF pipeline root install directory 
+if [ -z "$RDF_PIPELINE_DEV_DIR" ]; then
+   if [ -f /etc/apache2/envvars ]; then
+       APACHE_ENVVARS="/etc/apache2/envvars"
+       RDF_PIPELINE_DEV_DIR=`expand "$APACHE_ENVVARS" | grep "RDF_PIPELINE_DEV_DIR=" | cut -d "=" -f 2`
+       export RDF_PIPELINE_DEV_DIR
+   fi
+fi
 
 # Perl library path - avoid duplicate additions to it  
 RDF_PIPELINE_PERL_PATH="${RDF_PIPELINE_DEV_DIR}/RDF-Pipeline/lib"
@@ -47,17 +62,6 @@ export PATH="$PATH:$RDF_PIPELINE_DEV_DIR/tools/gsparql/scripts/sesame2_6"
 # a hard coded path, and the case where the apache DocumentRoot is set to
 # an environment variable.
 if [ -z "$DOCUMENT_ROOT" ]; then
-
-    # Depending on apache version, we may have 000-default or 000-default.conf
-    # get the right config file for this system
-    if [ -f /etc/apache2/sites-enabled/000-default ]; then
-        APACHECONFIG="/etc/apache2/sites-enabled/000-default"
-    elif [ -f /etc/apache2/sites-enabled/000-default.conf ]; then
-        APACHECONFIG="/etc/apache2/sites-enabled/000-default.conf"
-    else
-        echo "Apache configuration was not found!"
-        exit 1
-    fi
 
     # Search for DocumentRoot in the apache config
     DOCROOT=`expand "$APACHECONFIG" | grep '^ *DocumentRoot ' | sed 's/^ *DocumentRoot *//'`
@@ -106,4 +110,3 @@ fi
 if [ -z "$RDF_PIPELINE_WWW_DIR" ]; then
    export RDF_PIPELINE_WWW_DIR="$DOCUMENT_ROOT"
 fi
-
