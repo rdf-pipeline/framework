@@ -11,6 +11,9 @@
 use strict;
 use File::Path qw(make_path remove_tree);
 
+# Enable files created in /var/www to have the right group permissions:
+umask 002;
+
 my $f = $ARGV[0];
 die if -d $f;
 

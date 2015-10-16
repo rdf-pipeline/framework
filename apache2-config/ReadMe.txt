@@ -29,8 +29,7 @@ Please fix manually. Aborting.
 			then it wasn't set right.
 
 	ports.conf	-- Sets listening port for apache2.
-			Important to set to limit access to localhost.
-			Lives in /etc/apache2/sites-available .
+			Lives in /etc/apache2/sites-available.
 
 See the associated examples of these files in this directory.
 Here are the commands that I did (as root):
@@ -55,7 +54,6 @@ I fixed this error by doing (as root):
 
 However, that askubuntu answer also says that as of Apache 2.4,
 it needs to be in the /etc/apache2/conf-available directory instead.
-
 
 3. Install and configure Oracle Java6, via Software Center.
 
