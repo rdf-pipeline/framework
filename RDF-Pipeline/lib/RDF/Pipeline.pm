@@ -168,6 +168,10 @@ use URI;
 use URI::Split qw(uri_split uri_join);
 use IO::Interface::Simple;
 
+# Find the directory where this script is running - wherever it may be
+use File::Basename;
+my $script_dirname = dirname(__FILE__);
+
 ################## Node Types ###################
 # use lib qw( /home/dbooth/rdf-pipeline/trunk/RDF-Pipeline/lib );
 use RDF::Pipeline::ExampleHtmlNode;
@@ -198,7 +202,7 @@ our $test;
 
 ##################  Constants for this server  ##################
 our $ontologyPrefix = "http://purl.org/pipeline/ont#";	# Pipeline ont prefix
-$ENV{DOCUMENT_ROOT} ||= "/home/dbooth/rdf-pipeline/Private/www";	# Set if not set
+$ENV{DOCUMENT_ROOT} ||= "/var/www";	# Set if not set
 ### TODO: Set $baseUri properly.  Needs port?
 $ENV{SERVER_NAME} ||= "localhost";
 $ENV{SERVER_PORT} ||= "80";
@@ -290,15 +294,15 @@ if ($testUri =~ m/\A([^\?]*)\?/) {
 	}
 if ($test)
 	{
-	my $name = "/home/dbooth/rdf-pipeline/Private/www/cache/URI/file%3A%2F%2F%2Ftmp%2Ffile-uri-test/serCache";
+	my $name = "$basePath/cache/URI/file%3A%2F%2F%2Ftmp%2Ffile-uri-test/serCache";
 	my $s = &ShortName($name);
 	print "$name -->\n$s\n\n";
 	print "=================================\n";
-	$name = "/home/dbooth/rdf-pipeline/Private/www/cache/URI/file%3A%2F%2F%2Ftmp%2Ffile-uri-test";
+	$name = "$basePath/cache/URI/file%3A%2F%2F%2Ftmp%2Ffile-uri-test";
 	$s = &ShortName($name);
 	print "$name -->\n$s\n\n";
 	print "=================================\n";
-	$name = "/home/dbooth/rdf-pipeline/Private/www/cache/URI/file%3A%2F%2F%2Ftmp%2Ffile-uri-test/";
+	$name = "$basePath/cache/URI/file%3A%2F%2F%2Ftmp%2Ffile-uri-test/";
 	$s = &ShortName($name);
 	print "$name -->\n$s\n\n";
 	print "=================================\n";
@@ -372,15 +376,8 @@ $debugStackDepth = $args{debugStackDepth} || 0;
 # starts.  $ENV{PATH}, at least, seems to be reset each time the handler
 # is called after the first time.
 if (!$ENV{RDF_PIPELINE_DEV_DIR}) {
-	#### TODO: Avoid hard-coding this:
-	my $p = "/home/dbooth/rdf-pipeline/trunk/RDF-Pipeline/lib/RDF/Pipeline.pm";
-	# /home/dbooth/rdf-pipeline/trunk/RDF-Pipeline/lib/RDF/Pipeline.pm
-	#   -->
-	# /home/dbooth/rdf-pipeline/trunk
-	$p =~ s|(\/[^\/]+){4}$|| or die "Failed to parse Pipeline.pm file path: $p ";
-	# Maybe let set_env.sh set this instead:
-	# $ENV{RDF_PIPELINE_DEV_DIR} = $p;
-	my $both = `. $p/set_env.sh ; echo \$PATH \$RDF_PIPELINE_DEV_DIR`;
+	# execute set_env script so we can get the variables in our env
+	my $both = `. $script_dirname/../../../set_env.sh ; echo \$PATH \$RDF_PIPELINE_DEV_DIR`;
 	chomp $both;
 	my ($path, $dev, $extra) = split(/ /, $both);
 	die "[ERROR] \$PATH or \$RDF_PIPELINE_DEV_DIR contains a space "
@@ -532,7 +529,7 @@ if ( $mirrorWasUpdated
 # something that cannot clash with a node name.
 if ($r->uri() eq "/node/updaters") {
 	my $startTime = Time::HiRes::time();
-	my $updatersUri = "https://github.com/dbooth-boston/rdf-pipeline/tree/master/tools/updaters";
+	my $updatersUri = "https://github.com/rdf-pipeline/framework/tree/master/tools/updaters";
 	$r->headers_out->set('Location' => $updatersUri); 
 	&LogDeltaTimingData("HandleHttpEvent", $thisUri, $startTime, 1);
 	return Apache2::Const::REDIRECT;
