@@ -18,6 +18,11 @@ fi
 # Set the WWW document root directory.  Default is usually /var/www
 export RDF_PIPELINE_WWW_DIR=/var/www
 
+# User MUST set the RDF_PIPELINE_HOME at installation time
+# e.g., /home/dbooth/rdf-pipeline
+export RDF_PIPELINE_DEV_DIR=/home/glenna/rdf-pipeline
+export RDF_PIPELINE_PERL_REQ="${RDF_PIPELINE_DEV_DIR}/startup.pl"
+
 #### dbooth 4/11/13: Changed to run as user dbooth.  IMPORTANT: 
 #### For security, be sure that access is also restricted to 
 #### localhost 127.0.0.1 in /etc/apache2/ports.conf as described in 
@@ -33,11 +38,6 @@ export APACHE_LOCK_DIR=/var/lock/apache2$SUFFIX
 # Only /var/log/apache2 is handled by /etc/logrotate.d/apache2.
 export APACHE_LOG_DIR=/var/log/apache2$SUFFIX
 
-# User MUST set the RDF_PIPELINE_HOME at installation time
-# e.g., /home/dbooth/rdf-pipeline
-export RDF_PIPELINE_DEV_DIR="<Your RDF Pipeline Github checkout directory.>"
-export RDF_PIPELINE_PERL_REQ="${RDF_PIPELINE_DEV_DIR}/startup.pl"
-
 ## The locale used by some modules like mod_dav
 export LANG=C
 ## Uncomment the following line to use the system default locale instead:
@@ -52,3 +52,6 @@ export LANG=C
 ## If you need a higher file descriptor limit, uncomment and adjust the
 ## following line (default is 8192):
 #APACHE_ULIMIT_MAX_FILES='ulimit -n 65536'
+
+. $RDF_PIPELINE_DEV_DIR/set_env.sh
+
