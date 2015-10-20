@@ -32,7 +32,7 @@ my $moduleDir = "$devDir/RDF-Pipeline";
 ###### Configure these paths as needed:
 my $apacheError = "/var/log/apache2/error.log";
 my $apacheAccess = "/var/log/apache2/access.log";
-my $stripDates = "$moduleDir/t/helpers/stripdates.perl";
+my $stripDates = "$moduleDir/t/helpers/normalize-msgs.perl";
 my $filterLog = "$moduleDir/t/helpers/filterlog.perl";
 
 # Get command line arguments:

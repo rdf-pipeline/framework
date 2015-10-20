@@ -1,6 +1,6 @@
 #! /usr/bin/perl -w
 
-# Change dates, LMs, ETags, server names, paths and HASH codes to constants, 
+# Normalize dates, LMs, ETags, server names, paths and HASH codes to constants, 
 # so that when files are compared during regression testing, 
 # they do not show up as spurious differences.
 
@@ -10,6 +10,7 @@ my $dayP = "Sun|Mon|Tue|Wed|Thu|Fri|Sat";
 my $monP = "Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec";
 
 while (<>) {
+
 	############# Dates1 ###############
 	# [Sun Mar 04 21:34:09 2012] 
 	#  Fri Aug  2 09:56:15 EDT 2013
@@ -18,17 +19,31 @@ while (<>) {
 	# Allow any timezone name of 1-3 letters, which is not quite
 	# what RFC 822 sec 5.1 says, but should be good enough:
 	# http://www.ietf.org/rfc/rfc0822.txt
-	# 1       2      3   4                         56
 	s/($dayP) ($monP)( +)(\d{1,2}) \d\d\:\d\d\:\d\d(( ([A-Z]{1,3}))) \d\d\d\d\b/Sat Mar 03 03:03:03 EDT 2012/g;
-	# No timezone name:
-	# 1       2      3   4                         
-	s/($dayP) ($monP)( +)(\d{1,2}) \d\d\:\d\d\:\d\d \d\d\d\d\b/Sat Mar 03 03:03:03 2012/g;
+	# handle format like Tue Oct 20 12:20:23.378531 2015
+	s/($dayP) ($monP) (\d{1,2}) (\d{2}):(\d{2}):(\d{2}).(\d+) (\d{4})\b/Sat Mar 03 03:03:03 2012/g;
 
 	############# Dates2 ###############
 	# Date: Thu, 19 Jan 2012 18:26:00 GMT
 	# s/^Date:.*/Date: Thu, 19 Jan 2012 18:26:00 GMT/;
 	s/($dayP)\, \d{1,2} ($monP) \d\d\d\d \d{1,2}\:\d\d\:\d\d GMT/Sat, 03 Mar 2012 03:03:03 GMT/g;
 
+	############# Error ###############
+	# Depending on the version of Apache, we may have a field like 
+        # error or perl:error 
+        # Map to error for backwards compatabilty.
+        s/\[perl:error\]/\[error\]/g;
+
+	############# pid & tid ###############
+        # the newest versions of Apache are logging the pid and tid
+        # that logged the message.  We need to normalize both.
+        s/\[pid (\d+):/\[pid 123:/;
+        s/:tid (\d+)\]/:tid 456789\]/;
+
+	############# client ip addr and port ###############
+        # Normalize the client ip address and port to allow comparison
+        s/(\d+)\.(\d+)\.(\d+)\.(\d+):(\d+)/127.0.0.1:1234/; 
+     
 	############# ETags ###############
 	# ETag: "LM1326850256.504565000001"
 	# s/^ETag:.*/ETag: "LM1326850256.504565000001"/;
@@ -42,13 +57,12 @@ while (<>) {
 	s/\bHASH\(0x([a-f0-9]{12})\)/HASH\(0x111111111111\)/g;
 
 	############# Server names ###############
-	# Server: Apache/2.2.22 (Ubuntu)
-	s|Server: Apache/[\d\.]+ +\([^\)]*\)|Server: Apache/2.2.22 (Ubuntu)|g;
+	# Server: Apache/2.2.22 
+	s/Apache\/(\d+)\.(\d+)\.(\d+) /Apache\/2.2.22 /;
 
 	############# Server paths ###############
 	# /home/dbooth/rdf-pipeline/Private/www/node/
-	s|/home/dbooth/rdf-pipeline/Private/www/|/var/www/|g;
+	# s|/home/dbooth/rdf-pipeline/Private/www/|/var/www/|g;
 
 	print;
 	}
-
