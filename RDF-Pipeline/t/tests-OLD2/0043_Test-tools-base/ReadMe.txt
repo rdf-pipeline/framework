@@ -1,2 +1,0 @@
-Test of tools/baseuri
-

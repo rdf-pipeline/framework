@@ -1,4 +1,0 @@
-#! /bin/bash
-# Turn into nicer Turtle
-rapper -i turtle -o turtle $1
-
