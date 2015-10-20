@@ -20,7 +20,7 @@ export RDF_PIPELINE_WWW_DIR=/var/www
 
 # User MUST set the RDF_PIPELINE_HOME at installation time
 # e.g., /home/dbooth/rdf-pipeline
-export RDF_PIPELINE_DEV_DIR=/home/glenna/rdf-pipeline
+export RDF_PIPELINE_DEV_DIR="<your RDF Pipeline checkout dir here>"
 export RDF_PIPELINE_PERL_REQ="${RDF_PIPELINE_DEV_DIR}/startup.pl"
 
 #### dbooth 4/11/13: Changed to run as user dbooth.  IMPORTANT: 
