@@ -1,5 +1,0 @@
-#! /bin/bash
-
-grep "$QUERY_STRING" patients-data.txt
-exit 0
-
