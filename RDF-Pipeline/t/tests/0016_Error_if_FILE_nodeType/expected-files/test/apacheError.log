@@ -1,2 +1,2 @@
-[Sat Mar 03 03:03:03 2012] [error] [client 127.0.0.1] INTERNAL ERROR: FILE rdfs:subClassOf Node\n
+[Sat Mar 03 03:03:03 2012] [error] [pid 123:tid 456789] [client 127.0.0.1:1234] INTERNAL ERROR: FILE rdfs:subClassOf Node\n
 ----------------------------------------------------------------------
