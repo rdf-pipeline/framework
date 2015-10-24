@@ -4,7 +4,7 @@ Server: Apache/2.2.22 (Ubuntu)
 Last-Modified: Sat, 03 Mar 2012 03:03:03 GMT
 ETag: "LM1326111111.111111000001"
 Content-Length: 97
-Content-Location: http://localhost/cache/aba/serState
+Content-Location: http://localhost/cache/URI/SHORT_aba_HASHhQy3E2e4CUWxhwDVUNSYXgA/serState
 Vary: Accept-Encoding
 Content-Type: text/html
 
@@ -26,7 +26,6 @@ Date: Sat, 03 Mar 2012 03:03:03 GMT
 Server: Apache/2.2.22 (Ubuntu)
 Last-Modified: Sat, 03 Mar 2012 03:03:03 GMT
 ETag: "LM1326111111.111111000001"
-Vary: Accept-Encoding
 Content-Type: text/html
 
 ----------------------------------------------------------------------
@@ -36,7 +35,7 @@ Server: Apache/2.2.22 (Ubuntu)
 Last-Modified: Sat, 03 Mar 2012 03:03:03 GMT
 ETag: "LM1326111111.111111000001"
 Content-Length: 97
-Content-Location: http://localhost/cache/aba/serState
+Content-Location: http://localhost/cache/URI/SHORT_aba_HASHhQy3E2e4CUWxhwDVUNSYXgA/serState
 Vary: Accept-Encoding
 Content-Type: text/html
 
