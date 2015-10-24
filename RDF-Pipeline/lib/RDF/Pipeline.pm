@@ -161,6 +161,7 @@ use Apache2::URI ();
 use URI::Escape;
 use Time::HiRes ();
 use File::Path qw(make_path remove_tree);
+use File::Touch;
 use Digest::MD4 qw(md4_base64);
 use Getopt::Long;
 use Socket;
@@ -2157,6 +2158,8 @@ my $tmp = "$tmpDir/parametersFilterOut" . &GenerateNewLM() . ".txt";
 my $stderr = $nm->{value}->{$thisUri}->{stderr};
 # Make sure parent dirs exist for $stderr and $tmp:
 &MakeParentDirs($stderr, $tmp);
+# Make sure $tmpDir is not empty, because git will not check in empty dirs (grr)
+File::Touch::touch("$tmpDir/emptyFile.txt");
 # Ensure no unsafe chars before invoking $cmd:
 my $qThisUri = quotemeta($thisUri);
 my $qTmp = quotemeta($tmp);
