@@ -84,7 +84,11 @@ my $tmpDiff = "$tmpDir/diffs.txt";
 !system("/bin/cat /dev/null > '$tmpDiff'") || die;
 
 my $allPassed = 1;
+my $passed = 0;
+my $testCount = 0;
+
 foreach my $tDir (@tDirs) {
+  $testCount = $testCount + 1;
   $tDir =~ s|\/$||;
   warn "=================== $tDir ===================\n" if !$quietOption;
   !system("/bin/echo '===================' '$tDir' '===================' >> '$tmpDiff'") || die;
@@ -182,10 +186,14 @@ foreach my $tDir (@tDirs) {
   # warn "Running check: $checkCmd\n" if -e "$tDir/.svn";
   my $diffStatus = system($checkCmd);
   warn "Failed comparison: $tDir\n  Diffs file: $tmpDiff\n" if $diffStatus;
-  $allPassed = 0 if $diffStatus;
-
+  if ($diffStatus)  {
+     $allPassed = 0 
+  } else {
+     $passed = $passed + 1;
   }
+}
 
+print "\nPassed $passed of $testCount tests\n";
 exit 0 if $allPassed;
 exit 1;
 
