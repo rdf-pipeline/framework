@@ -25,8 +25,9 @@ $ENV{RDF_PIPELINE_WWW_DIR} = $wwwDir;
 ### The serState file path used to look like this:
 # my $serState = "$wwwDir/cache/aba/serState";
 ### But now looks like this:
-# /var/www/cache/URI/SHORT_aba_HASHhQy3E2e4CUWxhwDVUNSYXgA/serState
 my $serState = "$wwwDir/cache/URI/SHORT_aba_HASHhQy3E2e4CUWxhwDVUNSYXgA/serState";
+### For example:
+# /var/www/cache/URI/SHORT_aba_HASHhQy3E2e4CUWxhwDVUNSYXgA/serState
 ### The serState LM file path used to look like this:
 # my $serStateLM = "$wwwDir/lm/FILE/%2Fhome%2Fdbooth%2Frdf-pipeline%2FPrivate%2Fwww%2Fcache%2Faba%2FserState";
 ### But now it looks like this:
