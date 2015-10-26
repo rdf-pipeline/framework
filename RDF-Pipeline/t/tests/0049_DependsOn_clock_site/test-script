@@ -22,10 +22,16 @@ $ENV{RDF_PIPELINE_WWW_DIR} = $wwwDir;
 ############ CUSTOMIZE HERE ################
 # This test appends to hellos.txt, so clear it out first:
 unlink "node/hellos.txt";
+
 # Invoke the URL, concatenating its output to $wwwDir/test/testout :
 my $testUrl = 'http://localhost/node/hello';
+
 # Requesting the first time should produce ONE line of "hello" output:
 !system("../../helpers/pipeline-request.perl GET '$testUrl'") or die;
+
+# sleep for a second to let the time update
+sleep(1);
+
 # Requesting the second time should produce TWO lines of "hello" output:
 !system("../../helpers/pipeline-request.perl GET '$testUrl'") or die;
 ############################################

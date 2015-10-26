@@ -115,6 +115,8 @@ foreach my $tDir (@tDirs) {
 
   -e $wwwDir || mkdir($wwwDir) || die "ERROR: Failed to mkdir $wwwDir\n";
 
+  !system("$devDir/tools/flush-caches") || die "ERROR: Cannot flush cache";
+
   ### If there is a "setup-files" directory, then use it.
   my $setupFiles = "$tDir/setup-files";
   if (-d $setupFiles) {

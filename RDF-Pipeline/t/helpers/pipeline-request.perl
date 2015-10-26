@@ -70,7 +70,7 @@ my $errCmd = "tail -n +'$apacheErrorStart' '$apacheError' | $filterErr >> '$wwwD
 my $errResult = system($errCmd);
 die "ERROR: Failed to copy Apache error log: $errCmd\n" if $errResult;
 
-my $logCmd = "tail -n +'$apacheAccessStart' '$apacheAccess' | '$filterLog' | sort >> '$wwwDir/test/apacheAccess.log'";
+my $logCmd = "export LC_ALL=C ; tail -n +'$apacheAccessStart' '$apacheAccess' | '$filterLog' | sort >> '$wwwDir/test/apacheAccess.log'";
 # warn "logCmd: $logCmd\n";
 my $logResult = system($logCmd);
 die "ERROR: Failed to copy Apache access log: $logCmd\n" if $logResult;
