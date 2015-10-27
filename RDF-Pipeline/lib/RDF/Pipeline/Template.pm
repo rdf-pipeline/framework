@@ -57,6 +57,13 @@ use URI::Escape;
 ###################           MAIN            ####################
 ##################################################################
 
+# To allow for comparision on different RDF_PIPELINE_DEV_DIR paths in
+# our tests, we will strip the $RDF_PIPELINE_DEV_DIR env variable path 
+# if it is on  the caller script path.
+my $devDir = $ENV{RDF_PIPELINE_DEV_DIR} || "";
+my $escapeDevDir = quotemeta $devDir;
+my $callerScriptPath = $0 =~ s/$escapeDevDir/RDF_PIPELINE_DEV_DIR/r; 
+
 unless (caller) {
   # print "This is the script being executed\n";
   &GetArgsAndProcessTemplate();
@@ -120,7 +127,8 @@ $queryString ||= "";
 my $pVars;
 ($template, $pVars) = &ScanForList("parameters", $template);
 my $qsHash = &ParseQueryString($queryString);
-my $errorTemplate = "$0: [ERROR] Duplicate template variable: %s\n";
+
+my $errorTemplate = "$callerScriptPath: [ERROR] Duplicate template variable: %s\n";
 foreach (@{$pVars}) {
 	# Split param1=pVar1 if needed.
 	my ($param, $var) = split(/\=/, $_, 2);
@@ -211,9 +219,9 @@ $pRep ||= {};
 $pVars && $pVals or confess "$0: AddPairsToHash called with insufficient arguments\n";
 my $nVars = scalar(@{$pVars});
 my $nVals = scalar(@{$pVals});
-$nVars >= $nVals or die "$0: [ERROR] $nVals values provided for $nVars template variables (@{$pVars})\n";
+$nVars >= $nVals or die "$callerScriptPath: [ERROR] $nVals values provided for $nVars template variables (@{$pVars})\n";
 
-my $errorTemplate = "$0: [ERROR] duplicate template variable: %s\n";
+my $errorTemplate = "$callerScriptPath: [ERROR] duplicate template variable: %s\n";
 for (my $i=0; $i<@{$pVars}; $i++) {
 	die sprintf($errorTemplate, ${$pVars}[$i])
 		if $errorTemplate && exists($pRep->{${$pVars}[$i]});

@@ -1,1 +1,1 @@
-/home/dbooth/rdf-pipeline/trunk/tools/ste.perl: [ERROR] Duplicate template variable: $max
+RDF_PIPELINE_DEV_DIR/tools/ste.perl: [ERROR] Duplicate template variable: $max
