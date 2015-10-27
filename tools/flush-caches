@@ -22,7 +22,7 @@ $wwwDir =~ s/\/$// if $wwwDir ne "/";
 
 -d $wwwDir || die "$0: [ERROR] Not a directory: $wwwDir\n";
 
-foreach my $subdir (qw(cache lm)) {
+foreach my $subdir (qw(cache lm tmp test)) {
 	my $f = "$wwwDir/$subdir";
 	warn "Checking for $f ...\n" if $debug;
 	if (-e "$f") {
