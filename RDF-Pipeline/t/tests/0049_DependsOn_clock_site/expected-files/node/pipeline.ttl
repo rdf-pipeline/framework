@@ -5,4 +5,7 @@
 @prefix : <http://localhost/node/> .
 
 :hello a p:FileNode ;
-  p:dependsOn <http://tycho.usno.navy.mil/cgi-bin/timer.pl> .
+  # This URL one seems to be unreliable (500 errors often):
+  # p:dependsOn <http://tycho.usno.navy.mil/cgi-bin/timer.pl> .
+  # Maybe this URL will be more reliable:
+  p:dependsOn <http://www.usno.navy.mil/> .
