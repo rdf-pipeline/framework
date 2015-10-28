@@ -87,12 +87,37 @@ my $allPassed = 1;
 my $passed = 0;
 my $testCount = 0;
 
+my %lastModified = ();	# Maps pipeline.ttl last-modified date to test dir
+
 foreach my $tDir (@tDirs) {
   $testCount = $testCount + 1;
   $tDir =~ s|\/$||;
   warn "=================== $tDir ===================\n" if !$quietOption;
   !system("/bin/echo '===================' '$tDir' '===================' >> '$tmpDiff'") || die;
   !system("echo '$tDir' > '$currentTest'") or die;
+
+  # Ensure that each pipeline.ttl has a different last-modified date,
+  # so that the framework will notice a change to pipeline.ttl when we go 
+  # from one test to another.
+  my $pipelineFile = "$tDir/setup-files/node/pipeline.ttl";
+  if (-e $pipelineFile) {
+    while (1) {
+      # no warnings;	# Avoid unused var warning of stat vars
+      my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+           $atime,$mtime,$ctime,$blksize,$blocks)
+               = stat($pipelineFile);
+      my $otherTestDir = $lastModified{$mtime};
+      if (!$otherTestDir) {
+	$lastModified{$mtime} = $tDir;
+	last;
+	}
+      warn "WARNING: $tDir \nhas a pipeline.ttl with the same modification time as the one \nin $otherTestDir\nThis may cause the framework to not notice a pipeline.ttl change\nwhen going from one test to another.  Attempting a fix by touching \nthe one in $tDir ...\n";
+      my $qf = quotemeta($pipelineFile);
+      !system("touch $qf") || die;
+      sleep 1; 	# In case we need to do it on another file later
+      warn " ... done touching.\n";
+      }
+    }
 
   my $testScript = "$tDir/test-script";
   if (!-e $testScript || !-x $testScript) {
@@ -123,6 +148,13 @@ foreach my $tDir (@tDirs) {
     my $copyCmd = "$moduleDir/t/helpers/copy-dir.perl '$setupFiles' '$wwwDir'";
     # warn "copyCmd: $copyCmd\n";
     !system($copyCmd) or die "ERROR: Failed to copy setup-files: $copyCmd\n";
+    # Try to ensure that changes to pipeline.ttl file will be noticed
+    # by the framework if we are only running one test.
+    my $pipelineFile = "$wwwDir/node/pipeline.ttl";
+    if (scalar(@tDirs) == 1 && -e $pipelineFile) {
+      my $qf = quotemeta($pipelineFile);
+      !system("touch $qf") || die;
+      }
     }
 
   # Clear out old $wwwDir/test files:
