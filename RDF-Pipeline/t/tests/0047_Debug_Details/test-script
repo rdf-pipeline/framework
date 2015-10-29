@@ -20,6 +20,7 @@ my $wwwDir = shift @ARGV || $ENV{RDF_PIPELINE_WWW_DIR} || die;
 $ENV{RDF_PIPELINE_WWW_DIR} = $wwwDir;	
 
 ############ CUSTOMIZE HERE ################
+warn "This test will normally fail, and that is okay.\n";
 # Invoke the URL, concatenating its output to $wwwDir/test/testout :
 # First, invoke with normal debug setting, to get to stable state:
 my $testUrl = 'http://localhost/node/UPPERWILLIES?debug=$DEBUG_CHANGES';
