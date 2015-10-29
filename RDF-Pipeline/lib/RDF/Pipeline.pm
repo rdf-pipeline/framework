@@ -192,11 +192,11 @@ our $DEBUG_DETAILS = 6;	# Show requests plus more detail.
 # the apache2 config file:
 our $debug = $ENV{RDF_PIPELINE_DEBUG};
 $debug = $DEBUG_CHANGES if !defined($debug) or $debug !~ m/\S/;
-# $debug = $DEBUG_DETAILS;
 my $rawDebug = $debug;
 # Allows symbolic $debug value:
 $debug = eval $debug if defined($debug) && $debug =~ m/^\$\w+$/;  
 die "ERROR: debug not defined: $rawDebug " if !defined($debug);
+# $debug = $DEBUG_DETAILS;
 
 our $debugStackDepth = 0;	# Used for indenting debug messages.
 our $test;
