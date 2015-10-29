@@ -2,8 +2,6 @@
 @prefix p: <http://purl.org/pipeline/ont#> .
 @prefix : <http://localhost/node/> .
 
-### This test is UNFINISHED and currently disabled.
-
 :patients a p:FileNode ;
   p:inputs ( "patients-data.txt" ) .
 
