@@ -20,7 +20,16 @@ my $wwwDir = shift @ARGV || $ENV{RDF_PIPELINE_WWW_DIR} || die;
 $ENV{RDF_PIPELINE_WWW_DIR} = $wwwDir;	
 
 ############ CUSTOMIZE HERE ################
-warn "This test will normally fail, and that is okay.\n";
+# NOTE: This test compares detailed debugging output.  It is useful in
+# helping to see what is affected when you make a code change. 
+# However, because it generates such detailed information it would
+# be difficult to make it produce the exact same output from one
+# installation to another and from one run to another.  That 
+# would require filtering out lots of unimportant
+# differences, and for the moment it is not worth spending the
+# time to do that.   Hence the warning below, that this test
+# will normally fail.
+warn "This test will normally fail, and that is okay.  See test-script for explanation.\n";
 # Invoke the URL, concatenating its output to $wwwDir/test/testout :
 # First, invoke with normal debug setting, to get to stable state:
 my $testUrl = 'http://localhost/node/UPPERWILLIES?debug=$DEBUG_CHANGES';
