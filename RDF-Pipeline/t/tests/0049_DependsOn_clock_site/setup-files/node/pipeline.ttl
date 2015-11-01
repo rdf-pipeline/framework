@@ -1,8 +1,11 @@
-# Cause the updater to be fired on every request, because
-# the node dependsOn a clock page.
+# Cause hello's updater to be fired on every request, because
+# hello dependsOn ticker, which is updated on every request.
 
 @prefix p: <http://purl.org/pipeline/ont#> .
 @prefix : <http://localhost/node/> .
 
+:ticker a p:FileNode ;
+  p:dependsOn "ReadMe.txt" .
+
 :hello a p:FileNode ;
-  p:dependsOn <http://tycho.usno.navy.mil/cgi-bin/timer.pl> .
+  p:dependsOn :ticker .
