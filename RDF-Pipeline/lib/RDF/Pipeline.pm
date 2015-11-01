@@ -254,7 +254,6 @@ our $timingLogFile = "/tmp/rdf-pipeline-timing.tsv";
 # unlink $logFile || die;
 
 my %config = ();		# Maps: "?s ?p" --> "v1 v2 ... vn"
-my %configValues = ();		# Maps: "?s ?p" --> {v1 => 1, v2 => 1, ...}
 
 # Node Metadata hash maps for mapping from subject
 # to predicate to single value ($nmv), list ($nml) or hashmap ($nmh).  
@@ -517,7 +516,7 @@ if ( $mirrorWasUpdated
 	$configLastInode = $cinode;
 	$ontLastInode = $oinode;
 	$internalsLastInode = $iinode;
-	&LoadNodeMetadata($nm, $ontFile, $configFile);
+	&LoadNodeMetadata($nm, $ontFile, $internalsFile, $configFile);
 	&PrintNodeMetadata($nm) if $debug;
 
 	# &Warn("Got here!\n", $DEBUG_DETAILS); 
@@ -1233,14 +1232,16 @@ return( $thisIsStale, $newDepLMs )
 #
 sub LoadNodeMetadata
 {
-@_ == 3 or die;
-my ($nm, $ontFile, $configFile) = @_;
+@_ == 4 or die;
+my ($nm, $ontFile, $internalsFile, $configFile) = @_;
+my $iSize = -s $internalsFile;
 my $oSize = -s $ontFile;
 my $cSize = -s $configFile;
-&Warn("LoadNodeMetadata loading $ontFile ($oSize bytes) $configFile ($cSize bytes)\n", $DEBUG_DETAILS);
+&Warn("LoadNodeMetadata loading $ontFile ($oSize bytes) $internalsFile ($iSize bytes) $configFile ($cSize bytes)\n", $DEBUG_DETAILS);
 $oSize || &Warn("[ERROR] Empty ontFile: $ontFile\n"); 
-$cSize  || &Warn("[ERROR] Empty configFile: $configFile\n"); 
-my %config = &CheatLoadN3($ontFile, $configFile);
+$iSize || &Warn("[ERROR] Empty internalsFile: $internalsFile\n"); 
+$cSize  || &Warn("[WARNING] Empty configFile: $configFile\n"); 
+my %config = &CheatLoadN3($ontFile, $internalsFile, $configFile);
 my $nmv = $nm->{value};
 my $nml = $nm->{list};
 my $nmh = $nm->{hash};
@@ -1654,6 +1655,7 @@ return %args;
 sub CheatLoadN3
 {
 my $ontFile = shift;
+my $internalsFile = shift;
 my $configFile = shift;
 $configFile || die;
 -e $configFile || die;
