@@ -253,7 +253,7 @@ our $logFile = "/tmp/rdf-pipeline-log.txt";
 our $timingLogFile = "/tmp/rdf-pipeline-timing.tsv";
 # unlink $logFile || die;
 
-my %config = ();		# Maps: "?s ?p" --> "v1 v2 ... vn"
+my %config = ();		# Maps: $s->{$p}->[v1, v2, ... vn]
 
 # Node Metadata hash maps for mapping from subject
 # to predicate to single value ($nmv), list ($nml) or hashmap ($nmh).  
