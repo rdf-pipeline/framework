@@ -253,8 +253,7 @@ our $logFile = "/tmp/rdf-pipeline-log.txt";
 our $timingLogFile = "/tmp/rdf-pipeline-timing.tsv";
 # unlink $logFile || die;
 
-my %config = ();		# Maps: "?s ?p" --> "v1 v2 ... vn"
-my %configValues = ();		# Maps: "?s ?p" --> {v1 => 1, v2 => 1, ...}
+my %config = ();		# Maps: $s->{$p}->[v1, v2, ... vn]
 
 # Node Metadata hash maps for mapping from subject
 # to predicate to single value ($nmv), list ($nml) or hashmap ($nmh).  
@@ -517,7 +516,7 @@ if ( $mirrorWasUpdated
 	$configLastInode = $cinode;
 	$ontLastInode = $oinode;
 	$internalsLastInode = $iinode;
-	&LoadNodeMetadata($nm, $ontFile, $configFile);
+	&LoadNodeMetadata($nm, $ontFile, $internalsFile, $configFile);
 	&PrintNodeMetadata($nm) if $debug;
 
 	# &Warn("Got here!\n", $DEBUG_DETAILS); 
@@ -1233,31 +1232,27 @@ return( $thisIsStale, $newDepLMs )
 #
 sub LoadNodeMetadata
 {
-@_ == 3 or die;
-my ($nm, $ontFile, $configFile) = @_;
+@_ == 4 or die;
+my ($nm, $ontFile, $internalsFile, $configFile) = @_;
+my $iSize = -s $internalsFile;
 my $oSize = -s $ontFile;
 my $cSize = -s $configFile;
-&Warn("LoadNodeMetadata loading $ontFile ($oSize bytes) $configFile ($cSize bytes)\n", $DEBUG_DETAILS);
+&Warn("LoadNodeMetadata loading $ontFile ($oSize bytes) $internalsFile ($iSize bytes) $configFile ($cSize bytes)\n", $DEBUG_DETAILS);
 $oSize || &Warn("[ERROR] Empty ontFile: $ontFile\n"); 
-$cSize  || &Warn("[ERROR] Empty configFile: $configFile\n"); 
-my %config = &CheatLoadN3($ontFile, $configFile);
+$iSize || &Warn("[ERROR] Empty internalsFile: $internalsFile\n"); 
+$cSize  || &Warn("[WARNING] Empty configFile: $configFile\n"); 
+my %config = &CheatLoadN3($ontFile, $internalsFile, $configFile); 
 my $nmv = $nm->{value};
 my $nml = $nm->{list};
 my $nmh = $nm->{hash};
 my $nmm = $nm->{multi};
-foreach my $k (sort keys %config) {
+foreach my $s (sort keys %config) {
+    foreach my $p (sort keys %{$config{$s}}) {
 	# &Warn("LoadNodeMetadata key: $k\n", $DEBUG_DETAILS);
-	my ($s, $p) = split(/\s+/, $k);
 	defined($p) || die;
-	$s = &CanonicalizeUri($s);
-	# $p should never be a local node URI anyway, but
-	# I might as well canonicalize it for completeness:
-	$p = &CanonicalizeUri($p);
-	my $v = $config{$k};
-	die if !defined($v);
-	my @vList = split(/\s+/, $v); 
-	@vList = map { &CanonicalizeUri($_) } @vList;
-	$v = join(" ", @vList);		# Ensure $v is canonicalized
+	exists($config{$s}->{$p}) || die;
+	my @vList = @{$config{$s}->{$p}};
+	my $v = join(" ", @vList);
 	# If there is an odd number of items, then it cannot be a hash.
 	my %hHash = ();
 	%hHash = @vList if (scalar(@vList) % 2 == 0);
@@ -1268,6 +1263,7 @@ foreach my $k (sort keys %config) {
 	$nmm->{$s}->{$p} = \%mHash;
 	# &Warn("  $s -> $p -> $v\n", $DEBUG_DETAILS);
 	}
+    }
 &PresetGenericDefaults($nm);
 # Run the initialization function to set defaults for each node type 
 # (i.e., wrapper type), starting with leaf nodes and working up the hierarchy.
@@ -1654,6 +1650,7 @@ return %args;
 sub CheatLoadN3
 {
 my $ontFile = shift;
+my $internalsFile = shift;
 my $configFile = shift;
 $configFile || die;
 -e $configFile || die;
@@ -1690,13 +1687,16 @@ foreach my $t (@triples) {
 	$t = join(" ", map { s/\A$rdfsPrefix([a-zA-Z])/rdfs:$1/;	$_ }
 		split(/\s+/, $t));
 	my ($s, $p, $o) = split(/\s+/, $t, 3);
-	next if !defined($o) || $0 eq "";
-	# $o may actually be a space-separate list of URIs
+	next if !defined($o) || $o eq "";
+	$s = &CanonicalizeUri($s);
+	$p = &CanonicalizeUri($p);
+	$o = &CanonicalizeUri($o);
 	# &PrintLog("  s: $s p: $p o: $o\n") if $debug;
-	# Append additional values for the same property:
-	$config{"$s $p"} = "" if !exists($config{"$s $p"});
-	$config{"$s $p"} .= " " if $config{"$s $p"};
-	$config{"$s $p"} .= $o;
+	# Append additional values for the same property.
+	# $o may actually be a space-separate list of URIs
+	$config{$s}->{$p} = [] if !exists($config{$s}->{$p});
+	my @os = split(/\s+/, $o);
+	push(@{$config{$s}->{$p}}, @os);
 	}
 &PrintLog("-" x 60 . "\n") if $debug;
 return %config;
