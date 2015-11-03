@@ -111,11 +111,12 @@ foreach my $tDir (@tDirs) {
 	$lastModified{$mtime} = $tDir;
 	last;
 	}
-      warn "WARNING: $tDir \nhas a pipeline.ttl with the same modification time as the one \nin $otherTestDir\nThis may cause the framework to not notice a pipeline.ttl change\nwhen going from one test to another.  Attempting a fix by touching \nthe one in $tDir ...\n";
+      my $noisy = 0;
+      warn "WARNING: $tDir \nhas a pipeline.ttl with the same modification time as the one \nin $otherTestDir\nThis may cause the framework to not notice a pipeline.ttl change\nwhen going from one test to another.  Attempting a fix by touching \nthe one in $tDir ...\n" if $noisy;
       my $qf = quotemeta($pipelineFile);
       !system("touch $qf") || die;
       sleep 1; 	# In case we need to do it on another file later
-      warn " ... done touching.\n";
+      warn " ... done touching.\n" if $noisy;
       }
     }
 
