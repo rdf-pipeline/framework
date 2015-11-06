@@ -9,13 +9,16 @@ use strict;
 # Enable files created in /var/www to have the right group permissions:
 umask 002;
 
-@ARGV >= 1 && $ARGV[0] =~ m/^http(s?)\:/ or die "Usage: $0 URL [description]
-where URL is the RDF Pipeline test URL to invoke for the new test.\n";
-my $url = shift @ARGV;
+@ARGV >= 1 or die "Usage: $0 description \n";
+my $url = "http://localhost/node/xxx";
 my $description = join("_", @ARGV) || "";
-$description =~ s/[^a-zA-Z\-\_0-9]//g;
-$description =~ s/\A[^a-zA-Z0-9]*//;
-$description =~ s/[^a-zA-Z0-9]*\Z//;
+$description =~ s/[^a-zA-Z\-\_0-9]/_/g;
+$description =~ s/\A[^a-zA-Z0-9]*/_/;
+$description =~ s/[^a-zA-Z0-9]*\Z/_/;
+$description =~ s/__+/_/;
+$description =~ s/\A_//;
+$description =~ s/_\Z//;
+$description || die "[ERROR] description must not be empty";
 
 my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
 my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
@@ -49,7 +52,7 @@ my $readme = "ReadMe.txt";
 
 warn "Created test: $dir\n";
 
-# Encourage the user to edit the test description in $readme:
+# Encourage the user to edit the test's $readme and test-script:
 my $editor = $ENV{EDITOR} || `which vi` || `which pico`;
 chomp $editor;
 if ($editor) {
@@ -57,6 +60,12 @@ if ($editor) {
 	my $yes = <STDIN>;
 	if ($yes =~ m/^y/i || $yes =~ m/^\s*$/) {
 		my $cmd = "$editor '$dir/$readme'";
+		system($cmd);
+		}
+	print STDERR "Edit test-script using $editor? [y] ";
+	$yes = <STDIN>;
+	if ($yes =~ m/^y/i || $yes =~ m/^\s*$/) {
+		my $cmd = "$editor '$dir/test-script'";
 		system($cmd);
 		}
 	} else {
