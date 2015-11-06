@@ -2165,9 +2165,6 @@ my $tmp = "$tmpDir/parametersFilterOut" . &GenerateNewLM() . ".txt";
 my $stderr = $nm->{value}->{$thisUri}->{stderr};
 # Make sure parent dirs exist for $stderr and $tmp:
 &MakeParentDirs($stderr, $tmp);
-# Make sure $tmpDir is not empty, because git will not check in empty dirs (grr)
-File::Touch::touch("$tmpDir/emptyFile.txt");
-# Ensure no unsafe chars before invoking $cmd:
 my $qThisUri = quotemeta($thisUri);
 my $qTmp = quotemeta($tmp);
 my $qUpdater = quotemeta($parametersFilter);
