@@ -1,0 +1,10 @@
+#! /usr/bin/perl -w
+
+# p is connected to one input source.
+
+my $aaResponse = `cat $ARGV[0]`;
+my $thisuri = $ENV{THIS_URI};
+my $qs = $ENV{QUERY_STRING};
+print "$thisuri updater called with $qs\n";
+print "and got $aaResponse\n";
+

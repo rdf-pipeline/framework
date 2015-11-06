@@ -619,7 +619,7 @@ return ($code, $content);
 
 ################### ForeignSendHttpRequest ##################
 # Send a remote GET, GRAB or HEAD to $depUri if $depLM is newer than 
-# the stored LM of $thisUri's local serCache LM for $depLM.
+# the stored LM of $thisUri's local serCache LM for $depUri.
 # The reason for checking $depLM here instead of checking it in
 # &RequestLatestDependsOns(...) is because the check requires a call to
 # &LookupLMHeaders($inSerCache), which needs to be done here anyway
@@ -774,6 +774,12 @@ my $startTime = Time::HiRes::time();
 }
 
 ################### HandleHttpEvent ##################
+# Parameters:
+# my ($nm, $r, $thisUri, %args) = @_;
+#  $nm = Node metadata
+#  $r = current HTTP request
+#  $thisUri = node whose state was requested
+#  %args = query parameter from the HTTP request
 sub HandleHttpEvent
 {
 @_ >= 3 or die;
@@ -1147,7 +1153,7 @@ my $pUpstreamQueries = &{$fRunParametersFilter}($nm, $thisUri, $parametersFilter
 ####
 my @dependsOn = (sort keys %{$thisMHashDependsOn});
 foreach my $depUri (@dependsOn) {
-  # In case $thisUri dependsOn itself, ignore it.
+  # In case $thisUri directly dependsOn itself, ignore that dependency.
   # See issue 58.
   next if $depUri eq $thisUri;
   # Bear in mind that a node may dependsOn a non-node arbitrary http 
@@ -1223,6 +1229,7 @@ foreach my $depUri (@dependsOn) {
 # If a node dependsOn nothing, then treat it as always stale.
 # Otherwise it will never fire after the first time, which would be useless.
 ####### TODO: Not sure this works.  See test 0054 also.
+####### This test may need to ignore self-dependsOn.
 # $thisIsStale = 1 if !@dependsOn;
 &Warn("RequestLatestDependsOn(nm, $thisUri, $oldThisLM, $callerUri, $callerLM, $oldDepLMs) returning: $thisIsStale\n", $DEBUG_DETAILS);
 return( $thisIsStale, $newDepLMs )
