@@ -1,9 +1,0 @@
-
-Verifying @INC contains RDF-Pipeline path
-
-Verifying PERL5LIB contains RDF-Pipeline/lib path
-
-Verifying RDF_PIPELINE_DEV_DIR contains an existing directory
-
-Verifying that PATH contains RDF_PIPELINE_DEV_DIR
-

@@ -74,30 +74,45 @@ sub CompareFiles
 @_ == 2 || die;
 my ($expectedFiles, $resultFiles) = @_;
 # my $cmd = "diff -b -w $quiet -x lm -x ont -x '.*' '$expectedFiles' '$resultFiles'";
-my $cmd = "diff -b -w $quiet '$expectedFiles' '$resultFiles'";
+# my $cmd = "diff -b -w $quiet '$expectedFiles' '$resultFiles'";
 # warn "cmd: $cmd\n";
 ###### TODO: Change this to use the saved Content-type associated with
 ###### the files, as described in issue-53:
 ###### http://code.google.com/p/rdf-pipeline/issues/detail?id=53
 ###### Or maybe implement smarter RDF sniffing?
-# Don't try to compare as Turtle if the files are identical anyway:
-if (-f $expectedFiles && -f $expectedFiles) {
-	`cmp '$expectedFiles' '$resultFiles'`;
-	return 0 if !$?;
-	}
-my $isTurtle = (&IsTurtle($expectedFiles) && &IsTurtle($resultFiles));
-if ($isTurtle) {
-	$cmd = "rdfdiff";
-	$cmd .= " -b" if $quiet;
-	$cmd .= " -f turtle -t turtle '$expectedFiles' '$resultFiles'";
-	}
-print "$cmd\n" if $debug;
-my $output = `$cmd`;
-if ($?) {
-	print "$cmd\n";
-	print $output;
-	return 1;
-	}
+if (-f $expectedFiles && -f $resultFiles) {
+    # First try a standard diff of the two files:
+    `cmp '$expectedFiles' '$resultFiles'`;
+    return 0 if !$?;  # return success if standard diff worked
+
+    # If the diff failed, then sniff to see if this might be a pair of turtle files
+    my $tmpFile = &CommentHttpHeaders($resultFiles); # comment out any headers
+    my $isTurtle = (&IsTurtle($expectedFiles) && &IsTurtle($tmpFile));
+    if ($isTurtle) {
+        my $cmd = "rdfdiff";
+        $cmd .= " -b" if $quiet;
+        $cmd .= " -f turtle -t turtle '$expectedFiles' '$tmpFile'";
+        print "$cmd\n" if $debug;
+
+        my $output = `$cmd`;
+        if ( !$? ) { 
+            unlink $tmpFile;
+            return 0;  # return success if passed
+        }
+
+        # turtle comparison failed
+        warn "rdfdiff $expectedFiles $tmpFile failed.\n";
+        print "$cmd\n";
+        print $output;
+        return 1;
+
+    } else { 
+        # Not a turtle file and standard diff failed - return a failed status
+        print "cmp '$expectedFiles' '$resultFiles' failed\n";
+        return 1;
+    }
+} # Got 2 files
+
 return 0;
 }
 
@@ -139,3 +154,46 @@ foreach my $line ( @lines ) {
 return $isTurtle;
 }
 
+sub MakeTmpFileName {
+    my $f = shift or die;
+    return "/tmp/".basename($f).".out";
+}
+
+################## CommentHttpHeaders #####################
+# Inserts a # character in front of any http header line in the specified file
+# This is done so we can do an rdfdiff without getting parse errors due to the headers 
+sub CommentHttpHeaders {
+
+    # Get the file to update
+    my $f = shift or die;
+    return 0 if !-f $f;
+
+    open(my $fh, "<$f") or die "$0: ERROR: File not found: $f\n";
+
+    # Create a clean tmp file target to hold updated version with the comments
+    my $tmpFileName = &MakeTmpFileName($f);
+    unlink $tmpFileName if ( -e $tmpFileName ); 
+    open( my $tmpFh, '>', $tmpFileName) or die "Could not open file '$tmpFileName' $!";
+
+    while(my $line = <$fh>) {
+        if ($line =~ /^HTTP\// || 
+            $line =~ /^Date: / || 
+            $line =~ /^Server: Apache/ || 
+            $line =~ /^Last-Modified: / || 
+            $line =~ /^ETag: / || 
+            $line =~ /^Content-Length: / || 
+            $line =~ /^Content-Location: / || 
+            $line =~ /^Content-Type: / || 
+            $line =~ /^Vary: Accept-Encoding/ ||
+            $line =~ /^------/) {
+            print $tmpFh '# '.$line;
+        } else {
+            print $tmpFh $line;
+        }
+    }
+
+    close($tmpFh);
+    close($fh);
+
+    return $tmpFileName
+}

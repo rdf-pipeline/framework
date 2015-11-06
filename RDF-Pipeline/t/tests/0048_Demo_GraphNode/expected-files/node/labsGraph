@@ -1,7 +1,0 @@
-#inputs( $in )
-#outputs( $out )
-
-CLEAR SILENT GRAPH <$out> ;
-
-COPY GRAPH <$in> TO GRAPH <$out> ;
-
