@@ -12,6 +12,8 @@ umask 002;
 @ARGV >= 1 or die "Usage: $0 description \n";
 my $url = "http://localhost/node/xxx";
 my $description = join("_", @ARGV) || "";
+# Clean up the description for use as a system-friendly directory
+# name (no weird chars):
 $description =~ s/[^a-zA-Z\-\_0-9]/_/g;
 $description =~ s/\A[^a-zA-Z0-9]*/_/;
 $description =~ s/[^a-zA-Z0-9]*\Z/_/;

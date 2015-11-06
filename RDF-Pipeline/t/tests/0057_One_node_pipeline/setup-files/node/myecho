@@ -1,10 +1,21 @@
 #! /usr/bin/perl -w
 
-# p is connected to one input source.
+# This updater expects one input source.
+# It echos the first few lines of the input source
+# and pretends to do some heavy processing for a few seconds.
 
-my $aaResponse = `cat $ARGV[0]`;
-my $thisuri = $ENV{THIS_URI};
+@ARGV && -e $ARGV[0] or die;
+
+my @aaResponse = `cat $ARGV[0]`;
+# Grab only the first few lines:
+my $aaResponse = join("", @aaResponse[0 .. 4]);
+my $thisUri = $ENV{THIS_URI};
 my $qs = $ENV{QUERY_STRING};
-print "$thisuri updater called with $qs\n";
-print "and got $aaResponse\n";
+print "$thisUri updater called with $qs\n";
+print "$thisUri got $aaResponse\n";
+# Change this to 3 to simulate heavy processing:
+my $seconds = 0;
+print "$thisUri sleeping $seconds seconds to simulate heavy processing...\n";
+sleep $seconds if $seconds;
+print "$thisUri Finished.\n";
 
