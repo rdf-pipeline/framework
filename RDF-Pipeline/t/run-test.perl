@@ -198,13 +198,14 @@ foreach my $tDir (@tDirs) {
 
   # Copy expected-files to tmp dirs for filtering:
   my $expectedFilteredDir = "$tmpTDir/expected-filtered";
-  if (!-e "$tDir/expected-files") {
-    # Fail if there's no expected-files
-    warn "Failed -- no expected-files: $tDir\n";
+  if (!-e "$tDir/expected-files.tar.gz") {
+    # Fail if there's no expected-files 
+    warn "Failed -- no expected-files: $tDir/expected-files.tar\n";
     $allPassed = 0;
     next;
     }
-  !system("$moduleDir/t/helpers/copy-dir.perl '$tDir/expected-files' '$expectedFilteredDir'") || die;
+  -d $expectedFilteredDir || mkdir($expectedFilteredDir) || die "Unable to create $expectedFilteredDir\n";
+  !system("tar -xzf $tDir/expected-files.tar.gz -C $expectedFilteredDir")  || die "Unable to untar $tDir/expected-files.tar to $expectedFilteredDir\n";
 
   # Filter all expected-files
   my $eFindCmd = "find '$expectedFilteredDir' -type f -exec '$moduleDir/t/helpers/filter-expected.perl' '{}' \\;";

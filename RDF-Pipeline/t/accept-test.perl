@@ -48,13 +48,14 @@ foreach my $dir (@testDirs) {
 	my $tmpTDir = "$tmpRoot/$dir/actual-files";
 	-e $tmpTDir || die "ERROR: No actual-files to accept: $tmpTDir\n";
 
-	# Copy the $tmpTDir files to expected-files
-	my $copyCmd = "$moduleDir/t/helpers/copy-dir.perl '$tmpTDir' '$dir/expected-files'";
-	# warn "copyCmd: $copyCmd\n";
-	!system($copyCmd) or die;
+	# Tar the expected files and delete the expected-files directory.
+	# We use tar to ensure empty directories are handled correctly.  Git
+	# currently ignores empty directories .
+	!system("(cd $tmpTDir; tar -czf $testsDir/$dir/expected-files.tar.gz .)") or die "Unable to create expected-files.tar.gz\n";
+
 	# Add the test to svn?
 	if (!$svnOption) {
-		warn "Remember to add $dir to subversion, or use: accept-test.perl -s '$dir'\n"
+		warn "Remember to add $dir to source control, or use: accept-test.perl -s '$dir'\n"
 			if !-e "$dir/.svn";
 		next;
 		}

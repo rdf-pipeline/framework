@@ -1,2 +1,0 @@
-"GET /node/showenv?foo=fooValue&bar=barValue&BAD=badValue HTTP/1.1" 200
-----------------------------------------------------------------------
