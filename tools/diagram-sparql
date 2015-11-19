@@ -1,6 +1,6 @@
 #! /usr/bin/env perl
 
-# Copyright 2014 by David Booth
+# Copyright 2015 by David Booth
 # This software is available as free and open source under
 # the Apache 2.0 software license, which may be viewed at
 # http://www.apache.org/licenses/LICENSE-2.0.html
@@ -12,7 +12,17 @@
 # though there are much better tools available for that.
 #
 # The parsing is very stupid and does not understand much about
-# the SPARQL grammar.  To use this program, copy and paste the 
+# SPARQL or Turtle grammar.  This is partially intentional, because it
+# allows this program to be used on pseudo-SPARQL or pseudo-Turtle
+# to help generate diagrams, without barfing on nonconforming input.
+#
+# Spaces are expected to be used as separators between 
+# terms.  Therefore, if you want something parsed as a
+# single term (so that it will be a single element in the output)
+# then scrunch it together it without spaces.  However, this
+# does not apply to lists.
+#  
+# To use this program, copy and paste the 
 # desired query pattern into the input, as it does not know how to 
 # ignore a SELECT clause.  It only works for a very 
 # limited subset of SPARQL (e.g., no UNIONs, no BINDs, no FILTERs,
@@ -23,7 +33,7 @@
 # generate a file that can be imported by CmapTools (via
 # "File->Import->Propositions as text") and then adjust the diagram
 # layout using CmapTools.
-#  
+#
 # Reads stdin, writes stdout.
 #
 # Regression test for this code is 0041_Test_tools_diagram-sparql .
@@ -31,6 +41,7 @@
 
 use warnings;
 use strict;
+use Regexp::Common;	# Exports $RE
 
 ################# Usage ###################
 sub Usage
@@ -45,9 +56,28 @@ Options:
 	  dot	-- Graphviz format.  Generate a PNG by piping
 		   the output through 'dot -Tpng'.
 		   
+  -l, --listFlatten
+	Flatten list values.  Given an assertion with a non-empty list value
+          :s :p ( :a :b :c ) .
+	change it to a series of assertions, one for each list member:
+          :s :p :a .
+          :s :p :b .
+          :s :p :c .
+	An assertion with an empty list value is not flattened.
+	Nested lists are not flattened.
+		   
+  -s, --swap
+	Swap subject and object in triples, so that graph edges go
+	the opposite direction:
+          :s :p :o .
+	is changed to:
+          :o :p :s .
 
   -h, --help
 	Show this usage message.
+
+  -d, --debug
+	Show debugging trace.
 
 To produce a .png, pipe the result through dot:
   $0 sparqlQuery.rq | dot -Tpng > sparqlQuery.png\n";
@@ -56,12 +86,18 @@ To produce a .png, pipe the result through dot:
 ################# MAIN ###################
 
 my $optHelp = 0;
+my $debug = 0;
 my $optFormat = "cmap";
+my $optListFlatten = 0;
+my $optSwap = 0;
 
 use Getopt::Long; # Perl
 if (!GetOptions(
+		"swap|s" => \$optSwap,
+		"listFlatten|l" => \$optListFlatten,
 		"format|f=s" => \$optFormat,
                 "help|h" => \$optHelp,
+                "debug|d" => \$debug,
                 )) {
         warn "$0: Error reading options.\n";
         die &Usage();
@@ -71,6 +107,7 @@ if ($optHelp) {
         exit 0;
         }
 
+warn "Debug enabled\n" if $debug;
 my @all = <>;
 # TODO: This may fail if the comment symbol is in a string:
 # Strip comments from input:
@@ -137,22 +174,39 @@ $all =~ s/([\(])\s+/$1/sg;
 # a b c ; 
 #   d e , f .
 
+# Pattern for balanced parentheses ($bp) for Turtle lists.
+# See perl Regex::Common for $RE usage and
+# http://stackoverflow.com/questions/7974093/matching-balanced-parenthesis-in-perl-regex
+my $bp = $RE{balanced}{-parens=>'()'};
+
 my @triples = ();	# Collect the resulting triple
 while (1) {
 	# Strip leading whitespace and empty statements:
 	$all =~ s/\A\s*(\.\s*)*//sg;
       last if !$all;
-	#               1       2       34        5  6      7               8
-	if ($all !~ s/\A(\S+)\s+(\S+)\s+(([^\s\"]|(\"([^\"]|(\\\"))*\"))+)\s+(\S+)//s) {
+	$all =~ m/\A.+/;
+	my $firstLine = $&;
+	warn "PARSING all: $firstLine ...\n\n" if $debug;
+	# Parse into $s $p $v $terminator, and remove them from $all.
+	# We want $terminator to be [.;,], but sometimes it isn't and
+	# we have to make an adjustment and send it back through the 
+	# loop to reparse it.  
+	# The $v pattern is ugly because there are different kinds of
+	# values allowed, and they may be strung together, repeating: 
+	# group 5 is a non-quoted string; group 6 is a quoted string.
+	#               1       2       345          6  7                     8
+	if ($all !~ s/\A(\S+)\s+(\S+)\s+((([^\s\"]+)|(\"([^\"]|\\\")*\"))+)\s+(\S+)//s) {
 		die "$0: ERROR: Parse failed:\n[[\n$all]]\n";
 		}
 	my $s = $1;
 	my $p = $2;
 	my $v = $3;
 	my $terminator = $8;
-	# print "s:{$s} p:{$p} v:{$v} terminator:{$terminator}\n";
+	my $match = $&;
+	warn "s:{$s} p:{$p} v:{$v} terminator:{$terminator}\n" if $debug;
 	if ($v =~ m/\.\Z/s && $v !~ m/^[\+\-]?[0-9]+\.\Z/) {
-		# Damned statement terminator without a precedeing space:
+		warn "Terminator without a preceding space: $v\n" if $debug;
+		# Damned statement terminator without a preceding space:
 		#   p:foo p:p p:bar.  instead of   p:foo p:p p:bar .
 		# Add a space and try again.
 		$v =~ s/\.\Z/ ./s;
@@ -162,28 +216,107 @@ while (1) {
 		# print $all; exit 0;
 		next;
 		}
-	if ($terminator eq ".") {
+	if ($v =~ m/\A\(([^\s\)].*)/) {
+		# Non-empty list, but "(" needs a space after it.  
+		# Add a space and try again.
+		$v = $1;
+		$all = "$s $p ( $v $terminator $all";
+		warn "Open paren needs a space after it: ($v\n" if $debug;
+		next;
+		}
+	elsif ($terminator eq ".") {
 		die "$0: ERROR: Parse got multi-line value: \n[[\n$v\n]]\n"
 			if $v =~ m/\n/s;
 		# Turn whitespace into underscore:
 		$v =~ s/\s/_/g;
 		push(@triples, [$s, $p, $v]);
+		warn "Assertion: $s $p $v\n" if $debug;
 		}
 	# Expand ";" and "," operators to full triples:
 	elsif ($terminator eq ";") {
 		# Push the expanded statement back on the front to be reparsed:
 		$all = "$s $p $v .\n$s $all";
+		warn "Expanding ';' after $v\n" if $debug;
 		next;
 		}
 	elsif ($terminator eq ",") {
 		# Push the expanded statement back on the front to be reparsed:
 		$all = "$s $p $v .\n$s $p $all";
+		warn "Expanding ',' after $v\n" if $debug;
+		next;
+		}
+	elsif ($v eq "(" && $terminator =~ m/\A\)/) {
+		# Empty list, but with a space between parens: ( ).
+		# Remove the space and try again.
+		$terminator = $';
+		$all = "$s $p () $terminator $all";
+		warn "Empty list with space: ( )\n" if $debug;
+		next;
+		}
+	elsif ($v eq "(") {
+		# Non-empty list.  Flatten into separate statements
+		# and re-parse.
+		warn "Non-empty list.  Time to flatten...\n" if $debug;
+		my $listAll = "$terminator $all";
+		# Collect all list elements.
+		while (1) {
+			my $element = "";
+			if ($listAll =~ s/\A($bp)[\s\n]*//ms) {
+				# Element is a sublist: (...)
+				$element = $1;
+				warn "  Sublist element: $element\n" if $debug;
+				}
+			elsif ($listAll =~ s/\A\)[\s\n]*//ms) {
+				# Reached ")": end of elements.
+				warn "  END of list.\n" if $debug;
+				last;
+				}
+			elsif ($listAll =~ s/(([^\s\"]|(\"([^\"]|(\\\"))*\"))+)[\s\n]*//) {
+				# Element is a regular list item.
+				$element = $1;
+				# Strip closing paren if there is one:
+				if ($element =~ s/\)[\s\n]*([\,\;\.]?)\Z//) {
+					warn "  Stripped closing paren: $element\n" if $debug;
+					$listAll = ") $1 $listAll";
+					}
+				warn "  Regular element: $element\n" if $debug;
+				}
+			else {
+				# Failed to match an element or end of list.
+				warn "$0: [ERROR] Unable to parse list element: $terminator\n";
+				die "s:{$s} p:{$p} v:{$v} terminator:{$terminator}\n";
+				}
+			warn "  Pushing triple: $s $p $element\n" if $debug;
+			push(@triples, [$s, $p, $element]);
+			}
+		if ($listAll =~ s/\A\,//) {
+			$all = "$s $p $listAll";
+			warn "Comma after list\n" if $debug;
+			}
+		elsif ($listAll =~ s/\A\;//) {
+			$all = "$s $listAll";
+			warn "Semicolon after list\n" if $debug;
+			}
+		elsif ($listAll =~ s/\A\.//) {
+			$all = $listAll;
+			warn "Period after list\n" if $debug;
+			}
+		else {
+			my $first = substr($listAll, 0, 5);
+			warn "$0: [ERROR] List does not end with [,;.]: $first\n";
+			die "s:{$s} p:{$p} v:{$v} terminator:{$terminator}\n";
+			}
 		next;
 		}
 	else 	{ 
 		warn "$0: [ERROR] Unknown terminator: $terminator\n";
 		die "s:{$s} p:{$p} v:{$v} terminator:{$terminator}\n";
 		}
+	}
+
+if ($optSwap) {
+	# Swap subject and object of all triples
+	@triples = map { [ $_->[2], $_->[1], $_->[0] ] } @triples;
 	}
 
 # TODO: Change this to be extensible, so that new formats can be added easily.
