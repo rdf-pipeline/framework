@@ -1,0 +1,27 @@
+# Test data (pseudo-turtle) for diagram-sparql.
+# It is basically turtle, but I did not bother to include
+# namespace @prefix definitions, because diagram-sparql
+# ignores them anyway.
+
+:enrich-merge a p:GraphNode ;
+  p:inputs ( :enrich-address :enrich-name :enrich-sig :enrich-icd9tosnomed ) .
+
+:s0 p:inputs (:oneElement) .
+
+# Try some empty lists, with and without intervening spaces,
+# to make sure the parsing works right.
+:s1 :p ().
+:s2 :p ( ).
+:s3 :p () .
+:s4 :p ( ) .
+
+# Sublists, which are left as is:
+:s5 :p (( :x ) :b :c).
+:s6 :p (( (:x) () ) :b :c).
+:s7 :p (( (:x) () ) :b :c), "after comma".
+:s8 :p (( (:x) () ) :b :c); 
+    :p2 "after semicolon".
+
+# List with literals
+:s9 :p (:a 3 "hello").
+
