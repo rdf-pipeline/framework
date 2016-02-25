@@ -146,7 +146,10 @@ my @lines = <>;
 # Add standard prefixes non-destructively:
 &CollectPrefixes($prefix2def, $def2prefix, 0, split(/\n/, &StandardPrefixes()));
 
-my $defPattern = join("|", map {quotemeta($_)} keys %{$def2prefix});
+# Arrange longest first, like /foobar|foo/, because pattern will match
+# the *first* alternative.
+my $defPattern = join("|", map {quotemeta($_)} sort {length($b) cmp length($a)} keys %{$def2prefix});
+
 warn "$0: WARNING: No prefix definitions.\n" if !$defPattern;
 # die "defPattern: $defPattern\n\n";
 die if $defPattern && "" =~ m/\A($defPattern)\Z/;
@@ -181,6 +184,7 @@ for (my $i=0; $i<@lines; $i++) {
 		}
 	else	{
 		# Prefix <http://example/foo#bar> --> foo:bar
+		#                                       1            2
 		while ($defPattern && $lines[$i] =~ s/\<($defPattern)([^\<\>\"\'\s]*)\>/$def2prefix->{$1} . $2/ie) {
 			my $def = $1;
 			my $local = $2;
