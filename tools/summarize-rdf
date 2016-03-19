@@ -171,8 +171,8 @@ Options:
 		for nodes with no declared class.  For example, given
 		  :s :p :o .
 		then :o is implicitly declared as:
-		  :o a :pRange .
-		Implied classes are shown in parentheses: \"(:pRange)\"
+		  :o a :p .
+		Implied classes are shown in parentheses: \"(:p)\"
 
 	-d, --diagram
 		Generate pseudo-Turtle, suitable for input to
@@ -230,6 +230,7 @@ my %isDatatype;		# Remember whether a URI is a datatype
 my %subjectPredicates;	# Maps subjects -> hash of predicates
 my %objectPredicates;	# Maps objects -> hash of predicates
 my %isImpliedClass;	# True if this class was range implied by predicate
+my %stringToObject;	# Maps object string back to the object
 my $si = $model->get_statements(undef, undef, undef);
 while (my $ts = $si->next()) {
 	my $s = $ts->subject();
@@ -238,6 +239,10 @@ while (my $ts = $si->next()) {
 	# WARNING: when $s $p or $o are used as hash indexes they
 	# are silently turned into strings first, so if you use keys %hash
 	# to get them back from a hash, you will get strings -- NOT objects.
+	# The %stringToObject hash is used to map back to objects.
+	$stringToObject{$s} = $s;
+	$stringToObject{$p} = $p;
+	$stringToObject{$o} = $o;
 	$subjectPredicates{$s}->{$p} = 1;
 	$objectPredicates{$o}->{$p} = 1;
 	# print "\t$s $p $o\n";
@@ -278,14 +283,14 @@ if ($impliedRanges) {
   # two steps in order to load *all* implied range classes for a
   # given object, rather than stopping after the first.
   foreach my $o (sort keys %objectPredicates) {
-    next if !&IsObjectInteresting($o);
+    next if !&IsObjectInteresting($stringToObject{$o});
     my $shortO = &ShortenUri($o);
     # warn "TypesOf($shortO) = " . join(" ", map {&ShortenUri($_)} &TypesOf($o)) . "\n";
     next if keys %{$typesOf{$o}};
     foreach my $p (sort keys %{$objectPredicates{$o}}) {
-      next if !&IsPredicateInteresting($p);
+      next if !&IsPredicateInteresting($stringToObject{$p});
       my $pUri = $p;
-      $pUri =~ s/\>$/Range\>/ or die "0: [ERROR] Bad predicate: $p\n";
+      $pUri = "(" . &ShortenUri($p) . ")";
       # my $pClass = RDF::Trine::Node::Resource->new($pUri);
       $isImpliedClass{$pUri} = 1;
       $typesOf{$o}->{$pUri} = 1;
@@ -296,10 +301,10 @@ if ($impliedRanges) {
 
 print "Nodes by kind:  " if !$diagram;
 foreach my $t (sort keys %typeInstances) {
-my @instances = keys %{$typeInstances{$t}};
-my $ni = scalar(@instances);
-print "$t $ni  " if !$diagram;
-}
+	my @instances = keys %{$typeInstances{$t}};
+	my $ni = scalar(@instances);
+	print "$t $ni  " if !$diagram;
+	}
 print "\n" if !$diagram;
 
 print "Literals by datatype:  " if !$diagram;
@@ -384,7 +389,7 @@ foreach my $c (@sortedClasses) {
 		foreach my $c (sort keys %oClasses) {
 			my $nc = $oClasses{$c};
 			my $stc = &ShortenUri($c);
-			$stc = "($stc)" if $isDatatype{$c};
+			$stc = "^^$stc" if $isDatatype{$c};
 			print "$stc $nc " if !$diagram;
 			print "$sc $sp $stc .\n" if $diagram;
 			}
@@ -394,9 +399,10 @@ foreach my $c (@sortedClasses) {
 	print "\n" if !$diagram;
 	}
 
-print "* Root class whose instances are never objects of a triple\n"
+print "* Root class whose instances are never objects of a triple\n\n"
 	if $nRootClasses && !$diagram;
-print "\n" if !$diagram;
+print "^^xsd:dateTime indicates a datatype xsd:dateTime\n\n" if !$diagram;
+print "(p:p) indicates the implied range class of predicate p:p\n\n" if !$diagram;
 
 print "===== Namespaces =====\n" if !$diagram;
 foreach my $ns (sort {$namespaces{$a} cmp $namespaces{$b}} keys %namespaces) {
@@ -455,17 +461,22 @@ return ( "UNKNOWN" );
 # the part before last slash or hash.  Also uses global %isImpliedClass.
 sub ShortenUri
 {
+our %shortUris;		# Hash for memoizing
 my $uri = shift;
+my $memoizedResult = $shortUris{$uri};
+return $memoizedResult if defined($memoizedResult);
 my $originalUri = $uri;
 $uri = $uri->as_string() if ref $uri && $uri->is_node();
 $uri = $1 if $uri =~ m/^\<(.*)\>$/;
+return $uri if $uri =~ m/^\(/;	# implied range, like "(p:foo)"
 return $uri if $uri =~ m/^\"/ || $uri =~ m/\"$/;	# Ignore literals
 return $uri if $uri !~ s/(^.*[\/\#])(.)/$2/;
 my $ns = $1;
 my $prefix = $namespaces{$ns} || $standardNamespaces{$ns} || $nextPrefix++;
 $namespaces{$ns} = $prefix;
 my $result = "$prefix:$uri";
-$result = "($result)" if $isImpliedClass{$originalUri};
+# $result = "($result)" if $isImpliedClass{$originalUri};
+$shortUris{$uri} = $result;
 return $result;
 }
 
