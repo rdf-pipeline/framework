@@ -23,7 +23,7 @@ elif [ -f /etc/apache2/sites-enabled/000-default.conf ]; then
     APACHECONFIG="/etc/apache2/sites-enabled/000-default.conf"
 else
     echo "Apache configuration was not found!"
-    exit 1
+    return 1
 fi
 
 # Get the RDF pipeline root install directory 
@@ -80,7 +80,7 @@ if [ -z "$DOCUMENT_ROOT" ]; then
                 APACHE_ENVVARS="/etc/apache2/envvars"
             else
                 echo DocumentRoot is a variable but no Apache envvars file was found to resolve it.
-                exit 1
+                return 1
             fi
 
             # Remove the first char (the $) from the env variable name
