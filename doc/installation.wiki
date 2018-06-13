@@ -100,6 +100,16 @@ sudo apt-get update
 sudo apt-get -y install libxml-namespacefactory-perl
 }}}
 
+== zlib1g and libxml2 (for perl package XML::XML::LibXM)  ==
+{{{
+sudo apt-get install zlib1g-dev libxml2-dev
+}}}
+
+== RDF::Trine ==
+{{{
+sudo cpan RDF::Trine
+}}}
+
 == cwm ==
 Installation instructions: http://www.w3.org/2000/10/swap/doc/CwmInstall
 
