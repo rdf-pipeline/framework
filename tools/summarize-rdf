@@ -230,6 +230,7 @@ keys %standardNamespaces == keys %inverseStandardNamespaces or die;
 
 my %typesOf;		# Node -> hash of declared types or datatypes
 my %typeInstances;	# {URI, LITERAL, BLANK} -> hash of instances
+%typeInstances = map {($_, {})} qw(URI LITERAL BLANK);
 my %datatypeValues;	# datatypes -> hash of values
 my %predicateSubjects;	# predicates -> hash of subjects
 my %predicateObjects;	# predicates -> hash of objects
