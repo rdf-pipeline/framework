@@ -9,9 +9,11 @@
 use strict;
 
 # Summary of schema implied by RDF instance data -- classes and predicates.
-# Files are read from command line or stdin, in Turtle format.
+# Files are read from command line or stdin, turtle by default.
 #
 # Runtime: ~30 minutes / 600k triples on a 2012 laptop (quad processor)
+#	~400 minutes / 10M ntriples on a 2017 laptop Core i5 with SSD
+#	ntriples parses about twice the speed of turtle.  See -f option.
 #
 # EXAMPLE INPUT:
 #    1. @prefix p: <http://purl.org/pipeline/ont#> .
@@ -156,12 +158,14 @@ $program =~ s/^.*[\\\/]//;
 
 my $impliedRanges = 0;
 my $diagram = 0;
+my $format = "turtle";
 my $help = 0;
 use Getopt::Long; # Perl
 GetOptions(
                 "help|h" => \$help,
                 "impliedRanges|i" => \$impliedRanges,
                 "diagram|d" => \$diagram,
+		"format|f=s" => \$format,
                 ) or die "$0: Error reading options.\n";
 
 die "Usage: $program [ options ] [ turtleFiles...]
@@ -182,6 +186,9 @@ Options:
 		declarations and UNTYPED values:
 		  $program -d infile.ttl | grep -v -E 'rdf:type|UNTYPED|owl:imports'
 
+	-f, --format f
+		Parse as format f, one of {turtle, ntriples}
+
 	-h, --help
 		Print usage info and exit
 " if $help;
@@ -194,16 +201,16 @@ Options:
 # print "subject: $ss\n";
 # my $statement = RDF::Trine::Statement->new($subject, $predicate, $object);
 my $model = RDF::Trine::Model->temporary_model;
-my $parser = RDF::Trine::Parser->new( 'turtle' );
+my $parser = RDF::Trine::Parser->new( $format );
 my $base_uri = "http://example/";
 print "===== Input Summary =====\n" if !$diagram;
 foreach my $file (@ARGV) {
-	print "Parsing turtle: $file \n" if !$diagram;
+	print "Parsing $format: $file \n" if !$diagram;
 	$parser->parse_file_into_model( $base_uri, $file, $model );
 	}
 if (!@ARGV) {
-	my $turtle = join("", <>);	# Slurp stdin
-	$parser->parse_into_model( $base_uri, $turtle, $model );
+	my $input = join("", <>);	# Slurp stdin
+	$parser->parse_into_model( $base_uri, $input, $model );
 	}
 my $n = $model->size();
 print "Total triples: $n\n" if !$diagram;
