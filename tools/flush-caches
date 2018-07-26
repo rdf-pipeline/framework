@@ -6,11 +6,18 @@
 # http://www.apache.org/licenses/LICENSE-2.0.html
 # Code home: https://github.com/dbooth-boston/rdf-pipeline/
 
-# Flush the pipeline caches on the current machine.  
+# Flush the pipeline caches on the current machine.
+# With the -a option tmp files and logs are also deleted.  
+
+our $logFile = "/tmp/rdf-pipeline-log.txt";
+our $timingLogFile = "/tmp/rdf-pipeline-timing.tsv";
+our $tmpDir = "/tmp/rdfp";
 
 use Getopt::Long; # Perl
 my $debug = 0;
+my $all = 0;
 GetOptions(
+                "all|a" => \$all,
                 "debug|d" => \$debug,
                 ) or die "$0: Error reading options.
 ";
@@ -22,8 +29,10 @@ $wwwDir =~ s/\/$// if $wwwDir ne "/";
 
 -d $wwwDir || die "$0: [ERROR] Not a directory: $wwwDir\n";
 
-foreach my $subdir (qw(cache lm tmp test)) {
-	my $f = "$wwwDir/$subdir";
+my @files = map { "$wwwDir/$_" } qw(cache lm tmp test);
+@files = (@files, $logFile, $timingLogFile, $tmpDir) if $all;
+
+foreach my $f (@files) {
 	warn "Checking for $f ...\n" if $debug;
 	if (-e "$f") {
 		my $qf = quotemeta($f);
@@ -35,6 +44,7 @@ foreach my $subdir (qw(cache lm tmp test)) {
 	# To prevent making $f with the wrong user/group, don't make it:
 	# mkdir $f || die "$0: [ERROR] Failed to re-create empty $f\n";
 	}
+
 exit 0;
 
 
