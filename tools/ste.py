@@ -11,6 +11,28 @@
 # https://github.com/rdf-pipeline/framework/wiki/Template-Processor
 # This python version was ported from ste.perl on 12-Aug-2018.
 
+"""
+#################### ste.py Module Quick Start ##########################
+
+Create a template that you want to expand:
+
+  template = '''#inputs( file:///tmp/foo.ttl urn:local:foo )
+                ...  file:///tmp/foo.ttl ... urn:local:foo ...
+  ''' 
+
+Define the variable-->value mappings you want:
+
+  tmap = { 'file:///tmp/foo.ttl': 'file:///tmp/BAR.ttl',
+           'urn:local:foo': 'urn:local:BAR' }
+
+Do the template expansion:
+
+  import ste
+  result = ste.ExpandTemplate(template,  tmap)
+
+#############################################################
+"""
+
 # coding: utf-8
 
 # In[95]:
