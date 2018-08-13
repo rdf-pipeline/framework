@@ -1,0 +1,15 @@
+# This is a sample template for demonstrating ste.py as a module.
+# See module-invoker.py
+
+#inputs( file:///tmp/foo.ttl urn:local:foo )
+
+######## SPARQL LOAD #########
+# A SPARQL LOAD would be like this:
+#   LOAD <file:///tmp/foo.ttl> 
+
+######## SPARQL SELECT #########
+PREFIX p: <urn:local:foo>
+select * where { 
+	?s ?p ?o .
+} limit 100 
+
