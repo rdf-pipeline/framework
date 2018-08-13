@@ -4,7 +4,7 @@ This framework allows a data production pipeline, described in an RDF graph, to 
 
 For an overview, please read <a href="http://dbooth.org/2013/dils/pipeline/">"The RDF Pipeline Framework: Automating Distributed, Dependency-Driven Data Pipelines "</a>
 
-There is additional information on this project Wiki.
+There is additional information on the <a href="https://github.com/rdf-pipeline/framework/wiki">project Wiki</a>.
 
 Contact david@dbooth.org if you are interested in this project, either as a user or potential contributor. 
 
