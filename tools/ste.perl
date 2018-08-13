@@ -7,7 +7,11 @@
 # Code home: https://github.com/dbooth-boston/rdf-pipeline/
 
 # Sparql Template Expander
-# See the documentation for Perl module RDF::Pipeline::Template
+# See the documentation for Perl module RDF::Pipeline::Template at
+# the bottom of the source code at
+# https://github.com/rdf-pipeline/framework/blob/master/RDF-Pipeline/lib/RDF/Pipeline/Template.pm
+# or at
+# https://github.com/rdf-pipeline/framework/wiki/Template-Processor
 #
 # You may need to set the library path environment variable $PERL5LIB :
 #    export PERL5LIB='/home/dbooth/rdf-pipeline/trunk/RDF-Pipeline/lib'

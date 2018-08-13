@@ -8,6 +8,9 @@ package RDF::Pipeline::Template;
 # the Apache 2.0 software license, which may be viewed at
 # http://www.apache.org/licenses/LICENSE-2.0.html
 # Code home: https://github.com/dbooth-boston/rdf-pipeline/
+#
+# Documentation is at the bottom of this file and at
+# https://github.com/rdf-pipeline/framework/wiki/Template-Processor
 
 use 5.10.1; 	# It *may* work under lower versions, but has not been tested.
 use strict;
