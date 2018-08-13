@@ -29,7 +29,7 @@ my $ste = "$toolsDir/ste.py";
 ### First test:
 my $pythonPath = $ENV{PYTHONPATH} || "";
 my $cmd = "export \"PYTHONPATH=$pythonPath:$toolsDir\" ; ./module-invoker.py setup-files/sample-template.txt > $wwwDir/test/sample-template-expanded.txt";
-warn "cmd: $cmd\n";
+# warn "cmd: $cmd\n";
 !system($cmd) or die;
 ############################################
 
