@@ -14,21 +14,37 @@
 """
 #################### ste.py Module Quick Start ##########################
 
-Create a template that you want to expand:
+Template variables can be almost any string without whitespace 
+or parentheses.  In this example, the template variables will be 
+file:///tmp/foo.ttl and urn:local:foo .   When template expansion
+is performed, they will be replaced by the values file:///tmp/BAR.ttl
+and urn:local:BAR, respectively.
 
-  template = '''#inputs( file:///tmp/foo.ttl urn:local:foo )
-                ...  file:///tmp/foo.ttl ... urn:local:foo ...
-  ''' 
+Define the template:
 
-Define the variable-->value mappings you want:
+	>>> template = '''LOAD <file:///tmp/foo.ttl> ;
+	... SELECT * WHERE { urn:local:foo ?p ?o . } '''
 
-  tmap = { 'file:///tmp/foo.ttl': 'file:///tmp/BAR.ttl',
-           'urn:local:foo': 'urn:local:BAR' }
+Define the dictionary that maps variables to values:
 
-Do the template expansion:
+	>>> tmap = { 'file:///tmp/foo.ttl': 'file:///tmp/BAR.ttl',
+	...          'urn:local:foo': 'urn:local:BAR' }
 
-  import ste
-  result = ste.ExpandTemplate(template,  tmap)
+Run the template expansion:
+
+	>>> import ste
+	>>> result = ste.ExpandTemplate(template,  tmap)
+
+See the result:
+
+	>>> print(result)
+	LOAD <file:///tmp/BAR.ttl> ;
+	SELECT * WHERE { urn:local:BAR ?p ?o . } 
+	>>> 
+
+Other features, such as the ability to access environment variables,
+are explained at
+https://github.com/rdf-pipeline/framework/wiki/Template-Processor
 
 #############################################################
 """
