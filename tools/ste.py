@@ -12,13 +12,20 @@
 # This python version was ported from ste.perl on 12-Aug-2018.
 
 """
-#################### ste.py Module Quick Start ##########################
+#############################################################################
+############# Example 1: Providing values in a dictionary  ################
+#############################################################################
 
-Template variables can be almost any string without whitespace 
-or parentheses.  In this example, the template variables will be 
-file:///tmp/foo.ttl and urn:local:foo .   When template expansion
-is performed, they will be replaced by the values file:///tmp/BAR.ttl
-and urn:local:BAR, respectively.
+A template variable can be any string without whitespace or parentheses.
+This means that URIs can be used as template variables, which is
+convenient because it allows syntactically valid SPARQL queries to be
+treated as templates in which certain URIs are actually variables that
+will be replaced by other values during template expansion.
+
+In this example the template variables and values are provided
+in a dictionary that maps variables to values.  The variables are
+file:///tmp/foo.ttl and urn:local:foo , and the replacement values are
+file:///tmp/BAR.ttl and urn:local:BAR , respectively.
 
 Define the template:
 
@@ -42,6 +49,76 @@ See the result:
 	SELECT * WHERE { urn:local:BAR ?p ?o . } 
 	>>> 
 
+#############################################################################
+############# Example 2: Inputs ###################
+#############################################################################
+
+In this example, the template variables file:///tmp/foo.ttl
+and urn:local:foo are declared in the template, using #inputs(...),
+and values for them are supplied in an array.
+
+Define the template:
+
+        >>> template = '''#inputs( file:///tmp/foo.ttl urn:local:foo )
+        LOAD <file:///tmp/foo.ttl> ;
+        ... SELECT * WHERE { urn:local:foo ?p ?o . } '''
+
+Define the values to supply for the template variables:
+
+        >>> values = [ 'file:///tmp/BAR.ttl', 'urn:local:BAR' ]
+
+Run the template expansion:
+
+        >>> import ste
+        >>> result = ste.ProcessTemplate(template,  values)
+
+See the result:
+
+        >>> print(result)
+        LOAD <file:///tmp/BAR.ttl> ;
+        SELECT * WHERE { urn:local:BAR ?p ?o . }
+        >>>
+
+#############################################################################
+############# Example 3: Outputs ###################
+#############################################################################
+
+When a SPARQL update operation is performed as part of a larger pipeline
+of operations that operate on named graphs, it can be useful to treat
+some named graphs as inputs of that operation, and others as outputs.
+
+This example copies foaf:name triples from an input graph to an output
+graph, but the input and output graph names are template variables
+urn:local:in and urn:local:out .  Values for these variables are supplied
+in two lists.
+
+Define the template:
+
+        >>> template = '''#inputs( urn:local:in )
+        #outputs( urn:local:out )
+        PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+        INSERT { GRAPH <urn:local:out> { ?s foaf:name ?name } }
+        WHERE  { GRAPH <urn:local:in>  { ?s foaf:name ?name } }'''
+
+Define the values to supply for the template variables:
+
+        >>> inValues = [ 'urn:local:NEW_IN' ]
+        >>> outValues = [ 'urn:local:NEW_OUT' ]
+
+Run the template expansion:
+
+        >>> import ste
+        >>> result = ste.ProcessTemplate(template,  inValues, outValues)
+
+See the result:
+
+        >>> print(result)
+        PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+        LOAD <file:///tmp/BAR.ttl> ;
+        SELECT * WHERE { urn:local:BAR ?p ?o . }
+        >>>
+
+
 Other features, such as the ability to access environment variables,
 are explained at
 https://github.com/rdf-pipeline/framework/wiki/Template-Processor
@@ -60,6 +137,7 @@ import os
 import re
 import urllib.parse
 import json
+import copy
 
 
 # In[122]:
@@ -99,15 +177,20 @@ def ScanAndAddToHash(keyword, template, pValues, pHash={}):
 
 
 ################### ScanAndAddParameters ####################
-def ScanAndAddParameters(template, queryString='', pHash={}):
+def ScanAndAddParameters(template, queryString='', oldpHash={}):
     # # Scan $template for a list of parameters, which is removed from
     # # the returned $template.  Then, to the given hashref,
     # # add the corresponding values from the given $queryString.
     # # In selecting the values from the $queryString, delimiters are
     # # stripped from the variables, using &BaseVar($_).
+    pHash = copy.copy(oldpHash)
     pVars = []
     template, pVars = ScanForList("parameters", template)
-    qsHash = ParseQueryString(queryString)
+    qsHash = queryString
+    if type(queryString) is str:
+        qsHash = ParseQueryString(queryString)
+    elif type(queryString) is not dict:
+        raise Exception("[ERROR] queryString must be either a string or a dictionary, but is not: "+repr(queryString))
     errorTemplate = "[ERROR] Duplicate template variable: {}\n"
     for v in pVars:
         #   # Split param1=pVar1 if needed.
@@ -131,26 +214,24 @@ def ScanAndAddParameters(template, queryString='', pHash={}):
 
 ################### ScanForList ####################
 def ScanForList(keyword, template):
-    # # Scan $template for a declared list of variable names, such as:
-    # # #inputs( $foo ${fum} )
-    # # which is removed from the returned $template.  Also returns a list ref
-    # # of the variable names found in the declared list.
-    # # The given $keyword should normally be "inputs", "outputs" or "parameters",
-    # # but may be some other word if this code is used for something else.
+    # Scan $template for a declared list of variable names, such as:
+    # #inputs( $foo ${fum} )
+    # which is removed from the returned $template.  Also returns a list ref
+    # of the variable names found in the declared list.
+    # The given $keyword should normally be "inputs", "outputs" or "parameters",
+    # but may be some other word if this code is used for something else.
     inVars = []
-    # # Process one line at a time, to preserve ordering.
+    # Process one line at a time, to preserve ordering.
     lines = re.split(r'\n', template, 0, re.MULTILINE)
     newLines = []
-    for template in lines:
+    for line in lines:
         # Given keyword "inputs", the pattern matches a line like:
         #       #inputs( $foo ${fum} )
         pattern = r'\#{}\(\s*([^\(\)]+?)\s*\)(.*)(\n|$)'.format(keyword)
-        m = re.match(pattern, template)
+        m = re.match(pattern, line)
         if m:
             inList = m.group(1)
             extra = m.group(2)
-            line = m.group(0)
-
             ### Do not allow trailing comment:
             ### $extra =~ s/\A\#.*//;
             extra = re.sub(r'\A\s*', '', extra)
@@ -158,7 +239,7 @@ def ScanForList(keyword, template):
                 raise Exception("[ERROR] Extra text after #{}(...): {}".format(keyword, extra))
             inVars.extend(re.split(r'\s+', inList))
         else:
-            newLines.append(template)
+            newLines.append(line)
     template = '\n'.join(newLines)
     return template, inVars
 
@@ -169,20 +250,20 @@ def ScanForList(keyword, template):
 
 
 ################### ScanAndAddEnvs ####################
-def ScanAndAddEnvs(template, pEnvs={}):
-    # # Scan $template for $ENV{foo} references and add each one (as a key)
-    # # to the given hashref, where its value will be the value of that
-    # # environment variable (or empty string, if not set).
-    # # If no hashref is given, one will be created.
-    # # The hashref is returned.  Existing values in the hashref will be
-    # # silently overwritten if a duplicate key is used.
-    # # The $template is not modified, and therefore not returned.
+def ScanAndAddEnvs(template, oldpEnvs={}):
+    # Scan $template for $ENV{foo} references and add each one (as a key)
+    # to the given hashref, where its value will be the value of that
+    # environment variable (or empty string, if not set).
+    # If no hashref is given, one will be created.
+    # The hashref is returned.  Existing values in the hashref will be
+    # silently overwritten if a duplicate key is used.
+    # The $template is not modified, and therefore not returned.
+    pEnvs = copy.copy(oldpEnvs)
     if template is None:
         raise Exception('ScanAndAddEnvs called with None as template!')
     vvars = re.findall(r'\$ENV\{(\w+)\}', template, re.IGNORECASE)
     for var in vvars:
         pEnvs['$ENV{'+var+'}'] = os.environ.get(var) or ''
-
     return pEnvs
 
 # os.environ['HELLO'] = 'hello'
@@ -193,11 +274,12 @@ def ScanAndAddEnvs(template, pEnvs={}):
 
 
 ################### AddPairsToHash #####################
-def AddPairsToHash(pVars, pVals, pRep={}):
+def AddPairsToHash(pVars, pVals, oldpRep={}):
     # Add pairs of corresponding values from the two arrayrefs to the
     # given hashref.  If no hashref is given, a new one will be created.
     # The hashref is returned.
     # An error will be generated if a duplicate key is seen.
+    pRep = copy.copy(oldpRep)
     nVars = len(pVars)
     nVals = len(pVals)
     if nVars < nVals:
@@ -217,16 +299,18 @@ def AddPairsToHash(pVars, pVals, pRep={}):
 
 
 ################### ParseQueryString ####################
-def ParseQueryString(qs, hashref={}):
-    # # Create (or add to) a hashref that maps query string variables to values.
-    # # Both variables and values are uri_unescaped.
-    # # Example:
-    # #   'foo=bar&fum=bif'  --> { 'foo'=>'bar', 'fum'=>'bif' }
-    # # If there is a duplicate variable then the latest one silently
-    # # takes priority.  If no hashref is given, a new one will be created.
-    # # The hashref is returned.
-    # # Per http://www.w3.org/TR/1999/REC-html401-19991224/appendix/notes.html#h-B.2.2
-    # # also allow semicolon to be treated as ampersand separator:
+def ParseQueryString(qs, oldHashref={}):
+    # Create (or add to) a hashref that maps query string variables to values.
+    # Both variables and values are uri_unescaped.
+    # Example:
+    #   'foo=bar&fum=bif'  --> { 'foo'=>'bar', 'fum'=>'bif' }
+    # If there is a duplicate variable then the latest one silently
+    # takes priority.  If no hashref is given, a new one will be created.
+    # The hashref is returned.
+    # Per http://www.w3.org/TR/1999/REC-html401-19991224/appendix/notes.html#h-B.2.2
+    # we allow either ampersand or semicolon to used as a separator
+    # within a query string:
+    hashref = copy.copy(oldHashref)
     pairs = re.split(r'[\&\;]', qs)
     for pair in pairs:
         varVal = re.split(r'\=', pair)
@@ -246,11 +330,11 @@ def ParseQueryString(qs, hashref={}):
 
 ################# BaseVar ####################
 def BaseVar(dv):
-    # # Given a string like '${foo}' (representing a declared variable),
-    # # return a new string with the delimiters stripped off: 'fum'.
-    # # This is for variables that are used as query string parameters,
-    # # such as: http://example/whatever?foo=bar
-    # # For simplicity, variable names must match \w+ .
+    # Given a string like '${foo}' (representing a declared variable),
+    # return a new string with the delimiters stripped off: 'fum'.
+    # This is for variables that are used as query string parameters,
+    # such as: http://example/whatever?foo=bar
+    # For simplicity, variable names must match \w+ .
     m = re.match(r'\W*(\w+)\W*$', dv)
     if m is None:
         raise Exception('Bad template variable in #parameters(...): {}\n'.format(dv))
@@ -264,13 +348,13 @@ def BaseVar(dv):
 
 
 ################### ExpandTemplate ####################
-def ExpandTemplate(template, pRep):
-    # # Expand the given template, substituting variables for values.
-    # # Variable/value pairs are provided in the given hashref.
+def ExpandTemplate(template, pRep={}):
+    # Expand the given template, substituting variables for values.
+    # Variable/value pairs are provided in the given hashref.
     if template is None:
         return None
-    #   # Ensure that words aren't run together:
-    #   # \$foo --> \$foo\b ;  foo --> \bfoo\b
+    # Ensure that words aren't run together:
+    # \$foo --> \$foo\b ;  foo --> \bfoo\b
     keys = [ re.escape(k) for k in pRep.keys()]
     keys = [ re.sub(r'\A(\w)', r'\\b\1', k) for k in keys]
     keys = [ re.sub(r'(\w)\Z', r'\1\\b', k) for k in keys]
@@ -289,7 +373,7 @@ def ExpandTemplate(template, pRep):
 
 
 ##################### ProcessTemplate #######################
-def ProcessTemplate(template, pInputs, pOutputs, queryString, thisUri):
+def ProcessTemplate(template, pInputs=[], pOutputs=[], queryString='', thisUri=None):
     # Scan and expand a template containing variable declarations like:
     #       #inputs( $in1 ${in2} )
     #       #outputs( {out1} [out2] )
@@ -305,7 +389,7 @@ def ProcessTemplate(template, pInputs, pOutputs, queryString, thisUri):
     if template is None:
         raise Exception('ProcessTemplate called with None as template!')
     pRep = ScanAndAddEnvs(template)
-    # # $thisUri (if set) takes precedence:
+    # $thisUri (if set) takes precedence:
     if thisUri is not None:
         pRep['$ENV{THIS_URI}'] = thisUri
     # Scan for input, output and parameter vars and add them:
@@ -325,6 +409,8 @@ def ProcessTemplate(template, pInputs, pOutputs, queryString, thisUri):
 
 ################### GetArgsAndProcessTemplate ###################
 def GetArgsAndProcessTemplate():
+    # Process command-line options, read a template from stdin or file,
+    # perform template expansion, and write the result to stdout.
     ins = []
     outs = []
     params = []
@@ -346,8 +432,9 @@ def GetArgsAndProcessTemplate():
     options = parser.parse_args()
     ins = options.inputs or []
     outs = options.outputs or []
-    paramsArray = options.parameters or []
-    if paramsArray:
+    paramsArray = options.parameters
+    if paramsArray is not None:
+        # Strip query string separators [&;] from beginning and end:
         params = [re.sub(r'[&;]+$','',re.sub(r'^[&;]+','',p)) for p in paramsArray]
         os.environ['QUERY_STRING'] = '&'.join(params)
     params = os.environ.get('QUERY_STRING') or ''
