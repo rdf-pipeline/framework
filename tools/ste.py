@@ -88,17 +88,17 @@ of operations that operate on named graphs, it can be useful to treat
 some named graphs as inputs of that operation, and others as outputs.
 
 This example copies foaf:name triples from an input graph to an output
-graph, but the input and output graph names are template variables
+graph.  The input and output graph names are template variables
 urn:local:in and urn:local:out .  Values for these variables are supplied
 in two lists.
 
 Define the template:
 
         >>> template = '''#inputs( urn:local:in )
-        #outputs( urn:local:out )
-        PREFIX foaf: <http://xmlns.com/foaf/0.1/>
-        INSERT { GRAPH <urn:local:out> { ?s foaf:name ?name } }
-        WHERE  { GRAPH <urn:local:in>  { ?s foaf:name ?name } }'''
+        ... #outputs( urn:local:out )
+        ... PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+        ... INSERT { GRAPH <urn:local:out> { ?s foaf:name ?name } }
+        ... WHERE  { GRAPH <urn:local:in>  { ?s foaf:name ?name } }'''
 
 Define the values to supply for the template variables:
 
@@ -114,10 +114,9 @@ See the result:
 
         >>> print(result)
         PREFIX foaf: <http://xmlns.com/foaf/0.1/>
-        LOAD <file:///tmp/BAR.ttl> ;
-        SELECT * WHERE { urn:local:BAR ?p ?o . }
+        INSERT { GRAPH <urn:local:NEW_OUT> { ?s foaf:name ?name } }
+        WHERE  { GRAPH <urn:local:NEW_IN>  { ?s foaf:name ?name } }
         >>>
-
 
 Other features, such as the ability to access environment variables,
 are explained at
