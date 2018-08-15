@@ -55,9 +55,14 @@ while (<$fh>) {
         # Make whatever changes are needed:
         # s/ETag\: \"(\d)/ETag\: \"LM$1/;
 
+        ############# Cache path ##############
 	# s/cache\/(URI|FILE|GraphNode|ExampleHtmlNode)/cache/g;
 	# s/_HASH([a-zA-Z0-9_\-]+)//g;
 	# s/SHORT_//g;
+
+        ############# Python code line numbers ##############
+        # File "/home/dbooth/rdf-pipeline/trunk/tools/ste.py", line 508,
+        s|(File \"/.*/tools/ste.py\", line )\d+,|${1}000,|;
 
         print $tmpfh $_;
         }

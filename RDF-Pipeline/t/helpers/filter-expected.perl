@@ -57,9 +57,15 @@ while (<$fh>) {
 	s/_HASH([a-zA-Z0-9_\-]+)//g;
 	s/SHORT_//g;
 
+
         ############# Server paths ###############
         # /home/dbooth/rdf-pipeline/Private/www/node/
         s|/home/dbooth/rdf-pipeline/Private/www/|/var/www/|g;
+	s/(\/var\/www\/)(cache|favicon\.ico|lm|node|ont|test)/$1html\/$2/g;
+
+        ############# Python code line numbers ##############
+        # File "/home/dbooth/rdf-pipeline/trunk/tools/ste.py", line 508,
+        s|(File \"/.*/tools/ste.py\", line )\d+,|${1}000,|;
 
         print $tmpfh $_;
         }

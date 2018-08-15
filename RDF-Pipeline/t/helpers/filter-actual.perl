@@ -61,6 +61,10 @@ while (<$fh>) {
         # /home/dbooth/rdf-pipeline/Private/www/node/
         s|/home/dbooth/rdf-pipeline/Private/www/|/var/www/|g;
 
+        ############# Python code line numbers ##############
+        # File "/home/dbooth/rdf-pipeline/trunk/tools/ste.py", line 508,
+        s|(File \"/.*/tools/ste.py\", line )\d+,|${1}000,|;
+
         print $tmpfh $_;
         }
 close($fh) || die;
