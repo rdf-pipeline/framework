@@ -6,9 +6,9 @@
 # http://www.apache.org/licenses/LICENSE-2.0.html
 # Code home: https://github.com/dbooth-boston/rdf-pipeline/
 
-# Convert RDF blank nodes (except lists) to URIs by skolemizing them.
+# Convert RDF blank nodes to URIs by skolemizing them, or vice versa.
 #
-# Input must be Turtle format; output is ntriples.
+# Input must be Turtle; output is Turtle.
 # Reads stdin, writes stdout.
 #
 # Regression test for this code is @@ TODO @@ .
@@ -26,16 +26,31 @@ Options:
 	Use prefixUri as the base in generating skolem URIs.
 	A unique UUID-derived suffix will be appended.
 
+  -k, --keep-lists
+	Keep list items as blank nodes.  Applies only in the
+	forward (skolemizing) direction -- not inverse
+	(de-skolemizing).
+
   -u, --unique=uniqueUri
-	Use uniqueUri as the unique base in parsing skolem URIs.
-	A sequence number will be appended to uniqueUri to produce
-	the generated URI corresponding to a bnode.  Suggestion:
-	end uniqueUri with a colon \":\" to separate it from the
-	sequence number.  If this option is specified, the -p
-	option will be ignored.
+	Use uniqueUri as the unique base in generating skolem URIs.
+	A sequence number will be appended to 
+	uniqueUri to produce the generated URI corresponding to a bnode.  
+	If uniqueUri does not end in [a-zA-Z_], the letter \"b\" will
+	be prepended to the sequence number.
+	Suggestion: end uniqueUri with a colon \":\" to separate it from 
+	the sequence number, such as \"urn:z:\" .  If this option is 
+	specified, the -p option will be ignored.
 
   -b, --base=baseUri
 	Use baseUri as the base in parsing relative URIs.
+
+  -d, --deskolemize
+	Convert skolem URIs back to blank nodes.  The -u option
+	must also be specified, to indicate the URI pattern
+	to recognize, for conversion back to blank nodes.
+
+  -v, --verbose
+	Print more info when processing.
 
   -h, --help
 	Print this usage message.\n";
@@ -48,12 +63,18 @@ use Data::GUID;
 my $prefixUri = "urn:@";
 my $uniqueUri = "";
 my $baseUri = $prefixUri;
+my $keepLists = 0;
 my $help = 0;
+my $verbose = 0;
 my $debug = 0;
+my $deskolemize = 0;
 use Getopt::Long; # Perl
 GetOptions(
-                "debug|d" => \$debug,
+                "debug" => \$debug,
                 "help|h" => \$help,
+                "verbose|v" => \$verbose,
+                "deskolemize|d" => \$deskolemize,
+                "keep-lists|k" => \$keepLists,
                 "prefix|p=s" => \$prefixUri,
                 "unique|u=s" => \$uniqueUri,
                 "base|b=s" => \$baseUri,
@@ -71,16 +92,18 @@ $uniqueUri = $prefixUri . &NewUniqueID() if !$uniqueUri;
 die "$0 [ERROR] uniqueUri must not have angle brackets: $uniqueUri\n"
 	if $uniqueUri =~ m/^\</ || $uniqueUri =~ m/\>$/;
 
-my $counter = 0;
+my $greatestBnode = "";
 my %triples;
 my %terms;
-my %bnodes;
+my %bnodes;	# Blank nodes to possibly skolemize to URIs (or vice versa)
 my %isList;
 my $listFirst = "<http://www.w3.org/1999/02/22-rdf-syntax-ns#first>";
 my $pipe = "rapper -q -i turtle -o ntriples -I $baseUri  - |";
 $pipe    = "rapper -q -i turtle -o ntriples -I $baseUri $f |" if $f;
 open(STDIN, $pipe) || die "$0: [ERROR] Failed to open pipe: $pipe\nIs rapper installed?\n";
 warn "INPUT N-Triples:\n[[\n" if $debug;
+my $uniqueUriPattern = quotemeta($uniqueUri);
+my $nTriplesInput = 0;
 while(<>) {
 	my $line = $_;
 	warn $line if $debug;
@@ -91,27 +114,77 @@ while(<>) {
 	s/\s*\.$//;		# Strip terminating "."
 	my($s, $p, $v) = split(/\s/, $_, 3);
 	defined($v) || die "$0: [ERROR] Failed to parse line: $line";
-	$triples{$s}->{$p}->{$v} = 1;;
+	$triples{$s}->{$p}->{$v} = 1;
+	$nTriplesInput++;
 	$isList{$s} = 1 if $p eq $listFirst;
 	foreach my $t ($s, $p, $v) {
 		$terms{$t} = $t;
-		$bnodes{$t} = 1 if $t =~ m/^_/;
+		my $matchesUriPattern = ($t =~ m/^\<$uniqueUriPattern/);
+		my $matchesBnodePattern = ($t =~ m/^_/);
+		if ($deskolemize) {
+			$bnodes{$t} = 1 if $matchesUriPattern;
+			# Watch out for existing bnodes:
+			$greatestBnode = &Greatest($greatestBnode, $t)
+				if $matchesBnodePattern;
+		} else {
+			$bnodes{$t} = 1 if $matchesBnodePattern;
+			# Watch out for existing bnodes:
+			$greatestBnode = &Greatest($greatestBnode, $t)
+				if $matchesUriPattern;
+		}
 		}
 	}
 warn "]]\n" if $debug;
+warn "Triples input: $nTriplesInput (may include duplicates)\n" if $verbose or $debug;
+warn "greatestBnode: $greatestBnode\n" if $verbose || $debug;
 warn "===================================================\n" if $debug;
 
-# Generate URIs for bnodes that are not lists.
+# Watch out for existing bnodes:
+my $counter = 0;
+# Leading zeros help stablize the sort order of the triples:
+my $minDigits = length("" . scalar(keys %bnodes));
+my $newBnodeBase = $uniqueUri;
+$newBnodeBase = "_:b" if $deskolemize;
+if ($greatestBnode ne "") {
+	$newBnodeBase = $greatestBnode;
+	if (!$deskolemize) {
+		$newBnodeBase =~ s/^\<//;
+		$newBnodeBase =~ s/>$//;
+	}
+	if ($newBnodeBase =~ s/(\d+)$//) {
+		$counter = $1;
+		$minDigits = length($counter);
+		$counter = $counter + 0;	# Force numeric
+	}
+	}
+$newBnodeBase .= "b" if $newBnodeBase !~ m/[a-zA-Z_]/;
+warn "minDigits: $minDigits\n" if $verbose || $debug;
+warn "Starting newBnodeBase: $newBnodeBase\n" if $verbose || $debug;
+warn "Starting counter: $counter\n" if $verbose || $debug;
+	
+# Generate URIs for bnodes.
+my $totalBnodes = scalar(keys %bnodes);
+my $bnodesConverted = 0;
+warn "Total blank nodes found: $totalBnodes (including lists)\n" if $verbose || $verbose || $debug;
+my $format = "%0" . $minDigits . "d";
 foreach my $bnode (sort keys %bnodes) {
-	next if $isList{$bnode};
+	next if $keepLists && $isList{$bnode} && !$deskolemize;
 	$counter++;
-	my $uri = "<" . $uniqueUri . sprintf("%04x", $counter) . ">" ;
+	$bnodesConverted++;
+	my $uri;
+	if ($deskolemize) {
+		$uri = $newBnodeBase . sprintf($format, $counter);
+	} else {
+		$uri = "<" . $newBnodeBase . sprintf($format, $counter) . ">";
+	}
 	warn "bnode $bnode -> $uri\n" if $debug;
 	$terms{$bnode} = $uri;
 	}
+warn "Blank nodes converted: $bnodesConverted\n" if $verbose || $debug;
 warn "===================================================\n" if $debug;
 
 # Dump out the result.
+my $nTriplesOutput = 0;
 foreach my $s (sort keys %triples) {
 	my $newS = $terms{$s};
 	print "$newS ";
@@ -126,6 +199,7 @@ foreach my $s (sort keys %triples) {
 			my $newV = $terms{$v};
 			print $vIndent, $newV, " ";
 			$vIndent = ", ";
+			$nTriplesOutput++;
 			}
 		print ";\n";
 		$pIndent = "\t";
@@ -133,6 +207,7 @@ foreach my $s (sort keys %triples) {
 		
 	print "\t.\n";
 	}
+warn "Triples output: $nTriplesOutput\n" if $verbose or $debug;
 exit 0;
 
 ################ NewUniqueID ################
@@ -151,5 +226,17 @@ $hash =~ tr|+/=|\-_|d;
 # Sanity check:
 die if $hash !~ m/\A[a-zA-Z0-9_\-]+\Z/;
 return $hash;
+}
+
+################ Greatest ################
+# Return the greatest between $a and $b (as strings).
+sub Greatest
+{
+@_ == 2 || die;
+my ($a, $b) = @_;
+return $a if length($a) > length($b);
+return $b if length($a) < length($b);
+return $a if $a gt $b;
+return $b;
 }
 
