@@ -22,7 +22,7 @@ $ENV{RDF_PIPELINE_WWW_DIR} = $wwwDir;
 ############ CUSTOMIZE HERE ################
 !system("flush-caches") or die;
 # Invoke the URL, concatenating its output to $wwwDir/test/testout :
-my $testUrl = 'http://127.99.99.99:80/node/addone';
+my $testUrl = 'http://127.0.0.1:80/node/addone';
 !system("../../helpers/pipeline-request.perl GET '$testUrl'") or die;
 ############################################
 
