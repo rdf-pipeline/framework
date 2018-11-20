@@ -31,14 +31,15 @@ my $serState = "$wwwDir/cache/URI/SHORT_aba_HASHhQy3E2e4CUWxhwDVUNSYXgA/serState
 ### The serState LM file path used to look like this:
 # my $serStateLM = "$wwwDir/lm/FILE/%2Fhome%2Fdbooth%2Frdf-pipeline%2FPrivate%2Fwww%2Fcache%2Faba%2FserState";
 ### But now it looks like this:
-# /var/www/lm/FILE/cache%2FURI%2FSHORT_aba_HASHhQy3E2e4CUWxhwDVUNSYXgA%2FserState_HASHhnGR-y5YfwMpy8GHPgh8Wcg
-my $serStateLM = "$wwwDir/lm/FILE/cache%2FURI%2FSHORT_aba_HASHhQy3E2e4CUWxhwDVUNSYXgA%2FserState_HASHhnGR-y5YfwMpy8GHPgh8Wcg";
+# /var/www/html/lm/FILE/cache%2FURI%2FSHORT_aba_HASHhQy3E2e4CUWxhwDVUNSYXgA%2FserState_HASHh_rn3vU-WX4PPj7o6A1uvVw
+my $serStateLM = "$wwwDir/lm/FILE/cache%2FURI%2FSHORT_aba_HASHhQy3E2e4CUWxhwDVUNSYXgA%2FserState_HASHh_rn3vU-WX4PPj7o6A1uvVw";
 # warn "wwwDir: $wwwDir\n";
 # warn "serState: $serState\n";
 # warn "serStateLM: $serStateLM\n";
 
-# First, use GET to make sure that serState is refreshed:
+# First, flush caches and use GET to make sure that serState is refreshed:
 my $testUrl = 'http://localhost/node/aba';
+!system("flush-caches") or die;
 !system("../../helpers/pipeline-request.perl GET '$testUrl'") or die;
 
 # Delete serState and serState LM:
