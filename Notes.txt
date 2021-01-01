@@ -1,5 +1,5 @@
-RDF Pipeline Framework, Copyright 2011-2014 David Booth <david@dbooth.org>
-This is part of the project at http://code.google.com/p/rdf-pipeline/ .
+RDF Pipeline Framework, Copyright 2011-2021 David Booth <david@dbooth.org>
+This is part of the project at https://github.com/rdf-pipeline/ .
 It is licensed for use under the license in License.txt
 ----------------------------------------------------------------
 
@@ -7,6 +7,49 @@ These are my (dbooth) personal notes and "To Do" list from
 before I used code.google.com and had any formal bug tracker
 or issues list.  It is currently being used as a place for recording
 notes or ideas.
+
+1/1/21: Some thoughts:
+1. Since the Framework is oriented toward large data, the MAP
+use case is essential.  It should be easy and natural to have an
+updater that operates only on a single DB record.
+2. Nodes with large amounts of data will almost never input or output
+all the data at once.  They will always involve DELTAs to the data.
+This should be easy and natural to specify in a pipeline.
+
+1/1/21: Looking back at the NoFlo implementation, although our
+developers did an excellent job, in hindsight I think the approach
+we took was not very successful, for these reasons:
+1. The granularity was a mismatch.  NoFlo is oriented toward small
+operations and small amounts of data.  But the RDF Pipeline Framework
+is intended for more significant amounts of data, in which the data
+*resides* somewhere and you have to go get what you need rather then
+sending around all the time.
+2. NoFlo is PUSH-oriented, but a PULL model is more suitable for
+larger data.
+3. The NoFlo UI was pretty, but a bit frustratingly slow (clunky) to
+use in the browser UI.  I don't know if another (D3.js?) implementation
+could have been more responsive.  
+4. We completely re-architected the framework, when we ported it to NoFlo.
+That was a tactical mistake (my fault).  In hindsight we should have
+done a straight 1:1 port from perl to JS using Node.js as the web server.
+That would have saved a lot of time.
+
+11/19/18: Possibly interesting for Python support:
+https://code.google.com/archive/p/modwsgi/wikis/QuickConfigurationGuide.wiki#Delegation_To_Daemon_Process
+
+11/15/18: To fix a bug that I suspect is caused by Apache concurrent
+request handling, I want to force apache to process one request at a
+time.  This answer suggests that four variables contribute:
+MaxClients or ServerLimit / ThreadLimit / TheadsPerChild
+https://serverfault.com/questions/541127/how-do-i-force-apache-to-drop-requests-after-a-predetermined-amount-of-time#answer-541415
+
+9/12/18: My thoughts on comparison with Apache Spark.  Some of these
+perceptions may be incorrect, due to my limited knowledge of Spark.
+Zaharia said that Spark sought to address three limitations of
+Map-Reduce: 1. Iterative algorithms (keep data in memory); 2. Real-time
+streaming (compute incrementally); 3. Interactive queries.
+Wikipedia: "Spark provides an interface for programming entire clusters
+with implicit data parallelism and fault tolerance".
 
 10/29/13: Brainstorming how to write map pipelines.
 [[
