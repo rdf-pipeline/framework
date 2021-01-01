@@ -6,6 +6,7 @@
 #
 # Option:
 #	-q	Quiet: only set return status, instead of showing diffs.
+#	-d	Run diff after failed cmp.
 
 use strict;
 
@@ -14,7 +15,9 @@ umask 002;
 
 my $debug = 0;
 my $quiet = "";
+my $showDiff = 0;
 $quiet = shift @ARGV if @ARGV && $ARGV[0] eq "-q";
+$showDiff = shift @ARGV if @ARGV && $ARGV[0] eq "-d";
 my $expectedFiles = shift @ARGV || die;
 my $resultFiles = shift @ARGV || die;
 
@@ -68,7 +71,7 @@ $result = 1;
 
 
 ################ CompareFiles #################
-# The two files are know to exist, but one may be a directory.
+# The two files are known to exist, but one may be a directory.
 sub CompareFiles
 {
 @_ == 2 || die;
@@ -108,7 +111,13 @@ if (-f $expectedFiles && -f $resultFiles) {
 
     } else { 
         # Not a turtle file and standard diff failed - return a failed status
-        print "cmp '$expectedFiles' '$resultFiles' failed\n";
+        print "cmp '$expectedFiles' '$resultFiles' failed!\n";
+	if ($showDiff) {
+		my $cmd = "diff '$expectedFiles' '$resultFiles'";
+		print "$cmd\n";
+		my $result = `$cmd`;
+		print "$result\n";
+	}
         return 1;
     }
 } # Got 2 files

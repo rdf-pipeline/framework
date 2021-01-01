@@ -19,6 +19,6 @@
 # Supply the SPARQL server connection details for nodes of type p:GraphNode
 # on pipeline host http://localhost :
 p:GraphNode p:hostRoot 
-  ( "http://localhost" "http://localhost:8080/openrdf-workbench/repositories/rdf-pipeline-test" ) .
+  ( "http://localhost" " http://localhost:8080/rdf4j-server/repositories/rdf-pipeline-test " ) .
 ##################################################################
 

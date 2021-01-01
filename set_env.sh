@@ -22,7 +22,7 @@ if [ -f /etc/apache2/sites-enabled/000-default ]; then
 elif [ -f /etc/apache2/sites-enabled/000-default.conf ]; then
     APACHECONFIG="/etc/apache2/sites-enabled/000-default.conf"
 else
-    echo "Apache configuration was not found!"
+    echo "[ERROR] Apache configuration was not found!"
     return 1
 fi
 
@@ -33,6 +33,10 @@ if [ -z "$RDF_PIPELINE_DEV_DIR" ]; then
        RDF_PIPELINE_DEV_DIR=`expand "$APACHE_ENVVARS" | grep "RDF_PIPELINE_DEV_DIR=" | cut -d "=" -f 2`
        export RDF_PIPELINE_DEV_DIR
    fi
+fi
+if [ -z "$RDF_PIPELINE_DEV_DIR" ]; then
+    echo "[ERROR] \$RDF_PIPELINE_DEV_DIR was not set in either env or $APACHECONFIG"
+    return 1
 fi
 
 # Perl library path - avoid duplicate additions to it  
@@ -79,7 +83,7 @@ if [ -z "$DOCUMENT_ROOT" ]; then
             if [ -f /etc/apache2/envvars ]; then
                 APACHE_ENVVARS="/etc/apache2/envvars"
             else
-                echo DocumentRoot is a variable but no Apache envvars file was found to resolve it.
+                echo [ERROR] DocumentRoot is a variable but no Apache envvars file was found to resolve it.
                 return 1
             fi
 

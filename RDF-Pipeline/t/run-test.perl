@@ -89,6 +89,7 @@ my $testCount = 0;
 
 my %lastModified = ();	# Maps pipeline.ttl last-modified date to test dir
 
+my $nTDirs = scalar(@tDirs);
 foreach my $tDir (@tDirs) {
   $testCount = $testCount + 1;
   $tDir =~ s|\/$||;
@@ -221,10 +222,18 @@ foreach my $tDir (@tDirs) {
     }
 
   # Compare the (filtered) expected with the (filtered) actual files:
-  my $checkCmd = "$moduleDir/t/helpers/compare-results.perl '$expectedFilteredDir' '$actualFilteredDir' >> $tmpDiff";
+  my $diffsOption = "";
+  $diffsOption = "-d" if $nTDirs == 1;
+  my $checkCmd = "$moduleDir/t/helpers/compare-results.perl $diffsOption '$expectedFilteredDir' '$actualFilteredDir' >> $tmpDiff";
   # warn "Running check: $checkCmd\n" if -e "$tDir/.svn";
   my $diffStatus = system($checkCmd);
-  warn "Failed comparison: $tDir\n  Diffs file: $tmpDiff\n" if $diffStatus;
+  if ($diffStatus) {
+    warn "Failed comparison: $tDir\n  Diffs file: $tmpDiff\n";
+    if ($nTDirs == 1) {
+      my $diffs = `cat "$tmpDiff"`;
+      warn "$diffs\n";
+    }
+  }
   if ($diffStatus)  {
      $allPassed = 0 
   } else {

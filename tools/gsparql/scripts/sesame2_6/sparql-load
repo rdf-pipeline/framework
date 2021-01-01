@@ -62,7 +62,7 @@ foreach my $f (@ARGV) {
 	my $uri = URI::file->new_abs( $f )->as_string();
 	my $update = "LOAD <$uri> $into\n";
 	&WriteFile($tmpSparql, $update);
-	!system("sparql-update", $tmpSparql) or die $!;
+	!system("sparql-update", ($debug ? "-d" : ""), $tmpSparql) or die $!;
 	unlink($tmpSparql) if !$debug;
 	unlink($tmpRdf) if $tmpRdf && !$debug;
 	}

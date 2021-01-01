@@ -54,6 +54,9 @@
 use warnings;
 use strict;
 
+my $patternForUrnLocalPart   = '[a-zA-Z0-9_][a-zA-Z0-9_\.\-]*';
+my $patternForOtherLocalPart = '[a-zA-Z0-9_][a-zA-Z0-9_\.\-\:]*';
+
 ################# Usage ###################
 sub Usage
 {
@@ -73,6 +76,21 @@ Options:
 	expand prefixed terms like foo:bar to full URI form 
 	like <http://example/foo#bar>.
 
+  -n, --new
+	Make up new prefixes for absolute URIs that do not yet
+	have prefixes defined.  For example, for
+	<http://example/foo#bar> make up a new prefix definition:
+	PREFIX p1: <http://example/foo#>
+	For an absolute URN to be prefixed, its local part
+	must match: $patternForUrnLocalPart
+	For any other absolute URN to be prefixed, its local part
+	must match: $patternForOtherLocalPart
+	This option cannot be used with --bare.
+
+  -b, --bare
+	Also transform bare URIs like http://example/foo that are 
+	not enclosed in angle brackets like <http://example/foo> .
+
   -s, --show
 	Show the prefix definitions used, instead of outputting the
 	transformed input.
@@ -88,12 +106,16 @@ my @optPrefixes = ();
 my $optUnprefix = 0;
 my $optShow = 0;
 my $optHelp = 0;
+my $optBare = 0;
+my $optNew = 0;
 
 use Getopt::Long; # Perl
 if (!GetOptions(
                 "prefix|p=s" => \@optPrefixes,
                 "unprefix|u" => \$optUnprefix,
+                "new|n" => \$optNew,
                 "show|s" => \$optShow,
+                "bare|b" => \$optBare,
                 "help|h" => \$optHelp,
                 )) {
         warn "$0: Error reading options.\n";
@@ -103,6 +125,21 @@ if ($optHelp) {
         print &Usage();
         exit 0;
         }
+
+my $openBracket = '<';
+my $openPattern = '<';
+my $closeBracket = '>';
+my $closePattern = '>';
+if ($optBare) {
+	$openBracket = '';
+	$closeBracket = '';
+	$openPattern = '\\b';
+	$closePattern = '';
+	# $optNew cannot be used with $optBare because urn:foo would
+	# be ambiguous: Is "urn:" a prefix?
+	die "$0: [ERROR] -b option cannot be used with -n option because urn:foo would be ambiguous.\n"
+		if $optNew;
+	}
 
 # Prefix pattern from SPARQL 1.1, but ignoring weird chars:
 # [164]  	PN_CHARS_BASE	  ::=  	[A-Z] | [a-z] | [#x00C0-#x00D6] | [#x00D8-#x00F6] | [#x00F8-#x02FF] | [#x0370-#x037D] | [#x037F-#x1FFF] | [#x200C-#x200D] | [#x2070-#x218F] | [#x2C00-#x2FEF] | [#x3001-#xD7FF] | [#xF900-#xFDCF] | [#xFDF0-#xFFFD] | [#x10000-#xEFFFF]
@@ -136,19 +173,66 @@ foreach my $f (@optPrefixes) {
 	open(my $fh, "<$f") or die "$0: ERROR: Failed to open prefix file: $f\n";
 	my @lines = <$fh>;
 	close($fh);
-	&CollectPrefixes($prefix2def, $def2prefix, 1, @lines);
+	&CollectPrefixes($prefix2def, $def2prefix, 1, \@lines);
 	}
 
 # Collect more prefix definitions from stdin:
 my @lines = <>;
-&CollectPrefixes($prefix2def, $def2prefix, 1, @lines);
+&CollectPrefixes($prefix2def, $def2prefix, 1, \@lines);
 
 # Add standard prefixes non-destructively:
-&CollectPrefixes($prefix2def, $def2prefix, 0, split(/\n/, &StandardPrefixes()));
+my @standardPrefixes = split(/\n/, &StandardPrefixes());
+&CollectPrefixes($prefix2def, $def2prefix, 0, \@standardPrefixes);
+my $nPrefixes = scalar(keys %{$def2prefix});
 
-# Arrange longest first, like /foobar|foo/, because pattern will match
-# the *first* alternative.
-my $defPattern = join("|", map {quotemeta($_)} sort {length($b) cmp length($a)} keys %{$def2prefix});
+sub MakeDefPattern
+{
+return join("|", map {quotemeta($_)} sort {length($b) cmp length($a)} keys %{$def2prefix});
+}
+
+my $defPattern = &MakeDefPattern();
+
+if ($optNew) {
+	# Look at all absolute URIs, and make new prefixes for the 
+	# URIs that do not match already-defined prefixes.
+	foreach my $theLine (@lines) {
+		my $line = $theLine;	# Make a copy
+		# Skip prefix or base definitions themselves:
+		my ($prefix, $def) = &GetPrefixDef($line);
+		next if defined($def) or $line =~ m/^\s*(\@?)base\s+\</i;
+		while ($line =~ s/\<($uriPattern)\>/ /) {
+			my $uri = $1;
+			# warn "uri: $uri\n";
+			my $defCandidate = undef;
+			my $localPart = "";
+			if ($uri =~ m/^urn\:/) {
+				if ($uri =~ m/$patternForUrnLocalPart$/) {
+					$defCandidate = $`;
+					$localPart = $&;
+					}
+				} 
+			else { 
+				if ($uri =~ m/$patternForOtherLocalPart$/) {
+					$defCandidate = $`;
+					$localPart = $&;
+					# warn "  $defCandidate  $localPart\n";
+					}
+				} 
+			# See if we need a new prefix for it.
+			if (defined($defCandidate) && ((!$nPrefixes)
+			    || $uri !~ m/^($defPattern)($localPattern)$/)) {
+				my $newPrefix = &NextNewPrefix();
+				# warn "  --> $newPrefix\n";
+				# Add the $newPrefix:
+				$prefix2def->{$newPrefix} = $defCandidate;
+				$def2prefix->{$defCandidate} = $newPrefix;
+				$defPattern = &MakeDefPattern();
+				# die "defPattern: $defPattern\n";
+				$nPrefixes++;
+				}
+			}
+		}
+	}
 
 warn "$0: WARNING: No prefix definitions.\n" if !$defPattern;
 # die "defPattern: $defPattern\n\n";
@@ -159,39 +243,39 @@ my $prefixesPattern = join("|", map {quotemeta($_)} keys %{$prefix2def});
 die if $prefixesPattern && "" =~ m/\A($prefixesPattern)\Z/;
 
 # Transform the input, remembering which prefixes were substituted:
-my %used;	# Maps prefix -> def
-for (my $i=0; $i<@lines; $i++) {
+my %used;	# Maps prefix -> count of times used
+foreach my $line (@lines) {
 	# Don't transform prefix or base definitions themselves:
-	my ($prefix, $def) = &GetPrefixDef($lines[$i]);
-	next if defined($def) or $lines[$i] =~ m/^\s*(\@?)base\s+\</i;
+	my ($prefix, $def) = &GetPrefixDef($line);
+	next if defined($def) or $line =~ m/^\s*(\@?)base\s+\</i;
 	# Transform regular line:
 	if ($optUnprefix) {
 		# Expand foo:bar --> <http://example/foo#bar>
 		# TODO: \b is not correct at the end, because local name
 		# is now allowed to end with "-" or ":"  (grrr).
 		#                                            1                 2
-		while ($prefixesPattern && $lines[$i] =~ s/\b($prefixesPattern)($localPattern)\b/"<" . $prefix2def->{$1} . "$2>"/ie) {
+		while ($prefixesPattern && $line =~ s/\b($prefixesPattern)($localPattern)\b/$openBracket . $prefix2def->{$1} . "$2$closeBracket"/ie) {
 			my $prefix = $1;
 			my $local = $2;
 			my $def = $prefix2def->{$prefix};
 			defined($def) || die;
 			defined($def2prefix) || die;
 			defined($def2prefix->{$def}) || die;
-			defined($local) || die "ERROR: local undefined for prefix $prefix : $lines[$i] ";
-			$used{$def2prefix->{$def}} = $def;
+			defined($local) || die "ERROR: local undefined for prefix $prefix : $line ";
+			$used{$def2prefix->{$def}}++;
 			# warn "DEF: $def LOCAL: $local\n";
 			}
 		}
 	else	{
 		# Prefix <http://example/foo#bar> --> foo:bar
 		#                                       1            2
-		while ($defPattern && $lines[$i] =~ s/\<($defPattern)([^\<\>\"\'\s]*)\>/$def2prefix->{$1} . $2/ie) {
+		while ($defPattern && $line =~ s/$openPattern($defPattern)($localPattern)$closePattern/$def2prefix->{$1} . $2/ie) {
 			my $def = $1;
 			my $local = $2;
 			defined($def) || die;
 			defined($def2prefix) || die;
 			defined($def2prefix->{$def}) || die;
-			$used{$def2prefix->{$def}} = $def;
+			$used{$def2prefix->{$def}}++;
 			# warn "DEF: $def LOCAL: $local\n";
 			}
 		}
@@ -199,7 +283,11 @@ for (my $i=0; $i<@lines; $i++) {
 
 if ($optShow) {
 	foreach my $prefix (sort keys %used) {
-		print "prefix $prefix <$used{$prefix}>\n";
+		my $def = $prefix2def->{$prefix};
+		my $optCount = 1;
+		my $howMany = "";
+		$howMany = " # Used $used{$prefix} times" if $optCount; 
+		print "prefix $prefix <$def>$howMany\n";
 		}
 	}
 else	{
@@ -207,15 +295,27 @@ else	{
 	}
 exit 0;
 
+############ NextNewPrefix ##########
+sub NextNewPrefix
+{
+our $counter;
+while(1) {
+	$counter++;
+	my $newPrefix = "p$counter\:";
+	return $newPrefix if !exists($prefix2def->{$newPrefix});
+	}
+}
+
 ############ CollectPrefixes ##########
-# Called as &CollectPrefixes($prefix2def, $def2prefix, $override, @lines);
+# Called as &CollectPrefixes($prefix2def, $def2prefix, $override, \@lines);
 sub CollectPrefixes
 {
 my $prefix2def = shift || die;
 my $def2prefix = shift || die;
 my $override = shift;
+my $linesRef = shift;
 defined($override) || die;
-foreach my $line (@_) {
+foreach my $line (@$linesRef) {
 	my ($prefix, $def) = &GetPrefixDef($line);
 	if (defined($def)) {
 		if ((exists($prefix2def->{$prefix}) 
