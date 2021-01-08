@@ -15,6 +15,10 @@ updater that operates only on a single DB record.
 2. Nodes with large amounts of data will almost never input or output
 all the data at once.  They will always involve DELTAs to the data.
 This should be easy and natural to specify in a pipeline.
+3. Although the primary use case for the Framework uses an inversion
+of control -- no APIs -- we should also provide an API to enable
+events to be conveniently triggered from code, rather than only
+via HTTP.
 
 1/1/21: Looking back at the NoFlo implementation, although our
 developers did an excellent job, in hindsight I think the approach
