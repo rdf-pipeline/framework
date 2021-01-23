@@ -312,13 +312,11 @@ if ($test)
 	print "=================================\n";
 	$name = "multiplier.txt";
 	$s = &ShortName($name);
-	my $t = &OldQuickName($name);
-	print "$name -->\n$s old: $t\n\n";
+	print "$name -->\n$s\n\n";
 	print "=================================\n";
 	$name = "node/bill-presidents.txt";
 	$s = &ShortName($name);
-	$t = &OldQuickName($name);
-	print "$name -->\n$s old: $t\n\n";
+	print "$name -->\n$s\n\n";
 	print "=================================\n";
 	
 	die "COMMAND-LINE TESTING IS NO LONGER IMPLEMENTED!\n";
@@ -1782,9 +1780,10 @@ return $sanitized;
 }
 
 ############### ShortName ###############
-# ShortName is sort of like OldQuickName, but it returns
-# limited length names, and they are prefixed with "SHORT_",
-# so that then can be identified more easily in regression test
+# Generate a relative path or filename based on the given URI.
+# Returns a limited length name, prefixed by SHORT_ and a (hopefully)
+# recognizable end portion of the URI,
+# so it can be identified more easily in regression test
 # filter scripts.
 # It is used while in transition to hashed names.
 sub ShortName
@@ -2011,7 +2010,7 @@ return $lmFile;
 }
 
 ############# SaveLMs ##############
-# Save Last-Modified times of $thisName and its inputs (actually its dependsOns).
+# Save Last-Modified times of $thisName and its dependsOns.
 # Called as: &SaveLMs($nameType, $thisName, $thisLM, %depLMs);
 # Actually, this can be used to save/load any lines of data, using
 # $nameType and $thisName as the composite key.
@@ -2034,7 +2033,7 @@ foreach my $line ("# $nameType $thisName", @depLMs) {
 }
 
 ############# LookupLMs ##############
-# Lookup LM times of $thisName and its inputs (actually its dependsOns).
+# Lookup LM times of $thisName and its dependsOns.
 # Called as: my ($thisLM, %depLMs) = &LookupLMs($nameType, $thisName);
 # Actually, this can be used to save/load any lines of data, using
 # $nameType and $thisName as the composite key.
