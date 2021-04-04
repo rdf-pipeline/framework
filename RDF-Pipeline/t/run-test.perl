@@ -243,6 +243,7 @@ foreach my $tDir (@tDirs) {
 
 print "\nPassed $passed of $testCount tests\n";
 exit 0 if $allPassed;
+print "Most recent diffs in: $tmpDiff\n";
 exit 1;
 
 ########## EnvNotSet #########
