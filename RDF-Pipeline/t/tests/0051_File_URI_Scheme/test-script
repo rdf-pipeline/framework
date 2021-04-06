@@ -20,6 +20,10 @@ my $wwwDir = shift @ARGV || $ENV{RDF_PIPELINE_WWW_DIR} || die;
 $ENV{RDF_PIPELINE_WWW_DIR} = $wwwDir;	
 
 ############ CUSTOMIZE HERE ################
+warn "This test will normally FAIL now, because the test tries
+to access /tmp/file-uri-test , which is outside of the apache2 
+document root, and apache2 does not permit access\n\n";
+
 # The pipeline expects file /tmp/file-uri-test to exist, so make one:
 my $f = "/tmp/file-uri-test";
 open(my $fh, ">$f") || die;

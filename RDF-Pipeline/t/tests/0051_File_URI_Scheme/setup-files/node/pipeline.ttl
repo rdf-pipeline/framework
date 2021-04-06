@@ -1,5 +1,5 @@
 # RDF Pipeline definition.
-# Testing GraphNode serialization/deserialization #####
+# Testing GET from file: URL
 
 # The RDF Pipeline ontology:
 @prefix p: <http://purl.org/pipeline/ont#> .
