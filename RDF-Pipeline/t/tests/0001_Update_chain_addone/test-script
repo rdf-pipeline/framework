@@ -3,10 +3,10 @@
 # This script will be invoked by run-test.perl as:
 #
 #	cd '$TESTDIR'
-# 	test-script '$RDF_PIPELINE_WWW_DIR'
+# 	test-script '$DOCUMENT_ROOT'
 #
 # where $TESTDIR is the full path of the nnnn numbered test directory
-# that is being tested, and $RDF_PIPELINE_WWW_DIR is the full path
+# that is being tested, and $DOCUMENT_ROOT is the full path
 # of the RDF Pipeline's Apache DOCUMENT_ROOT.
 #
 # You may customize any part of this script as needed for this test,
@@ -15,9 +15,9 @@
 
 use strict;
 
-my $wwwDir = shift @ARGV || $ENV{RDF_PIPELINE_WWW_DIR} || die;
+my $wwwDir = shift @ARGV || $ENV{DOCUMENT_ROOT} || die;
 # Ensure this env var is set, so that pipeline-request.perl can find it:
-$ENV{RDF_PIPELINE_WWW_DIR} = $wwwDir;	
+$ENV{DOCUMENT_ROOT} = $wwwDir;	
 
 ############ CUSTOMIZE HERE ################
 my $testUrl = 'http://localhost/node/addone';
