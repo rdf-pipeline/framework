@@ -179,8 +179,12 @@ use RDF::Pipeline::ExampleHtmlNode;
 use RDF::Pipeline::GraphNode;
 
 ##################  Debugging and testing ##################
-our $logFile = "/tmp/rdf-pipeline-log.txt";
-our $timingLogFile = "/tmp/rdf-pipeline-timing.tsv";
+# Ubuntu apache2 does not allow file writes outside of /var/www :
+# https://askubuntu.com/questions/622426/apache-not-allowing-php-to-create-file
+# our $logFile = "/tmp/rdf-pipeline-log.txt";
+our $logFile = "/var/www/rdf-pipeline-log.txt";
+# our $timingLogFile = "/tmp/rdf-pipeline-timing.tsv";
+our $timingLogFile = "/var/www/rdf-pipeline-timing.tsv";
 # unlink $logFile || die;
 
 # $debug verbosity:
@@ -200,7 +204,7 @@ my $rawDebug = $debug;
 # Allows symbolic $debug value:
 $debug = eval $debug if defined($debug) && $debug =~ m/^\$\w+$/;  
 die "ERROR: debug not defined: $rawDebug " if !defined($debug);
-# $debug = $DEBUG_CHANGES;
+# $debug = $DEBUG_DETAILS;
 
 our $debugStackDepth = 0;	# Used for indenting debug messages.
 our $test;
@@ -1667,6 +1671,7 @@ my $configFile = shift;
 $configFile || die;
 -e $configFile || die;
 my $cwmCmd = "cwm --n3=ps $ontFile $internalsFile $configFile --think |";
+# warn "cwmCmd: $cwmCmd\n";
 &PrintLog("cwmCmd: $cwmCmd\n");
 open(my $fh, $cwmCmd) || die;
 my $nc = " " . join(" ", map { chomp; 
@@ -2536,8 +2541,13 @@ return "";
 sub PrintLog
 {
 our $logFile;
+# my $t = time;
+# warn "PrintLog $t logFile: $logFile\n";
+# my $ll = `echo USER GROUP ; id -nu ; id -ng ; date | tee /var/www/html/date.txt ; echo ROOT DIR ; /bin/ls / ; echo LS /tmp: ; ls -ld /tmp ; echo LS DOT ; ls -ld . ; echo PWD ; pwd ; echo LOGFILE ; /bin/ls -l $logFile`;
+!system("touch $logFile") or warn "[WARNING] PrintLog cannot write logFile: $logFile ";
 open(my $fh, ">>$logFile") || die;
 # print($fh, @_) or die;
+(print $fh time . "\n") or die;
 print $fh @_ or die;
 # print $fh @_;
 close($fh) || die;
@@ -2824,6 +2834,7 @@ my $nmv = $nm->{value} || {};
 my $nml = $nm->{list}  || {};
 my $nmh = $nm->{hash}  || {};
 my $nmm = $nm->{multi} || {};
+# warn "PrintNodeMetadata logFile: $logFile\n";
 &PrintLog("\nNode Metadata:\n") if $debug;
 my %allSubjects = (%{$nmv}, %{$nml}, %{$nmh}, %{$nmm});
 foreach my $s (sort keys %allSubjects) {
