@@ -19,6 +19,10 @@ This should be easy and natural to specify in a pipeline.
 of control -- no APIs -- we should also provide an API to enable
 events to be conveniently triggered from code, rather than only
 via HTTP.
+4. For performance, maybe append all LMs (on a given server) to
+one LMs-log.tsv file, and periodically re-write it if it gets too big.
+Atomic re-write can be done by writing to LMs-log-new.tsv and
+then renaming it to LMs-log.tsv, because renaming is atomic.
 
 1/1/21: Looking back at the NoFlo implementation, although our
 developers did an excellent job, in hindsight I think the approach

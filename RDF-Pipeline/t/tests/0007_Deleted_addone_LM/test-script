@@ -25,7 +25,7 @@ $ENV{DOCUMENT_ROOT} = $wwwDir;
 # Delete addone LM:
 # my $addoneLM = "$wwwDir/lm/URI/http%3A%2F%2Flocalhost%2Fnode%2Faddone";
 # my $addoneLM = "$wwwDir/lm/URI/addone";
-my @matches = glob "$wwwDir/lm/URI/addone_HASH*";
+my @matches = glob "$wwwDir/lm/URI/addone";
 die if @matches != 1;
 my $addoneLM = $matches[0];
 -e $addoneLM || die "addoneLM not found: $addoneLM\n";

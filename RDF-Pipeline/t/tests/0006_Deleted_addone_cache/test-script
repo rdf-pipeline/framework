@@ -24,7 +24,7 @@ $ENV{DOCUMENT_ROOT} = $wwwDir;
 !system("cd ../0003_No_changes_should_304 ; ./test-script '$wwwDir'") or die;
 # Delete addone cache:
 # my $addoneCache = "$wwwDir/cache/URI/addone/state";
-my @matches = glob "$wwwDir/cache/URI/SHORT_addone_HASH*/state";
+my @matches = glob "$wwwDir/cache/URI/SHORT_addone/state";
 die if @matches != 1;
 my $addoneCache = $matches[0];
 -e $addoneCache || die "addoneCache not found: $addoneCache\n";

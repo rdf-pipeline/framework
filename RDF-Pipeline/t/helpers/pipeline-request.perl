@@ -2,7 +2,7 @@
 
 # Run a test of an RDF Pipeline by using curl to invoke a URL, 
 # concatenating the output and the apache access and error logs 
-# to the $RDF_PIPELINE_WWW_DIR/test directory.
+# to the $DOCUMENT_ROOT/test directory.
 # Because the results are concatenated, a single test may run
 # this script more than once.  
 #
@@ -22,7 +22,7 @@ umask 002;
 
 my $sleepSeconds = 0;	# Time to wait for Apache to finish writing log files.
 
-my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
+my $wwwDir = $ENV{'DOCUMENT_ROOT'} or &EnvNotSet('DOCUMENT_ROOT');
 my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
 my $moduleDir = "$devDir/RDF-Pipeline";
 # chdir("$moduleDir/t") or die "ERROR: Could not chdir('$moduleDir/t')\n";

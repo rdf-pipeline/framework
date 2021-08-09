@@ -179,6 +179,10 @@ use RDF::Pipeline::ExampleHtmlNode;
 use RDF::Pipeline::GraphNode;
 
 ##################  Debugging and testing ##################
+our $logFile = "/tmp/rdf-pipeline-log.txt";
+our $timingLogFile = "/tmp/rdf-pipeline-timing.tsv";
+# unlink $logFile || die;
+
 # $debug verbosity:
 our $DEBUG_OFF = 0;	# No debug output.  Warnings/errors only.
 our $DEBUG_NODE_UPDATES = 1; 	# Show nodes updated.
@@ -196,10 +200,11 @@ my $rawDebug = $debug;
 # Allows symbolic $debug value:
 $debug = eval $debug if defined($debug) && $debug =~ m/^\$\w+$/;  
 die "ERROR: debug not defined: $rawDebug " if !defined($debug);
-# $debug = $DEBUG_DETAILS;
+# $debug = $DEBUG_CHANGES;
 
 our $debugStackDepth = 0;	# Used for indenting debug messages.
 our $test;
+&Warn("debug level: $debug\n", $DEBUG_DETAILS);
 
 ##################  Constants for this server  ##################
 our $ontologyPrefix = "http://purl.org/pipeline/ont#";	# Pipeline ont prefix
@@ -208,10 +213,12 @@ $ENV{DOCUMENT_ROOT} ||= "/var/www";	# Set if not set
 $ENV{SERVER_NAME} ||= "localhost";
 $ENV{SERVER_PORT} ||= "80";
 our $thisHost = "$ENV{SERVER_NAME}:$ENV{SERVER_PORT}";
-&IsLocalHost($ENV{SERVER_NAME}) || die "[ERROR] Non-local \$SERVER_NAME: $ENV{SERVER_NAME}\n";
+&IsCurrentWebServer($ENV{SERVER_NAME}) || die "[ERROR] Non-local \$SERVER_NAME: $ENV{SERVER_NAME}\n";
+#### TODO: Why is $serverName being set to localhost and not SERVER_NAME?
+#### And why is it even needed?
 our $serverName = "localhost";
-$serverName = "127.0.0.1" if !&IsLocalHost($serverName);
-&IsLocalHost($serverName) || die "[ERROR] 127.0.0.1 not recognized as local! ";
+$serverName = "127.0.0.1" if !&IsCurrentWebServer($serverName);
+&IsCurrentWebServer($serverName) || die "[ERROR] Not recognized as local: $serverName ";
 # $baseUri is the URI prefix that corresponds directly to DOCUMENT_ROOT.
 our $baseUri = &CanonicalizeUri("http://127.0.0.1:$ENV{SERVER_PORT}");
 # $baseUri will normally now be "http://localhost" -- ready for use.
@@ -249,10 +256,6 @@ our $configLastInode = 0;
 our $ontLastInode = 0;
 our $internalsLastInode = 0;
 
-our $logFile = "/tmp/rdf-pipeline-log.txt";
-our $timingLogFile = "/tmp/rdf-pipeline-timing.tsv";
-# unlink $logFile || die;
-
 my %config = ();		# Maps: $s->{$p}->[v1, v2, ... vn]
 
 # Node Metadata hash maps for mapping from subject
@@ -286,6 +289,7 @@ $hasHiResTime || die;
 	);
 &Warn("ARGV: @ARGV\n", $DEBUG_DETAILS) if $test;
 
+#### Command-line testing:
 my $testUri = shift @ARGV || "http://localhost/chain";
 my $testArgs = "";
 if ($testUri =~ m/\A([^\?]*)\?/) {
@@ -362,6 +366,7 @@ $debug = eval $debug if defined($debug) && $debug =~ m/^\$\w+$/;
 $debugStackDepth = $args{debugStackDepth} || 0;
 # warn("="x30 . " handler " . "="x30 . "\n");
 &Warn("="x30 . " handler " . "="x30 . "\n", $DEBUG_DETAILS);
+&Warn("handler debug level: $debug\n", $DEBUG_DETAILS);
 &Warn("" . `date`, $DEBUG_DETAILS);
 &Warn("SERVER_NAME: $ENV{SERVER_NAME} serverName: $serverName\n", $DEBUG_DETAILS);
 &Warn("oldThisUri: $oldThisUri\n", $DEBUG_DETAILS);
@@ -681,7 +686,7 @@ my $reqString = $req->as_string;
 my $res = $ua->request($req) || die;
 my $code = $res->code;
 &Warn("Code: $code\n", $DEBUG_DETAILS);
-$code == RC_NOT_MODIFIED || $code == RC_OK or die "ERROR: Unexpected HTTP response code $code ";
+$code == RC_NOT_MODIFIED || $code == RC_OK or die "ERROR: Unexpected HTTP response code $code on request '$reqString' ";
 my $newLMHeader = $res->header('Last-Modified') || "";
 my $newETagHeader = $res->header('ETag') || "";
 if ($code == RC_NOT_MODIFIED) {
@@ -778,6 +783,7 @@ my $startTime = Time::HiRes::time();
 #  $r = current HTTP request
 #  $thisUri = node whose state was requested
 #  %args = query parameter from the HTTP request
+# Returns an apache/HTTP response code.
 sub HandleHttpEvent
 {
 @_ >= 3 or die;
@@ -1234,7 +1240,6 @@ return( $thisIsStale, $newDepLMs )
 }
 
 ################### LoadNodeMetadata #################
-#
 sub LoadNodeMetadata
 {
 @_ == 4 or die;
@@ -1616,7 +1621,9 @@ my %args = @_;
 # URI::Escape's default $cRange: "^A-Za-z0-9\-\._~"
 # but we want to allow more characters in the query strings if they
 # are not harmful
-my $cRange = "^A-Za-z0-9" . quotemeta('-._~!$()+,;');
+# my $cRange = "^A-Za-z0-9" . quotemeta('-._~!$()+,;');
+# Don't allow so many unescaped characters:
+my $cRange = "^A-Za-z0-9" . quotemeta('-._~(),');
 my $args = join("&", 
 	map 	{ 
 		die if !defined($_);
@@ -1823,6 +1830,7 @@ return $final;
 # $nameType must match m/\A[a-zA-Z_]\w*\Z/
 sub HashName
 {
+die "INTERNAL ERROR: Unused function! ";
 @_ == 2 || die;
 my ($nameType, $name) = @_;
 our %templates;
@@ -1871,6 +1879,7 @@ return &HashTemplateName($template, $name);
 # for fast lookup.
 sub HashTemplateName
 {
+die "INTERNAL ERROR: Unused function! ";
 my $template = shift || confess "[INTERNAL ERROR] Missing template argument";
 my $name = shift;
 confess "[INTERNAL ERROR] Missing name argument" if !defined($name);
@@ -2000,9 +2009,9 @@ if (!$lmFile) {
 	my $f = uri_escape($n);
 	# my $f = &ShortName($n);
 	# my $f = &QuickName($n);
-	my $hash = &HashName($nameType, $name);
-	# $lmFile = "$basePath/lm/$t/$f";
-	$lmFile = "$basePath/lm/$t/$f" . "_HASH$hash";
+	# my $hash = &HashName($nameType, $name);
+	$lmFile = "$basePath/lm/$t/$f";
+	# $lmFile = "$basePath/lm/$t/$f" . "_HASH$hash";
 	# $lmFile = "$basePath/cache/$t/$f/lm.txt";
 	$RDF::Pipeline::NameToLmFile::lmFile{$nameType}->{$name} = $lmFile;
 	}
@@ -2322,6 +2331,12 @@ return $newLM;
 }
 
 ############# GenerateNewLM ##############
+### TODO: I just realized that a much better way to do this is to
+### simply pass in the old LM as an argument, and if the current ms time
+### is still the same, just increment the counter from the old LM.
+### That would be much faster and easier than using a counter file
+### and locking it.
+#########################################
 # Generate a new LM, based on the current time, that is guaranteed unique
 # on this server even if this function is called faster than the 
 # Time::HiRes clock resolution.  Furthermore, within the same thread
@@ -2335,7 +2350,7 @@ return $newLM;
 # be 1 unless this is run on a machine that is much faster or that
 # has substantially lower clock resolution.
 #
-# TODO: Need to test the locking (flock) aspect of this code.  The other 
+# OLD (OBSOLETE, per the above TODO) TODO: Need to test the locking (flock) aspect of this code.  The other 
 # logic of this function has already been tested.
 sub GenerateNewLM
 {
@@ -2421,8 +2436,8 @@ my $t = $uri;
 $t =~ s|$nodeBaseUriPattern\/||;	# Simplify if it's local
 # $t = uri_escape($t);
 $t = &ShortName($t);
-my $hash = &HashName($URI, $uri);
-$t .= "_HASH$hash";
+# my $hash = &HashName($URI, $uri);
+# $t .= "_HASH$hash";
 return $t;
 }
 
@@ -2468,6 +2483,8 @@ my $uri = shift;
 my $path = &AbsUri($uri);
 #### TODO: Make this work for IPv6 addresses.
 #### TODO: use the URI module: http://lwp.interglacial.com/ch04_01.htm
+#### TODO: Is it necessary to strip port 80 here? I think all URIs
+#### have already been canonicalized by &CanonicalizeUri.
 # Get rid of superfluous port 80 before converting:
 $path =~ s|\A(http(s?)\:\/\/[^\/\:]+)\:80\/|$1\/|;
 if ($path =~ s|\A$baseUriPattern\/|$basePath\/|) {
@@ -2518,6 +2535,7 @@ return "";
 ########## PrintLog ############
 sub PrintLog
 {
+our $logFile;
 open(my $fh, ">>$logFile") || die;
 # print($fh, @_) or die;
 print $fh @_ or die;
@@ -2528,6 +2546,9 @@ return 1;
 
 ########## ISO8601 ############
 # Convert the given epoch time to ISO8601 format in UTC timezone.
+# Example: 2021-07-26T02:04:16
+# TODO: The timestamp should probably have a "Z" at the end,
+# to indicate UTC timezone.
 sub ISO8601
 {
 use DateTime;
@@ -2731,6 +2752,9 @@ sub TimeToLM
 {
 @_ == 1 || @_ == 2 or die;
 my ($time, $counter) = @_;
+# TODO: Use lower order decimal places instead of zero counter if
+# $counter is undefined.  And make sure that the calling code is
+# adjusted as needed.  See the python version.
 $counter = 0 if !$counter;
 return "" if !$time;
 return &FormatTime($time) . &FormatCounter($counter);
@@ -2863,6 +2887,7 @@ sub CanonicalizeUri
 my ($oldUri) = @_;
 my $u = URI->new($oldUri);
 defined($u) || confess "[ERROR] Unable to parse URI: $oldUri ";
+# $u = URI->new($u->canonical);
 # http: or https:  URI?
 my $uScheme = $u->scheme;
 return $oldUri if !$uScheme;
@@ -2870,16 +2895,16 @@ return $oldUri if !$uScheme;
 return $oldUri if $uScheme !~ m/^http(s?)$/;
 # Local?
 my $host = $u->host;
-return $oldUri if !&IsLocalHost($host);
+return $oldUri if !&IsCurrentWebServer($host);
 $host = "localhost";
 # Use 127.0.0.1 if localhost is not known:
-$host = "127.0.0.1" if !&IsLocalHost($host);
+$host = "127.0.0.1" if !&IsCurrentWebServer($host);
 $host || die "$0: [ERROR] $host is not recognized as a local address ";
 # At this point we know it is a local http URI.
 # Canonicalize the URI.
 # It seems silly to parse the URI again, but I was unable to find
 # a perl module that would parse an http URI into all of its components
-# in such a way that it could be put back together which changing
+# in such a way that it could be put back together while changing
 # only $scheme and $auth..
 my $uPort = $u->port;
 my ($scheme, $auth, $path, $query, $frag) = uri_split($oldUri);
@@ -2894,6 +2919,8 @@ return $newUri;
 ################ IsLocalNode #################
 # Is the given URI for a node on this host?
 # The given URI must already be canonicalized by &CanonicalizeUri().
+# TODO: IsCurrentWebServer should be used instead of this.
+# See the python version.
 sub IsLocalNode
 {
 my $uri = shift || die;
@@ -2901,11 +2928,11 @@ my $isLocal = ($uri =~ m|\A$nodeBaseUriPattern\/|);
 return $isLocal;
 }
 
-################ IsLocalHost #################
+################ IsCurrentWebServer #################
 # Is the given host name, which may be either a domain name or
 # an IP address, hosted on this local host machine?
 # Results are cached in a hash for fast repeated lookup.
-sub IsLocalHost
+sub IsCurrentWebServer
 {
 my $host = shift || return 0;
 our %isLocal;	# Cache
@@ -2920,6 +2947,8 @@ our %localIps;
 %localIps = map { ($_, 1) } &GetIps() if !%localIps;
 #### TODO: is there an IPv6 localhost convention that also needs to be checked?
 #### TODO: Do I really need to check for the ^127\. pattern?
+#### TODO: No, this is wrong.  It should be checking against only the
+#### IP address on which the current web server is listening.
 my $isLocal = $localIps{$ip} || $ip =~ m/^127\./ || 0;
 $isLocal{$host} = $isLocal;
 # Maybe this would speed up a subsequent lookup by IP address,

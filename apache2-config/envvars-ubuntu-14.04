@@ -16,7 +16,7 @@ fi
 
 
 # Set the WWW document root directory.  Default is usually /var/www
-export RDF_PIPELINE_WWW_DIR=/var/www
+export DOCUMENT_ROOT=/var/www
 
 # User MUST set the RDF_PIPELINE_HOME at installation time
 # e.g., /home/dbooth/rdf-pipeline

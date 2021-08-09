@@ -57,7 +57,7 @@ foreach my $dir (@testDirs) {
 	if (!$svnOption) {
 		# warn "Remember to add $dir to source control, or use: accept-test.perl -s '$dir'\n"
 			# if !-e "$dir/.svn";
-		warn "Remember to add $dir to source control\n"
+		warn "Remember to add $dir to source control\n";
 		next;
 		}
 	if (-e "$dir/.svn") {

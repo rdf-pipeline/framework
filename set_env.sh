@@ -1,7 +1,15 @@
 #! /bin/sh
 
 # This script sets the environment variables needed for testing RDF::Pipeline.
-# These should be customized for your installation.
+# The following env vars are exported:
+#
+#	RDF_PIPELINE_DEV_DIR
+#	PERL5LIB
+#	PATH
+#	DOCUMENT_ROOT
+#
+# This script should be customized for your installation.
+
 
 # Helper function to see if a substring is contained within a string or not.  
 contains() {
@@ -109,8 +117,3 @@ if [ -z "$DOCUMENT_ROOT" ]; then
     fi
 fi
 
-# If it is not already set, default RDF_PIPELINE_WWW_DIR to use whatever
-# the Apache Document Root is set to.
-if [ -z "$RDF_PIPELINE_WWW_DIR" ]; then
-   export RDF_PIPELINE_WWW_DIR="$DOCUMENT_ROOT"
-fi

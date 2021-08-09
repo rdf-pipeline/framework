@@ -22,17 +22,10 @@ $ENV{DOCUMENT_ROOT} = $wwwDir;
 ############ CUSTOMIZE HERE ################
 
 # This test verifies that serState is not refreshed on a HEAD request.
-### The serState file path used to look like this:
 # my $serState = "$wwwDir/cache/aba/serState";
-### But now looks like this:
-my $serState = "$wwwDir/cache/URI/SHORT_aba_HASHhQy3E2e4CUWxhwDVUNSYXgA/serState";
-### For example:
-# /var/www/cache/URI/SHORT_aba_HASHhQy3E2e4CUWxhwDVUNSYXgA/serState
-### The serState LM file path used to look like this:
+my $serState = "$wwwDir/cache/URI/SHORT_aba/serState";
 # my $serStateLM = "$wwwDir/lm/FILE/%2Fhome%2Fdbooth%2Frdf-pipeline%2FPrivate%2Fwww%2Fcache%2Faba%2FserState";
-### But now it looks like this:
-# /var/www/html/lm/FILE/cache%2FURI%2FSHORT_aba_HASHhQy3E2e4CUWxhwDVUNSYXgA%2FserState_HASHh_rn3vU-WX4PPj7o6A1uvVw
-my $serStateLM = "$wwwDir/lm/FILE/cache%2FURI%2FSHORT_aba_HASHhQy3E2e4CUWxhwDVUNSYXgA%2FserState_HASHh_rn3vU-WX4PPj7o6A1uvVw";
+my $serStateLM = "$wwwDir/lm/FILE/cache%2FURI%2FSHORT_aba%2FserState";
 # warn "wwwDir: $wwwDir\n";
 # warn "serState: $serState\n";
 # warn "serStateLM: $serStateLM\n";

@@ -17,7 +17,7 @@
 
 use strict;
 
-my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
+my $wwwDir = $ENV{'DOCUMENT_ROOT'} or &EnvNotSet('DOCUMENT_ROOT');
 my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
 my $moduleDir = "$devDir/RDF-Pipeline";
 my $testsDir = "$moduleDir/t/tests";
@@ -35,7 +35,7 @@ $dir =~ s|\/$|| if $dir ne "/";		# Remove any trailing slash
 
 -d $dir || die "$0: [ERROR] Directory not found: $dir\n";
 -e "$dir/pipeline.ttl" || die "$0: [ERROR] Directory does not contain pipeline.ttl: $dir\n";
--d $wwwDir || die "$0: [ERROR] \$RDF_PIPELINE_WWW_DIR directory not found: $ENV{RDF_PIPELINE_WWW_DIR}\n";
+-d $wwwDir || die "$0: [ERROR] \$DOCUMENT_ROOT directory not found: $ENV{DOCUMENT_ROOT}\n";
 
 # Clear out old $wwwDir files, then copy the given dir:
 !system("$moduleDir/t/helpers/copy-dir.perl '/dev/null' '$wwwDir'") or die;

@@ -22,7 +22,7 @@ GetOptions(
                 ) or die "$0: Error reading options.
 ";
 
-my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
+my $wwwDir = $ENV{'DOCUMENT_ROOT'} or &EnvNotSet('DOCUMENT_ROOT');
 
 # Strip trailing slash if any:
 $wwwDir =~ s/\/$// if $wwwDir ne "/";
