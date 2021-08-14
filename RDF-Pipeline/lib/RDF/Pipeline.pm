@@ -234,6 +234,13 @@ our $nodeBaseUriPattern = quotemeta($nodeBaseUri);
 our $nodeBasePath = "$basePath/node";
 our $nodeBasePathPattern = quotemeta($nodeBasePath);
 our $lmCounterFile = "$basePath/lm/lmCounter.txt";
+our $nameMapFile = "$basePath/nameMap.txt";
+our $newNameMapFile = "$basePath/newNameMap.txt";
+our $nNameMapLines = 0;
+our $maxNameMapExtraLines = 5;
+our $maxNameMapFactor = 3;
+our %nameMap;		# Maps long name --> short name
+our %inverseNameMap;	# Maps short name --> long name
 our $rdfsPrefix = "http://www.w3.org/2000/01/rdf-schema#";
 # our $subClassOf = $rdfsPrefix . "subClassOf";
 our $subClassOf = "rdfs:subClassOf";
@@ -302,6 +309,28 @@ if ($testUri =~ m/\A([^\?]*)\?/) {
 	}
 if ($test)
 	{
+	&CreateNameMapFile($nameMapFile) if !-e $nameMapFile;
+	&LoadNameMap();
+	my $hRef = { qw( myLongName1 shortName1 myLongName2 shortName2 ) }; 
+	my @hRef = %{$hRef};
+	print "hREf: @hRef\n";
+	&InsertNames({ qw( myLongName1 shortName1 myLongName2 shortName2 ) }); 
+	&InsertNames({ qw( myLongName3 shortName3 ) }); 
+	&DeleteNames([ qw( myLongName3 ) ]); 
+	&DeleteNames([ qw( myLongName3 myLongName3 ) ]); 
+	print "Created $nameMapFile\n";
+	print "=================================\n";
+	&PrintNameMap();
+	%nameMap = ();
+	&LoadNameMap();
+	print "After loading:\n";
+	&PrintNameMap();
+	# &ClearNames();
+	print "After clearing:\n";
+	&PrintNameMap();
+	# &RewriteNameMap();
+	# print "After rewriting.\n";
+	exit 0;
 	my $name = "$basePath/cache/URI/file%3A%2F%2F%2Ftmp%2Ffile-uri-test/serCache";
 	my $s = &ShortName($name);
 	print "$name -->\n$s\n\n";
@@ -1719,8 +1748,209 @@ foreach my $t (@triples) {
 return %config;
 }
 
+############ ClearNames ##########
+# Delete all long/short name pairs from global %nameMap, %inverseNameMap
+# and log them as deleted in $nameMapFile .
+# Called as: &ClearNames();
+sub ClearNames
+{
+@_ == 0 || die;
+our %nameMap = ();
+our %inverseNameMap = ();
+our $nameMapFile;
+our $nNameMapLines;
+# $nameMapFile is expected to already exist.
+open(my $fh, ">>$nameMapFile") || confess "InsertNames: append failed of $nameMapFile : $!";
+print $fh "clear\n";
+$nNameMapLines++;
+close($fh) || die;
+}
+
+############ DeleteNames ##########
+# Delete long/short name pairs from global %nameMap, %inverseNameMap
+# and log them as deleted in $nameMapFile .
+# Called as: &DeleteNames([ $longA $longB ... ]);
+# It will trigger a call to &RewriteNameMap() if there are too many wasted
+# lines in $nameMapFile.  
+# There is no harm in calling DeleteNames for a name that was already
+# deleted.
+sub DeleteNames
+{
+@_ == 1 || die;
+my ($pList) = @_;
+our %nameMap;
+our %inverseNameMap;
+our $nameMapFile;
+our $nNameMapLines;
+# Time to rewrite the $nameMapFile?  If so, then don't
+# bother to write them to the current $nameMapFile.
+# This logic assumes that the given list of
+# names all exist in %nameMap and that the list has no duplicates,
+# which might sometimes cause $nameMapFile to be rewritten
+# prematurely, but that seems harmless.
+my $nRemaining = scalar(%nameMap) - scalar(@{$pList});
+my $timeToRewrite = ($nNameMapLines > $maxNameMapFactor*$nRemaining 
+	&& $nNameMapLines > $nRemaining + $maxNameMapExtraLines);
+print "nRemaining: $nRemaining\n";
+print "nNameMapLines: $nNameMapLines\n";
+print "maxNameMapFactor: $maxNameMapFactor\n";
+print "maxNameMapExtraLines: $maxNameMapExtraLines\n";
+print "timeToRewrite: $timeToRewrite\n\n";
+# $nameMapFile is expected to already exist.
+(open(my $fh, ">>$nameMapFile") || confess "InsertNames: append failed of $nameMapFile : $!")
+	if !$timeToRewrite;
+foreach my $long ( @{$pList} ) {
+	die if !$long;
+	my $short = $nameMap{$long};
+	next if !$short;	# $long was already deleted?
+	my $line = "d $long\n";
+	print $fh $line if !$timeToRewrite;
+	$nNameMapLines++;
+	delete $nameMap{$long};
+	delete $inverseNameMap{$short};
+	}
+(close($fh) || die) if !$timeToRewrite;
+&RewriteNameMap() if $timeToRewrite;
+}
+
+############ InsertNames ##########
+# Insert long/short name pairs into global %nameMap, %inverseNameMap
+# and append them to the given file (defaulting to $nameMapFile) .
+# Called as: &InsertNames({ $longA $shortA $longB $shortB ... });
+# or: &InsertNames({ $long $short ... }, $newNameMapFile);
+# Die with error if there is a mapping collision: two different long 
+# names mapping to the same short name.
+# But an existing name can be inserted more than once, and it will be
+# written to $nameMapFile every time, so don't do that if you don't
+# want multiples to appear in $nameMapFile.
+sub InsertNames
+{
+@_ == 1 || @_ == 2 || die;
+my ($pHash, $f) = @_;
+our %nameMap;
+our %inverseNameMap;
+our $nameMapFile;
+our $nNameMapLines;
+# $nameMapFile is expected to already exist.
+$f //= $nameMapFile;
+my $allNames = join(" ", map {"$_->" . $pHash->{$_}} sort keys %{$pHash});
+print "InsertName $allNames\n";
+open(my $fh, ">>$f") || confess "InsertNames: append failed of $f : $!";
+foreach my $long ( sort keys %{$pHash} ) {
+	die if !$long;
+	my $short = $pHash->{$long};
+	print "InsertNames long: $long short: $short\n";
+	die "[ERROR] InsertNames (long: $long -> short: $short) short name collision from another long name: $inverseNameMap{$short}\n"
+		if $short && $long ne ($inverseNameMap{$short} // $long);
+	my $oldShort = $nameMap{$long};
+	my $line = "i $long $short\n";
+	print $fh $line;
+	$nNameMapLines++;
+	$nameMap{$long} = $short;
+	$inverseNameMap{$short} = $long;
+	}
+close($fh) || die;
+}
+
+############## PrintNameMap ################
+sub PrintNameMap
+{
+return if !$debug;
+print ("\n");
+print ("nameMap:\n");
+for my $long (sort keys %nameMap) {
+	print ("  $long->$nameMap{$long}\n");
+	}
+print ("\n");
+}
+
+############ LoadNameMap ##########
+# Load the contents of the $nameMapFile into %nameMap and %inverseNameMap,
+# after first clearing them.
+sub LoadNameMap
+{
+@_ == 0 || die;
+our $nameMapFile;
+our $nNameMapLines = 0;
+our %nameMap = ();
+our %inverseNameMap = ();
+open(my $fh, $nameMapFile) || die "[ERROR} LoadNameMap could not read nameMapFile: $nameMapFile\n";
+while (my $line = <$fh>) {
+	next if $line =~ m/^\s*\#/;	# Skip comment lines
+	chomp $line;
+	$line = &Trim($line);
+	next if $line eq "";		# Skip empty lines
+	$nNameMapLines++;
+	my ($action, $long, $short, @extra) = split(/\s+/, $line, -1);
+	die "[ERROR] LoadNameMap unrecognized line in $nameMapFile: $line\n"
+		if @extra;
+	if ($action eq "i") {
+		# i foolong foo
+		die "[ERROR] LoadNameMap bad insert line in $nameMapFile: $line\n"
+			if !$long || !$short;
+		$nameMap{$long} = $short;
+		$inverseNameMap{$short} = $long;
+		}
+	elsif ($action eq "d") {
+		# d foolong
+		die "[ERROR] LoadNameMap bad delete line in $nameMapFile: $line\n"
+			if !$long || $short;
+		$short = $nameMap{$long};
+		next if !$short;	# Already deleted?
+		delete $nameMap{$long};
+		delete $inverseNameMap{$short};
+		}
+	elsif ($action eq "clear") {
+		# clear
+		die "[ERROR] LoadNameMap bad clear line in $nameMapFile: $line\n"
+			if $long || $short;
+		%nameMap = ();
+		%inverseNameMap = ();
+		}
+	else	{
+		die "[ERROR] LoadNameMap unknown directive in $nameMapFile: $line\n"
+		}
+	}
+close($fh) || die;
+}
+
+############ CreateNameMapFile ##########
+# Create an empty nameMap file.
+# Also resets global $nNameMapLines.
+sub CreateNameMapFile
+{
+@_ == 1 || die;
+my ($newNameMapFile) = @_;
+our $nNameMapLines = 0;
+&MakeParentDirs($newNameMapFile);
+open(my $fh, ">$newNameMapFile") || confess "CreateNameMapFile: open failed of $newNameMapFile : $!";
+print $fh "# Pipeline nameMap file. It maps long names (URIs) to short names.\n";
+print $fh "# Each line (aside from these comments) is one directive.\n";
+print $fh "# Directives are insert, delete or clear, like this:\n";
+print $fh "#   i longNameA shortA\n";
+print $fh "#   d longNameA\n";
+print $fh "#   clear\n";
+print $fh "# Directives are processed in order, to enable the map to be\n";
+print $fh "# updated by appending to this file.\n";
+close($fh) || die;
+}
+
+############ RewriteNameMap ##########
+# Write the current %nameMap into a $newNameMapFile, then atomically rename 
+# it to be the current $nameMapFile.
+sub RewriteNameMap
+{
+@_ == 0 || die;
+our %nameMap;
+our $nameMapFile;
+our $newNameMapFile;
+&CreateNameMapFile($newNameMapFile);
+&InsertNames(\%nameMap, $newNameMapFile);
+rename($newNameMapFile, $nameMapFile) || die "[ERROR] RewriteNameMap failed to rename $newNameMapFile to $nameMapFile\n";
+}
+
 ############ WriteFile ##########
-# Write a file.  Examples:
+# Write or append to a file.  Examples:
 #   &WriteFile("/tmp/foo", $all)   # Same as &WriteFile(">/tmp/foo", all);
 #   &WriteFile(">$f", $all)
 #   &WriteFile(">>$f", $all)
@@ -2547,7 +2777,7 @@ our $logFile;
 !system("touch $logFile") or warn "[WARNING] PrintLog cannot write logFile: $logFile ";
 open(my $fh, ">>$logFile") || die;
 # print($fh, @_) or die;
-(print $fh time . "\n") or die;
+# (print $fh time . "\n") or die;
 print $fh @_ or die;
 # print $fh @_;
 close($fh) || die;
@@ -2975,6 +3205,16 @@ sub GetIps
 my @interfaces = IO::Interface::Simple->interfaces;
 my @ips = grep {$_} map { $_->address } @interfaces;
 return @ips;
+}
+
+########## Trim ############
+# Perl function to remove whitespace from beginning and end of a string.
+sub Trim
+{
+my $s = shift @_;
+$s =~ s/\A[\s\n\r]+//s;
+$s =~ s/[\s\n\r]+\Z//s;
+return $s;
 }
 
 
