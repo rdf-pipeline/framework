@@ -237,7 +237,7 @@ our $lmCounterFile = "$basePath/lm/lmCounter.txt";
 our $nameMapFile = "$basePath/nameMap.txt";
 our $newNameMapFile = "$basePath/newNameMap.txt";
 our $nNameMapLines = 0;
-our $maxNameMapExtraLines = 5;
+our $maxNameMapExtraLines = 1000 * 1000 * 1000;
 our $maxNameMapFactor = 3;
 our %nameMap;		# Maps long name --> short name
 our %inverseNameMap;	# Maps short name --> long name
