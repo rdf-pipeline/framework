@@ -204,7 +204,7 @@ my $rawDebug = $debug;
 # Allows symbolic $debug value:
 $debug = eval $debug if defined($debug) && $debug =~ m/^\$\w+$/;  
 die "ERROR: debug not defined: $rawDebug " if !defined($debug);
-# $debug = $DEBUG_DETAILS;
+$debug = $DEBUG_DETAILS;
 
 our $debugStackDepth = 0;	# Used for indenting debug messages.
 our $test;
@@ -234,13 +234,34 @@ our $nodeBaseUriPattern = quotemeta($nodeBaseUri);
 our $nodeBasePath = "$basePath/node";
 our $nodeBasePathPattern = quotemeta($nodeBasePath);
 our $lmCounterFile = "$basePath/lm/lmCounter.txt";
-our $nameMapFile = "$basePath/nameMap.txt";
-our $newNameMapFile = "$basePath/newNameMap.txt";
-our $nNameMapLines = 0;
-our $maxNameMapExtraLines = 1000 * 1000 * 1000;
-our $maxNameMapFactor = 3;
-our %nameMap;		# Maps long name --> short name
-our %inverseNameMap;	# Maps short name --> long name
+
+#### nameMapConfig ###
+# $nameMapConfig holds a keyValue hash that maps long->short names,
+# along with inverseKeyValue (if provided), which maps short->long names.
+# Changes to this hash are logged in keyValueFile, so that the hash
+# can be reloaded when the pipeline re-starts.  Usually mapping
+# insertions and deletions are merely appended to this file (like
+# a log), but periodically (when it gets too big) it is rewritten
+# by writing a new version to newKeyValueFile and then renaming
+# that back to keyValueFile.
+#
+# keyValueExtraLinesThreshold and maxKeyValueFactor are configuration 
+# parameters that control when the keyValueFile should be auto-rewritten
+# (because it has too many unneeded lines in it).   Rewriting is not triggered
+# until both of these parameters are exceeded, e.g., at least
+# a million extra lines AND 3 times as many lines as needed.
+our $nameMapConfig = {
+	'keyValueTitle' => 'nameMap',
+	'keyValue' => {},
+	'inverseKeyValue' => {},
+	'keyValueFile' => "$basePath/nameMap.txt",
+	'newKeyValueFile' => "$basePath/newNameMap.txt",
+	'nKeyValueLines' => 0,
+	'maxKeyValueFactor' => 3,
+	# 'keyValueExtraLinesThreshold' => 1000 * 1000 * 1000,
+	'keyValueExtraLinesThreshold' => 10,
+	};
+
 our $rdfsPrefix = "http://www.w3.org/2000/01/rdf-schema#";
 # our $subClassOf = $rdfsPrefix . "subClassOf";
 our $subClassOf = "rdfs:subClassOf";
@@ -309,7 +330,8 @@ if ($testUri =~ m/\A([^\?]*)\?/) {
 	}
 if ($test)
 	{
-	&CreateNameMapFile($nameMapFile) if !-e $nameMapFile;
+	print "nameMapFile testing:\n";
+	&CreateNameMapFile($nameMapConfig->{keyValueFile}) if !-e $nameMapConfig->{keyValueFile};
 	&LoadNameMap();
 	my $hRef = { qw( myLongName1 shortName1 myLongName2 shortName2 ) }; 
 	my @hRef = %{$hRef};
@@ -318,15 +340,13 @@ if ($test)
 	&InsertNames({ qw( myLongName3 shortName3 ) }); 
 	&DeleteNames([ qw( myLongName3 ) ]); 
 	&DeleteNames([ qw( myLongName3 myLongName3 ) ]); 
-	print "Created $nameMapFile\n";
 	print "=================================\n";
 	&PrintNameMap();
-	%nameMap = ();
 	&LoadNameMap();
 	print "After loading:\n";
 	&PrintNameMap();
 	# &ClearNames();
-	print "After clearing:\n";
+	# print "After clearing:\n";
 	&PrintNameMap();
 	# &RewriteNameMap();
 	# print "After rewriting.\n";
@@ -1752,7 +1772,11 @@ return %config;
 # Delete all long/short name pairs from global %nameMap, %inverseNameMap
 # and log them as deleted in $nameMapFile .
 # Called as: &ClearNames();
-sub ClearNames
+# TODO: This functionality probably is not needed, because it would only
+# be of benefit if one were deleting more than half of the names at once.
+# At present, that seems likely to be very rare.  But if that use case
+# comes up, this functionality could be added.
+sub UNUSED_ClearNames
 {
 @_ == 0 || die;
 our %nameMap = ();
@@ -1760,193 +1784,261 @@ our %inverseNameMap = ();
 our $nameMapFile;
 our $nNameMapLines;
 # $nameMapFile is expected to already exist.
-open(my $fh, ">>$nameMapFile") || confess "InsertNames: append failed of $nameMapFile : $!";
+open(my $fh, ">>$nameMapFile") || confess "ClearNames: append failed of $nameMapFile : $!";
 print $fh "clear\n";
 $nNameMapLines++;
 close($fh) || die;
 }
 
+############ KV_DeleteNames ##########
+# Delete key-value name pairs from the given keyValue map and
+# inverseKeyValue map (if provided), and log them as deleted in keyValueFile.
+# Called as: &KV_DeleteNames($kvConfig, [ $key1 $key2 ... ]);
+# It will trigger a call to &KV_RewriteNameMap($kvConfig) if there are 
+# too many obsolete lines in $keyValueFile.  
+# There is no harm in calling KV_DeleteNames for a name that was already
+# deleted.
+sub KV_DeleteNames
+{
+@_ == 2 || die;
+my ($kvConfig, $pList) = @_;
+# Time to rewrite the $keyValueFile?  If so, then don't
+# bother to write them to the current $keyValueFile.
+# This logic assumes that the given list of
+# keys all exist in %keyValue and that the list has no duplicates,
+# which might sometimes cause $keyValueFile to be rewritten
+# prematurely if that is not the case, but that seems harmless.
+my $nRemaining = scalar(%{$kvConfig->{keyValue}}) - scalar(@{$pList});
+my $timeToRewrite = ($kvConfig->{nKeyValueLines} > $kvConfig->{nKeyValueLines}*$nRemaining 
+	&& $kvConfig->{nKeyValueLines} > $nRemaining + $kvConfig->{keyValueExtraLinesThreshold});
+print "-------------------\n";
+print "KV_DeleteNames\n";
+print "nRemaining: $nRemaining\n";
+print "nKeyValueLines: $kvConfig->{nKeyValueLines}\n";
+print "maxKeyValueFactor: $kvConfig->{maxKeyValueFactor}\n";
+print "keyValueExtraLinesThreshold: $kvConfig->{keyValueExtraLinesThreshold}\n";
+print "timeToRewrite: $timeToRewrite\n\n";
+# $keyValueFile is expected to already exist.
+(open(my $fh, ">>$kvConfig->{keyValueFile}") || confess "[ERROR] DeleteNames: failed to open $kvConfig->{keyValueFile} for append: $!")
+	if !$timeToRewrite;
+foreach my $key ( @{$pList} ) {
+	die if !defined($key);
+	my $value = $kvConfig->{keyValue}->{$key};
+	next if !defined($value);	# $key was already deleted?
+	my $line = "d $key\n";
+	print $fh $line if !$timeToRewrite;
+	$kvConfig->{nKeyValueLines}++;
+	delete $kvConfig->{keyValue}->{$key};
+	delete $kvConfig->{inverseKeyValue}->{$value} if $kvConfig->{inverseKeyValue};
+	}
+(close($fh) || die) if !$timeToRewrite;
+&KV_RewriteNameMap($kvConfig) if $timeToRewrite;
+}
+
 ############ DeleteNames ##########
-# Delete long/short name pairs from global %nameMap, %inverseNameMap
-# and log them as deleted in $nameMapFile .
-# Called as: &DeleteNames([ $longA $longB ... ]);
-# It will trigger a call to &RewriteNameMap() if there are too many wasted
-# lines in $nameMapFile.  
+# Delete long/short name pairs from global nameMap,
+# and log them as deleted in nameMap keyValueFile .
+# Called as: &DeleteNames([ $key1 $key2 ... ]);
+# It will trigger a call to &RewriteNameMap() if there are too many 
+# obsolete lines in keyValueFile.  
 # There is no harm in calling DeleteNames for a name that was already
 # deleted.
 sub DeleteNames
 {
 @_ == 1 || die;
 my ($pList) = @_;
-our %nameMap;
-our %inverseNameMap;
-our $nameMapFile;
-our $nNameMapLines;
-# Time to rewrite the $nameMapFile?  If so, then don't
-# bother to write them to the current $nameMapFile.
-# This logic assumes that the given list of
-# names all exist in %nameMap and that the list has no duplicates,
-# which might sometimes cause $nameMapFile to be rewritten
-# prematurely, but that seems harmless.
-my $nRemaining = scalar(%nameMap) - scalar(@{$pList});
-my $timeToRewrite = ($nNameMapLines > $maxNameMapFactor*$nRemaining 
-	&& $nNameMapLines > $nRemaining + $maxNameMapExtraLines);
-print "nRemaining: $nRemaining\n";
-print "nNameMapLines: $nNameMapLines\n";
-print "maxNameMapFactor: $maxNameMapFactor\n";
-print "maxNameMapExtraLines: $maxNameMapExtraLines\n";
-print "timeToRewrite: $timeToRewrite\n\n";
-# $nameMapFile is expected to already exist.
-(open(my $fh, ">>$nameMapFile") || confess "InsertNames: append failed of $nameMapFile : $!")
-	if !$timeToRewrite;
-foreach my $long ( @{$pList} ) {
-	die if !$long;
-	my $short = $nameMap{$long};
-	next if !$short;	# $long was already deleted?
-	my $line = "d $long\n";
-	print $fh $line if !$timeToRewrite;
-	$nNameMapLines++;
-	delete $nameMap{$long};
-	delete $inverseNameMap{$short};
+our $nameMapConfig;
+&KV_DeleteNames($nameMapConfig, $pList);
+}
+
+############ KV_InsertNames ##########
+# Insert key/value pairs into the given keyValue map,
+# and append them to the keyValueFile.
+# Called as: &KV_InsertNames($kvConfig, { $key1 $value1 $key2 $value2 ... });
+# or as: &KV_InsertNames($kvConfig, { $key1 $value1 ... }, $newKeyValueFile);
+# when writing $newKeyValueFile.
+# The same key with a new value will overwrite the old value.
+# Values are not required to be unique, but if they are not unique,
+# then the inverseKeyValue map won't work very well.
+# An existing name can be inserted more than once with the same value, and 
+# it will be written to $keyValueFile every time, so don't do that if you 
+# don't want multiples to appear in keyValueFile.
+# Neither key nor value are allow to be undefined or empty string.
+sub KV_InsertNames
+{
+@_ == 2 || @_ == 3 || die;
+my ($kvConfig, $pHash, $f) = @_;
+# $keyValueFile is expected to already exist.
+$f //= $kvConfig->{keyValueFile};
+my $allNames = join(" ", map {"$_->" . $pHash->{$_}} sort keys %{$pHash});
+print "KV_InsertNames $allNames\n";
+open(my $fh, ">>$f") || confess "[ERROR] KV_InsertNames: failed to open $f for append: $!";
+# Sort first, to be deterministic (for easier regression testing):
+foreach my $key ( sort keys %{$pHash} ) {
+	die if !defined($key);
+	my $value = $pHash->{$key};
+	die if !defined($value) || $value eq "";
+	print "KV_InsertNames key: $key value: $value\n";
+	my $line = "i $key $value\n";
+	print $fh $line;
+	$kvConfig->{nKeyValueLines}++;
+	$kvConfig->{keyValue}->{$key} = $value;
+	$kvConfig->{inverseKeyValue}->{$value} = $key if $kvConfig->{inverseKeyValue};
 	}
-(close($fh) || die) if !$timeToRewrite;
-&RewriteNameMap() if $timeToRewrite;
+close($fh) || die;
 }
 
 ############ InsertNames ##########
-# Insert long/short name pairs into global %nameMap, %inverseNameMap
-# and append them to the given file (defaulting to $nameMapFile) .
-# Called as: &InsertNames({ $longA $shortA $longB $shortB ... });
-# or: &InsertNames({ $long $short ... }, $newNameMapFile);
-# Die with error if there is a mapping collision: two different long 
-# names mapping to the same short name.
-# But an existing name can be inserted more than once, and it will be
-# written to $nameMapFile every time, so don't do that if you don't
-# want multiples to appear in $nameMapFile.
+# Insert key/value pairs into global nameMap,
+# and append them to its keyValueFile.
+# Called as: &InsertNames({ $key1 $value1 $key2 $value2 ... });
+# or as: &InsertNames({ $key1 $value1 ... }, $newNameMapFile);
+# when writing $newNameMapFile.
+# The same key with a new value will overwrite the old value.
+# Values should be unique.  (Otherwise the inverseKeyValue would
+# not work.)
+# An existing name can be inserted more than once with the same value, and 
+# it will be written to $keyValueFile every time, so don't do that if you 
+# don't want multiples to appear in keyValueFile.
 sub InsertNames
 {
 @_ == 1 || @_ == 2 || die;
 my ($pHash, $f) = @_;
-our %nameMap;
-our %inverseNameMap;
-our $nameMapFile;
-our $nNameMapLines;
-# $nameMapFile is expected to already exist.
-$f //= $nameMapFile;
-my $allNames = join(" ", map {"$_->" . $pHash->{$_}} sort keys %{$pHash});
-print "InsertName $allNames\n";
-open(my $fh, ">>$f") || confess "InsertNames: append failed of $f : $!";
-foreach my $long ( sort keys %{$pHash} ) {
-	die if !$long;
-	my $short = $pHash->{$long};
-	print "InsertNames long: $long short: $short\n";
-	die "[ERROR] InsertNames (long: $long -> short: $short) short name collision from another long name: $inverseNameMap{$short}\n"
-		if $short && $long ne ($inverseNameMap{$short} // $long);
-	my $oldShort = $nameMap{$long};
-	my $line = "i $long $short\n";
-	print $fh $line;
-	$nNameMapLines++;
-	$nameMap{$long} = $short;
-	$inverseNameMap{$short} = $long;
+our $nameMapConfig;
+&KV_InsertNames($nameMapConfig, $pHash, $f);
+}
+
+############## KV_PrintNameMap ################
+sub KV_PrintNameMap
+{
+@_ == 1 || die;
+my ($kvConfig) = @_;
+return if !$debug;
+print ("\n");
+print ("keyValueTitle: $kvConfig->{keyValueTitle}\n");
+for my $key (sort keys %{$kvConfig->{keyValue}}) {
+	print ("  $key" . "->$kvConfig->{keyValue}->{$key}\n");
 	}
-close($fh) || die;
+print ("\n");
 }
 
 ############## PrintNameMap ################
 sub PrintNameMap
 {
-return if !$debug;
-print ("\n");
-print ("nameMap:\n");
-for my $long (sort keys %nameMap) {
-	print ("  $long->$nameMap{$long}\n");
-	}
-print ("\n");
+our $nameMapConfig;
+&KV_PrintNameMap($nameMapConfig);
 }
 
-############ LoadNameMap ##########
-# Load the contents of the $nameMapFile into %nameMap and %inverseNameMap,
-# after first clearing them.
-sub LoadNameMap
+############ KV_LoadNameMap ##########
+# Load the contents of the $keyValueFile into the given keyValue hash
+# into memory, after first clearing the hash.
+sub KV_LoadNameMap
 {
-@_ == 0 || die;
-our $nameMapFile;
-our $nNameMapLines = 0;
-our %nameMap = ();
-our %inverseNameMap = ();
-open(my $fh, $nameMapFile) || die "[ERROR} LoadNameMap could not read nameMapFile: $nameMapFile\n";
+@_ == 1 || die;
+my ($kvConfig) = @_;
+$kvConfig->{keyValue} = {};
+$kvConfig->{inverseKeyValue} = {} if $kvConfig->{inverseKeyValue};
+open(my $fh, $kvConfig->{keyValueFile}) || die "[ERROR} KV_LoadNameMap could not open keyValueFile for read: $kvConfig->{keyValueFile}\n";
 while (my $line = <$fh>) {
 	next if $line =~ m/^\s*\#/;	# Skip comment lines
 	chomp $line;
 	$line = &Trim($line);
 	next if $line eq "";		# Skip empty lines
-	$nNameMapLines++;
-	my ($action, $long, $short, @extra) = split(/\s+/, $line, -1);
-	die "[ERROR] LoadNameMap unrecognized line in $nameMapFile: $line\n"
-		if @extra;
+	$kvConfig->{nKeyValueLines}++;
+	my ($action, $key, $value) = split(/\s+/, $line, 3);
 	if ($action eq "i") {
-		# i foolong foo
-		die "[ERROR] LoadNameMap bad insert line in $nameMapFile: $line\n"
-			if !$long || !$short;
-		$nameMap{$long} = $short;
-		$inverseNameMap{$short} = $long;
+		# i key1 value1
+		die "[ERROR] KV_LoadNameMap bad insert line in $kvConfig->{keyValueFile}: $line\n"
+			if !defined($key) || !defined($value);
+		$kvConfig->{keyValue}->{$key} = $value;
+		$kvConfig->{inverseKeyValue}->{$value} = $key if $kvConfig->{inverseKeyValue};
 		}
 	elsif ($action eq "d") {
-		# d foolong
-		die "[ERROR] LoadNameMap bad delete line in $nameMapFile: $line\n"
-			if !$long || $short;
-		$short = $nameMap{$long};
-		next if !$short;	# Already deleted?
-		delete $nameMap{$long};
-		delete $inverseNameMap{$short};
+		# d key1
+		die "[ERROR] KV_LoadNameMap bad delete line in $kvConfig->{keyValueFile}: $line\n"
+			if !defined($key) || defined($value);
+		$value = $kvConfig->{keyValue}->{$key};
+		next if !defined($value);	# Already deleted?
+		delete $kvConfig->{keyValue}->{$key};
+		delete $kvConfig->{inverseKeyValue}->{$value} if $kvConfig->{inverseKeyValue};
 		}
 	elsif ($action eq "clear") {
 		# clear
-		die "[ERROR] LoadNameMap bad clear line in $nameMapFile: $line\n"
-			if $long || $short;
-		%nameMap = ();
-		%inverseNameMap = ();
+		die "[ERROR] KV_LoadNameMap bad clear line in $kvConfig->{keyValueFile}: $line\n"
+			if defined($key) || defined($value);
+		$kvConfig->{keyValue} = {};
+		$kvConfig->{inverseKeyValue} = {} if $kvConfig->{inverseKeyValue};
 		}
 	else	{
-		die "[ERROR] LoadNameMap unknown directive in $nameMapFile: $line\n"
+		die "[ERROR] KV_LoadNameMap unknown directive in $kvConfig->{keyValueFile}: $line\n"
 		}
 	}
 close($fh) || die;
 }
 
+############ LoadNameMap ##########
+# Load the contents of the $keyValueFile into %keyValue and %inverseNameMap,
+# after first clearing them.
+sub LoadNameMap
+{
+@_ == 0 || die;
+our $nameMapConfig;
+&KV_LoadNameMap($nameMapConfig);
+}
+
+############ KV_CreateNameMapFile ##########
+# Create an empty keyValue file, and reset nKeyValueLines.
+# But don't clear the hashes, because the caller might be writing
+# a newKeyValueFile.
+sub KV_CreateNameMapFile
+{
+@_ == 2 || die;
+my ($kvConfig, $newNameMapFile) = @_;
+&MakeParentDirs($newNameMapFile);
+open(my $fh, ">$newNameMapFile") || confess "KV_CreateNameMapFile: open failed of $newNameMapFile : $!";
+print $fh "# Pipeline keyValue log: $kvConfig->{keyValueTitle}\n";
+print $fh "# Each non-comment line logs one change to a key-value pair.\n";
+print $fh "# Changes are insert, delete or clear, like this:\n";
+print $fh "#   i key1 value1\n";
+print $fh "#   d key2\n";
+print $fh "#   clear\n";
+print $fh "# Changes must be processed in order, to reconstruct the\n";
+print $fh "# original key-value map in memory.\n";
+close($fh) || die;
+$kvConfig->{nKeyValueLines} = 0;
+}
+
 ############ CreateNameMapFile ##########
-# Create an empty nameMap file.
-# Also resets global $nNameMapLines.
+# Create an empty keyValue file.
+# Also resets global $nKeyValueLines.
 sub CreateNameMapFile
 {
 @_ == 1 || die;
-my ($newNameMapFile) = @_;
-our $nNameMapLines = 0;
-&MakeParentDirs($newNameMapFile);
-open(my $fh, ">$newNameMapFile") || confess "CreateNameMapFile: open failed of $newNameMapFile : $!";
-print $fh "# Pipeline nameMap file. It maps long names (URIs) to short names.\n";
-print $fh "# Each line (aside from these comments) is one directive.\n";
-print $fh "# Directives are insert, delete or clear, like this:\n";
-print $fh "#   i longNameA shortA\n";
-print $fh "#   d longNameA\n";
-print $fh "#   clear\n";
-print $fh "# Directives are processed in order, to enable the map to be\n";
-print $fh "# updated by appending to this file.\n";
-close($fh) || die;
+my ($newKeyValueFile) = @_;
+our $nameMapConfig;
+&KV_CreateNameMapFile($nameMapConfig, $newKeyValueFile);
+}
+
+############ KV_RewriteNameMap ##########
+# Write the current %keyValue into a $newKeyValueFile, then atomically rename 
+# it to be the current $keyValueFile.
+sub KV_RewriteNameMap
+{
+@_ == 1 || die;
+my ($kvConfig) = @_;
+&KV_CreateNameMapFile($kvConfig, $kvConfig->{newKeyValueFile});
+&KV_InsertNames($kvConfig, $kvConfig->{keyValue}, $kvConfig->{newKeyValueFile});
+rename($kvConfig->{newKeyValueFile}, $kvConfig->{keyValueFile}) || die "[ERROR] KV_RewriteNameMap failed to rename $kvConfig->{newKeyValueFile} to $kvConfig->{keyValueFile}\n";
 }
 
 ############ RewriteNameMap ##########
-# Write the current %nameMap into a $newNameMapFile, then atomically rename 
-# it to be the current $nameMapFile.
+# Write the current %keyValue into a $newKeyValueFile, then atomically rename 
+# it to be the current $keyValueFile.
 sub RewriteNameMap
 {
 @_ == 0 || die;
-our %nameMap;
-our $nameMapFile;
-our $newNameMapFile;
-&CreateNameMapFile($newNameMapFile);
-&InsertNames(\%nameMap, $newNameMapFile);
-rename($newNameMapFile, $nameMapFile) || die "[ERROR] RewriteNameMap failed to rename $newNameMapFile to $nameMapFile\n";
+our $nameMapConfig;
+&KV_RewriteNameMap($nameMapConfig);
 }
 
 ############ WriteFile ##########
