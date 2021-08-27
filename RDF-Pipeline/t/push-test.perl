@@ -12,7 +12,7 @@ umask 002;
 my $tmpRoot = "/tmp/rdfp";	# run-test.perl will put actual-files here
 my $currentTest = "$tmpRoot/currentTest";  # Name of most recently run test
 
-# my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
+# my $wwwDir = $ENV{'DOCUMENT_ROOT'} or &EnvNotSet('DOCUMENT_ROOT');
 my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
 my $moduleDir = "$devDir/RDF-Pipeline";
 my $testsDir = "$moduleDir/t/tests";

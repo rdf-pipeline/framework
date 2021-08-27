@@ -8,6 +8,12 @@ before I used code.google.com and had any formal bug tracker
 or issues list.  It is currently being used as a place for recording
 notes or ideas.
 
+8/14/12:
+Consider adding pseudo-transactions.  To support updates of many items
+at once, without requiring a file close for every item, it would be
+nice to be able write them all at once, after a bunch of updates, kind
+of like a transaction.
+
 1/1/21: Some thoughts:
 1. Since the Framework is oriented toward large data, the MAP
 use case is essential.  It should be easy and natural to have an

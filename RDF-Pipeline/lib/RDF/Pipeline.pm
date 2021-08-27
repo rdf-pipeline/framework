@@ -168,6 +168,7 @@ use Socket;
 use URI;
 use URI::Split qw(uri_split uri_join);
 use IO::Interface::Simple;
+use threads;
 
 # Find the directory where this script is running - wherever it may be
 use File::Basename;
@@ -204,7 +205,7 @@ my $rawDebug = $debug;
 # Allows symbolic $debug value:
 $debug = eval $debug if defined($debug) && $debug =~ m/^\$\w+$/;  
 die "ERROR: debug not defined: $rawDebug " if !defined($debug);
-$debug = $DEBUG_DETAILS;
+# $debug = $DEBUG_DETAILS;
 
 our $debugStackDepth = 0;	# Used for indenting debug messages.
 our $test;
@@ -262,6 +263,41 @@ our $nameMapConfig = {
 	'keyValueExtraLinesThreshold' => 10,
 	};
 
+#### lmsConfig ###
+# $lmsConfig holds a keyValue hash that maps from a
+# $nameType+$name pair (as a composite key) to an LM and potentially
+# other info, such as dependsOnLms or Last-Modified and ETag headers.
+# Changes to this hash are logged in lmsFile, so that the hash
+# can be reloaded when the pipeline re-starts.  Usually mapping
+# insertions and deletions are merely appended to this file (like
+# a log), but periodically (when it gets too big) it is rewritten
+# by writing a new version to newKeyValueFile and then renaming
+# that back to lmsFile.
+#
+# keyValueExtraLinesThreshold and maxKeyValueFactor are configuration 
+# parameters that control when the keyValueFile should be auto-rewritten
+# (because it has too many unneeded lines in it).   Rewriting is not triggered
+# until both of these parameters are exceeded, e.g., at least
+# a million extra lines AND 3 times as many lines as needed.
+our $lmsConfig = {
+	'keyValueTitle' => 'lms',
+	'keyValue' => {},
+	# No need for the inverse mapping:
+	# 'inverseKeyValue' => {},
+	'keyValueFile' => "$basePath/lms.txt",
+	'newKeyValueFile' => "$basePath/newLms.txt",
+	'nKeyValueLines' => 0,
+	'maxKeyValueFactor' => 3,
+	# 'keyValueExtraLinesThreshold' => 1000 * 1000 * 1000,
+	'keyValueExtraLinesThreshold' => 10,
+	};
+if (-e $lmsConfig->{keyValueFile}) {
+	&KV_Load($lmsConfig);
+	}
+else {
+	&KV_CreateLog($lmsConfig, $lmsConfig->{keyValueFile});
+	}
+
 our $rdfsPrefix = "http://www.w3.org/2000/01/rdf-schema#";
 # our $subClassOf = $rdfsPrefix . "subClassOf";
 our $subClassOf = "rdfs:subClassOf";
@@ -315,6 +351,9 @@ my $nm;
 &Warn("********** NEW APACHE THREAD INSTANCE **********\n", $DEBUG_DETAILS);
 my $hasHiResTime = &Time::HiRes::d_hires_stat()>0;
 $hasHiResTime || die;
+my $thisThread = threads->tid();
+my $threads = join(" ", map {$_->tid()} threads->list());
+&Warn("thisThread: $thisThread / $threads\n", $DEBUG_DETAILS);
 
 &GetOptions("test" => \$test,
 	"debug" => \$debug,
@@ -330,26 +369,40 @@ if ($testUri =~ m/\A([^\?]*)\?/) {
 	}
 if ($test)
 	{
-	print "nameMapFile testing:\n";
+	&Warn("nameMapFile testing:\n");
+	print `zero /var/www/html/nameMap.txt`;
 	&CreateNameMapLog($nameMapConfig->{keyValueFile}) if !-e $nameMapConfig->{keyValueFile};
+	&InsertNames({ "valueWithSpace" => "a b" }); 
+	&InsertNames({ "emptyString" => "" }); 
+	&RewriteNameMapLog();
+	print `cat /var/www/html/nameMap.txt`;
 	&LoadNameMap();
+	&RewriteNameMapLog();
+	print `cat /var/www/html/nameMap.txt`;
+	exit 0;
 	my $hRef = { qw( myLongName1 shortName1 myLongName2 shortName2 ) }; 
 	my @hRef = %{$hRef};
-	print "hREf: @hRef\n";
+	&Warn("hREf: @hRef\n");
 	&InsertNames({ qw( myLongName1 shortName1 myLongName2 shortName2 ) }); 
 	&InsertNames({ qw( myLongName3 shortName3 ) }); 
+	for (my $i=0; $i<30; $i++) {
+		# print "=========== Insert $i ============\n";
+		&InsertNames({ 'myLongName4' => "shortName$i" }); 
+		# print `cat /var/www/html/nameMap.txt`;
+		}
 	&DeleteNames([ qw( myLongName3 ) ]); 
+	exit 0;
 	&DeleteNames([ qw( myLongName3 myLongName3 ) ]); 
-	print "=================================\n";
+	&Warn("=================================\n");
 	&PrintNameMap();
 	&LoadNameMap();
-	print "After loading:\n";
+	&Warn("After loading:\n");
 	&PrintNameMap();
 	# &ClearNames();
-	# print "After clearing:\n";
+	# &Warn("After clearing:\n");
 	&PrintNameMap();
 	# &RewriteNameMapLog();
-	# print "After rewriting.\n";
+	# &Warn("After rewriting.\n");
 	exit 0;
 	my $name = "$basePath/cache/URI/file%3A%2F%2F%2Ftmp%2Ffile-uri-test/serCache";
 	my $s = &ShortName($name);
@@ -1025,7 +1078,7 @@ if (!$lm || $isNewLatest || $isNewOutQuery) {
 	&Warn("... sameQueries: $sameQueries\n", $DEBUG_DETAILS);
 	$lm = &GenerateNewLM() if !$lm || !$sameQueries 
 		|| ($isNewLatest && !$thisVHash->{parametersFilter});
-	&SaveLMs($FILE, $parametersFile, $lm, $latestQuery, %newRequesterQueries);
+	&SaveLMs($FILE, $parametersFile, $lm, $latestQuery, &HashToSortedList(%newRequesterQueries));
 	}
 &LogDeltaTimingData("UpdateQueries", $thisUri, $startTime, 0);
 return $lm;
@@ -1115,7 +1168,7 @@ my $newThisLM = &{$fRunUpdater}($nm, $thisUri, $thisUpdater, $state,
 &LogDeltaTimingData("Update", $thisUri, $startTime, 0);
 &Warn("WARNING: fRunUpdater on $thisUri $thisUpdater returned false LM\n") if !$newThisLM;
 $newThisLM or die;
-&SaveLMs($URI, $thisUri, $newThisLM, %{$newDepLMs});
+&SaveLMs($URI, $thisUri, $newThisLM, &HashToSortedList(%{$newDepLMs}));
 return $newThisLM if $newThisLM eq $oldThisLM;
 ### Allow non-monotonic LM (because they could be checksums):
 ### $newThisLM gt $oldThisLM or die;
@@ -1790,14 +1843,30 @@ $nNameMapLines++;
 close($fh) || die;
 }
 
+############ KV_TimeToRewrite ##########
+# Time to rewrite the $keyValueFile?  The extra parameter, $nToBeDelete,
+# may be specified to indicate that that many entries are about to be
+# deleted, so that should be taken into account when deciding whether
+# it is time to rewrite the logFile.
+sub KV_TimeToRewrite
+{
+@_ == 1 || @_ == 2 || die;
+my ($kvConfig, $nToBeDeleted) = @_;
+$nToBeDeleted //= 0;
+my $nRemaining = scalar(%{$kvConfig->{keyValue}}) - $nToBeDeleted;
+my $timeToRewrite = ($kvConfig->{nKeyValueLines} > $kvConfig->{maxKeyValueFactor}*$nRemaining 
+	&& $kvConfig->{nKeyValueLines} > $nRemaining + $kvConfig->{keyValueExtraLinesThreshold});
+# print "KV_TimeToRewrite nToBeDeleted: $nToBeDeleted nRemaining: $nRemaining nKeyValueLines: $kvConfig->{nKeyValueLines}\n";
+return $timeToRewrite || 0;
+}
+
 ############ KV_Delete ##########
-# Delete key-value name pairs from the given keyValue map and
+# Delete key-value pairs from the given keyValue map and
 # inverseKeyValue map (if provided), and log them as deleted in keyValueFile.
 # Called as: &KV_Delete($kvConfig, [ $key1 $key2 ... ]);
 # It will trigger a call to &KV_RewriteLog($kvConfig) if there are 
 # too many obsolete lines in $keyValueFile.  
-# There is no harm in calling KV_Delete for a name that was already
-# deleted.
+# Calling KV_Delete for a name that was already deleted has no effect.
 sub KV_Delete
 {
 @_ == 2 || die;
@@ -1809,15 +1878,14 @@ my ($kvConfig, $pList) = @_;
 # which might sometimes cause $keyValueFile to be rewritten
 # prematurely if that is not the case, but that seems harmless.
 my $nRemaining = scalar(%{$kvConfig->{keyValue}}) - scalar(@{$pList});
-my $timeToRewrite = ($kvConfig->{nKeyValueLines} > $kvConfig->{nKeyValueLines}*$nRemaining 
-	&& $kvConfig->{nKeyValueLines} > $nRemaining + $kvConfig->{keyValueExtraLinesThreshold});
-print "-------------------\n";
-print "KV_Delete\n";
-print "nRemaining: $nRemaining\n";
-print "nKeyValueLines: $kvConfig->{nKeyValueLines}\n";
-print "maxKeyValueFactor: $kvConfig->{maxKeyValueFactor}\n";
-print "keyValueExtraLinesThreshold: $kvConfig->{keyValueExtraLinesThreshold}\n";
-print "timeToRewrite: $timeToRewrite\n\n";
+my $timeToRewrite = &KV_TimeToRewrite($kvConfig, scalar(@{$pList}));
+&Warn("-------------------\n");
+&Warn("KV_Delete\n");
+&Warn("nRemaining: $nRemaining\n");
+&Warn("nKeyValueLines: $kvConfig->{nKeyValueLines}\n");
+&Warn("maxKeyValueFactor: $kvConfig->{maxKeyValueFactor}\n");
+&Warn("keyValueExtraLinesThreshold: $kvConfig->{keyValueExtraLinesThreshold}\n");
+&Warn("timeToRewrite: $timeToRewrite\n\n");
 # $keyValueFile is expected to already exist.
 (open(my $fh, ">>$kvConfig->{keyValueFile}") || confess "[ERROR] DeleteNames: failed to open $kvConfig->{keyValueFile} for append: $!")
 	if !$timeToRewrite;
@@ -1841,8 +1909,7 @@ foreach my $key ( @{$pList} ) {
 # Called as: &DeleteNames([ $key1 $key2 ... ]);
 # It will trigger a call to &RewriteNameMapLog() if there are too many 
 # obsolete lines in keyValueFile.  
-# There is no harm in calling DeleteNames for a name that was already
-# deleted.
+# Calling DeleteNames for a name that was already deleted has no effect.
 sub DeleteNames
 {
 @_ == 1 || die;
@@ -1860,32 +1927,43 @@ our $nameMapConfig;
 # The same key with a new value will overwrite the old value.
 # Values are not required to be unique, but if they are not unique,
 # then the inverseKeyValue map won't work very well.
-# An existing name can be inserted more than once with the same value, and 
-# it will be written to $keyValueFile every time, so don't do that if you 
-# don't want multiples to appear in keyValueFile.
-# Neither key nor value are allow to be undefined or empty string.
+# Inserting a key/value pair that already exists will have no effect
+# unless a filename argument $newF is specified.  This is to facilitate
+# rewriting of the logFile.   In other words, $newF should ONLY be
+# specified when KV_Insert the logFile is being created or rewritten.
+# Key MUST NOT be undefined, be the empty string, or contain whitespace.
+# Value MUST NOT be undefined or contain leading or trailing whitespace.
 sub KV_Insert
 {
 @_ == 2 || @_ == 3 || die;
-my ($kvConfig, $pHash, $f) = @_;
+my ($kvConfig, $pHash, $newF) = @_;
 # $keyValueFile is expected to already exist.
+my $f = $newF;
 $f //= $kvConfig->{keyValueFile};
 my $allNames = join(" ", map {"$_->" . $pHash->{$_}} sort keys %{$pHash});
-print "KV_Insert $allNames\n";
-open(my $fh, ">>$f") || confess "[ERROR] KV_Insert: failed to open $f for append: $!";
+# &Warn("KV_Insert $allNames\n");
+# Do not trigger a rewrite if $newF is given, because if $newF is given
+# it means that a rewrite is already in progress.
+my $timeToRewrite = (!$newF) && &KV_TimeToRewrite($kvConfig, 0);
+# &Warn("KV_Insert $f timeToRewrite: $timeToRewrite\n");
+open(my $fh, ">>$f") || confess "[ERROR] KV_Insert: failed to open $f for append: $!" if !$timeToRewrite;
 # Sort first, to be deterministic (for easier regression testing):
 foreach my $key ( sort keys %{$pHash} ) {
-	die if !defined($key);
+	die if !defined($key) || $key =~ m/\s/;
 	my $value = $pHash->{$key};
-	die if !defined($value) || $value eq "";
-	print "KV_Insert key: $key value: $value\n";
+	die if !defined($value) || $value =~ m/\A\s/ || $value =~ m/\s\Z/;
+	# print "KV_Insert key: $key value: $value\n";
+	my $oldValue = $kvConfig->{keyValue}->{$key};
+	next if defined($oldValue) && $oldValue eq $value && !$newF;
 	my $line = "i $key $value\n";
-	print $fh $line;
+	print $fh $line if !$timeToRewrite;
 	$kvConfig->{nKeyValueLines}++;
 	$kvConfig->{keyValue}->{$key} = $value;
 	$kvConfig->{inverseKeyValue}->{$value} = $key if $kvConfig->{inverseKeyValue};
 	}
-close($fh) || die;
+close($fh) || die if !$timeToRewrite;
+# Recursive call:
+&KV_RewriteLog($kvConfig) if $timeToRewrite;
 }
 
 ############ InsertNames ##########
@@ -1946,17 +2024,19 @@ while (my $line = <$fh>) {
 	next if $line eq "";		# Skip empty lines
 	$kvConfig->{nKeyValueLines}++;
 	my ($action, $key, $value) = split(/\s+/, $line, 3);
+	$key //= "";
+	$value //= "";
 	if ($action eq "i") {
 		# i key1 value1
 		die "[ERROR] KV_Load bad insert line in $kvConfig->{keyValueFile}: $line\n"
-			if !defined($key) || !defined($value);
+			if $key eq "";
 		$kvConfig->{keyValue}->{$key} = $value;
 		$kvConfig->{inverseKeyValue}->{$value} = $key if $kvConfig->{inverseKeyValue};
 		}
 	elsif ($action eq "d") {
 		# d key1
 		die "[ERROR] KV_Load bad delete line in $kvConfig->{keyValueFile}: $line\n"
-			if !defined($key) || defined($value);
+			if $key eq "";
 		$value = $kvConfig->{keyValue}->{$key};
 		next if !defined($value);	# Already deleted?
 		delete $kvConfig->{keyValue}->{$key};
@@ -1965,7 +2045,7 @@ while (my $line = <$fh>) {
 	elsif ($action eq "clear") {
 		# clear
 		die "[ERROR] KV_Load bad clear line in $kvConfig->{keyValueFile}: $line\n"
-			if defined($key) || defined($value);
+			if $key ne "";
 		$kvConfig->{keyValue} = {};
 		$kvConfig->{inverseKeyValue} = {} if $kvConfig->{inverseKeyValue};
 		}
@@ -2026,6 +2106,9 @@ sub KV_RewriteLog
 {
 @_ == 1 || die;
 my ($kvConfig) = @_;
+my $name = $kvConfig->{keyValueTitle} // "";
+my $f = $kvConfig->{keyValueFile} // "";
+&Warn("KV_RewriteLog of $name ($f) called\n", $DEBUG_DETAILS);
 &KV_CreateLog($kvConfig, $kvConfig->{newKeyValueFile});
 &KV_Insert($kvConfig, $kvConfig->{keyValue}, $kvConfig->{newKeyValueFile});
 rename($kvConfig->{newKeyValueFile}, $kvConfig->{keyValueFile}) || die "[ERROR] KV_RewriteLog failed to rename $kvConfig->{newKeyValueFile} to $kvConfig->{keyValueFile}\n";
@@ -2268,6 +2351,7 @@ while (1) {
 	# Got this flock code pattern from
 	# http://www.stonehenge.com/merlyn/UnixReview/col23.html
 	# See also http://docstore.mik.ua/orelly/perl/cookbook/ch07_12.htm
+	# Another good example: https://www.perlmonks.org/?node_id=869096
 	sysopen(my $fh, $hashMapFile, O_RDWR|O_CREAT) 
 		or confess "[ERROR] Cannot open $hashMapFile: $!";
 	flock $fh, 2;			# LOCK_EX -- exclusive lock
@@ -2345,13 +2429,13 @@ if (!$lmFile) {
 return $lmFile;
 }
 
-############# SaveLMs ##############
+############# OLD_SaveLMs ##############
 # Save Last-Modified times of $thisName and its dependsOns.
 # Called as: &SaveLMs($nameType, $thisName, $thisLM, %depLMs);
 # Actually, this can be used to save/load any lines of data, using
 # $nameType and $thisName as the composite key.
 # The lines are given as strings with no newline at the ends.
-sub SaveLMs
+sub OLD_SaveLMs
 {
 @_ >= 3 || die;
 my ($nameType, $thisName, $thisLM, @depLMs) = @_;
@@ -2362,18 +2446,72 @@ my $cThisUri = "# $nameType $thisName";
 my $s = join("\n", $cThisUri, $thisLM, @depLMs) . "\n";
 &Warn("SaveLMs($nameType, $thisName, $thisLM, ...) to file: $f\n", $DEBUG_DETAILS);
 &Warn("... $cThisUri\n", $DEBUG_DETAILS);
-foreach my $line ("# $nameType $thisName", @depLMs) {
+foreach my $line (@depLMs) {
 	&Warn("... $line\n", $DEBUG_DETAILS);
 	}
 &WriteFile($f, $s);
 }
 
+my $useOldLMs = 1;
+
+############# SaveLMs ##############
+# Save Last-Modified times of $thisName and its dependsOns.
+# Called as: &SaveLMs($nameType, $thisName, $thisLM, %depLMs);
+# Actually, this can be used to save/load multiple lines of data (except an
+# empty string, using
+# $nameType and $thisName as the composite key.  The data must not
+# contain a "|" (vertical bar) or a newline.  
+sub SaveLMs
+{
+@_ >= 3 || die;
+my ($nameType, $thisName, $thisLM, @depLMs) = @_;
+return(OLD_SaveLMs($nameType, $thisName, $thisLM, @depLMs)) if $useOldLMs;
+our $lmsConfig;
+# Make sure the data to be saved does not contain newlines or "|":
+grep { die if m/\n/s || m/\|/s; 0} @depLMs;
+die if $nameType =~ m/\|/;
+die if $thisName =~ m/\|/;
+my $key = "$nameType|$thisName";
+my $value = join("|", $thisLM, @depLMs);
+&KV_Insert($lmsConfig, { $key, $value });
+my $cThisUri = "# $nameType $thisName";
+my $f = $lmsConfig->{keyValueFile};
+&Warn("SaveLMs2($nameType, $thisName, $thisLM, ...) to file: $f\n", $DEBUG_DETAILS);
+&Warn("... $cThisUri\n", $DEBUG_DETAILS);
+foreach my $line (@depLMs) {
+	&Warn("... $line\n", $DEBUG_DETAILS);
+	}
+}
+
 ############# LookupLMs ##############
+# Lookup LM times of $thisName and its dependsOns.
+# Called as: my ($thisLM, %depLMs) = &LookupLMs($nameType, $thisName);
+sub LookupLMs
+{
+@_ == 2 || die;
+my ($nameType, $thisName) = @_;
+return(OLD_LookupLMs($nameType, $thisName)) if $useOldLMs;
+our $lmsConfig;
+my $f = $lmsConfig->{keyValueFile} || die;
+my $key = "$nameType|$thisName";
+my $value = $lmsConfig->{keyValue}->{$key};
+return ("", ()) if !defined($value);
+my ($thisLM, @depLMs) = split(/\|/, $value, -1);
+my $cThisUri = "# $nameType $thisName";
+&Warn("LookupLMs2($nameType, $thisName) from file: $f\n", $DEBUG_DETAILS);
+&Warn("... $cThisUri\n", $DEBUG_DETAILS);
+foreach my $line ($thisLM, @depLMs) {
+	&Warn("... $line\n", $DEBUG_DETAILS);
+	}
+return($thisLM, @depLMs);
+}
+
+############# OLD_LookupLMs ##############
 # Lookup LM times of $thisName and its dependsOns.
 # Called as: my ($thisLM, %depLMs) = &LookupLMs($nameType, $thisName);
 # Actually, this can be used to save/load any lines of data, using
 # $nameType and $thisName as the composite key.
-sub LookupLMs
+sub OLD_LookupLMs
 {
 @_ == 2 || die;
 my ($nameType, $thisName) = @_;
@@ -3297,6 +3435,15 @@ sub GetIps
 my @interfaces = IO::Interface::Simple->interfaces;
 my @ips = grep {$_} map { $_->address } @interfaces;
 return @ips;
+}
+
+########## HashToSortedList ############
+# To be deterministic, sort the entries of the given hash.
+sub HashToSortedList
+{
+my %hash = @_;
+my @sortedKeys = sort keys %hash;
+return(map {($_, $hash{$_})} @sortedKeys);
 }
 
 ########## Trim ############

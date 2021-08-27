@@ -16,7 +16,7 @@ my $moduleDir;
 my $nTests;
 my @testDirs;
 BEGIN {
-  $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
+  $wwwDir = $ENV{'DOCUMENT_ROOT'} or &EnvNotSet('DOCUMENT_ROOT');
   my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
   $moduleDir = "$devDir/RDF-Pipeline";
 

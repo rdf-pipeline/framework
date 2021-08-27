@@ -29,7 +29,7 @@ $wwwDir =~ s/\/$// if $wwwDir ne "/";
 
 -d $wwwDir || die "$0: [ERROR] Not a directory: $wwwDir\n";
 
-my @files = map { "$wwwDir/$_" } qw(cache lm tmp test);
+my @files = map { "$wwwDir/$_" } qw(cache lm tmp test lms.txt );
 @files = (@files, $logFile, $timingLogFile, $tmpDir) if $all;
 
 foreach my $f (@files) {

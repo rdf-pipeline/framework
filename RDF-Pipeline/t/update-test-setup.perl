@@ -27,7 +27,7 @@ use strict;
 # Enable files created in /var/www to have the right group permissions:
 umask 002;
 
-my $wwwDir = $ENV{'RDF_PIPELINE_WWW_DIR'} or &EnvNotSet('RDF_PIPELINE_WWW_DIR');
+my $wwwDir = $ENV{'DOCUMENT_ROOT'} or &EnvNotSet('DOCUMENT_ROOT');
 my $devDir = $ENV{'RDF_PIPELINE_DEV_DIR'} or &EnvNotSet('RDF_PIPELINE_DEV_DIR');
 my $moduleDir = "$devDir/RDF-Pipeline";
 my $testsDir = "$moduleDir/t/tests";
