@@ -123,7 +123,7 @@ return @keys;
 ############ HLInsert ##########
 # Insert key/value pairs into the given hash map,
 # and append them to the logFile.
-# Called as: &HLInsert($hlConfig, { $key1 $value1 $key2 $value2 ... });
+# Called as: &HLInsert($hlConfig, k1, v1, k2, v2, ... );
 # The same key with a new value will overwrite the old value.
 # Values are not required to be unique, but if they are not unique,
 # then the inverseHash map won't work very well.
@@ -135,8 +135,9 @@ return @keys;
 # trailing whitespace or newline, though it may be an empty string.
 sub HLInsert
 {
-@_ == 2 || die;
-my ($hlConfig, $pHash) = @_;
+@_ >= 2 || die;
+my ($hlConfig, @pairs ) = @_;
+scalar(@pairs) % 2 == 0 || die;
 # This needs to be an exclusive lock to prevent potential deadlock,
 # even though initially this will only be reading, to refresh.
 &HLLock($hlConfig, LOCK_EX);
@@ -145,7 +146,7 @@ my ($hlConfig, $pHash) = @_;
 my $logFile = $hlConfig->{logFile};
 my $newLogFile = $hlConfig->{newLogFile};
 if ($debug) {
-	my $allNames = join(" ", map {"$_->" . $pHash->{$_}} sort keys %{$pHash});
+	my $allNames = join(" ", @pairs );
 	print "HLInsert $allNames\n" if $debug;
 	}
 my $isTimeToRewrite = &HLIsTimeToRewrite($hlConfig);
@@ -157,19 +158,17 @@ my $isTimeToRewrite = &HLIsTimeToRewrite($hlConfig);
 my $nNewLines = 0;
 my $hash = $hlConfig->{hash};
 my $inverseHash = $hlConfig->{inverseHash};
-my @iKeys = keys %{$pHash};
-# Sort before writing, to be deterministic (for easier regression testing):
-@iKeys = sort @iKeys if !$isTimeToRewrite;
-foreach my $key ( @iKeys ) {
+for (my $i=0; $i<@pairs; $i += 2) {
+	my $key = $pairs[$i];
 	# In perl it is not actually possible to have an undefined hash key, because
 	# perl converts all would-be keys to strings before using them as hash keys,
 	# so undef silently becomes string "undef" when used as a key.
 	# To catch potential errors, we therefore forbid "undef" as a key.
-	if (!defined($key) || $key =~ m/[\s\n]/ || $key eq "undef" || $key eq "") {
+	if (!defined($key) || $key =~ m/\s/ || $key eq "undef" || $key eq "") {
 		my $k = $key // "(undef)";
 		die "[INTERNAL ERROR] HLInsert attempt to insert a bad key: {$k}\n";
 		}
-	my $value = $pHash->{$key};
+	my $value = $pairs[$i+1];
 	if (!defined($value) || $value =~ m/\A\s/ || $value =~ m/\s\Z/
 			|| $value =~ m/\n/) {
 		my $v = $value // "(undef)";
@@ -196,13 +195,13 @@ $hlConfig->{oldSize} = -s $logFile if !$isTimeToRewrite;
 ############ HLDelete ##########
 # Delete key-value pairs from the given hash map and
 # inverseHash map (if provided), and log them as deleted in logFile.
-# Called as: &HLDelete($hlConfig, [ $key1 $key2 ... ]);
+# Called as: &HLDelete($hlConfig, $key1, $key2, ... ]);
 # It will rewrite logFile if there are too many obsolete lines in it.  
 # Calling HLDelete for a name that was already deleted has no effect.
 sub HLDelete
 {
-@_ == 2 || die;
-my ($hlConfig, $pList) = @_;
+@_ >= 2 || die;
+my ($hlConfig, @list) = @_;
 &HLLock($hlConfig, LOCK_EX);
 &HLRefresh($hlConfig);
 # Time to rewrite the $logFile?  If so, then don't
@@ -214,7 +213,7 @@ print "HLDelete called, isTimeToRewrite: $isTimeToRewrite\n" if $debug;
 	|| confess "[ERROR] HLDelete: failed to open $hlConfig->{logFile} for append: $!")
 		if !$isTimeToRewrite;
 my $nNewLines = 0;
-foreach my $key ( @{$pList} ) {
+foreach my $key ( @list ) {
 	die if !defined($key) || $key =~ m/\s/;
 	my $oldValue = $hlConfig->{hash}->{$key};
 	next if !defined($oldValue);	# $key was already deleted?
@@ -509,7 +508,7 @@ print "  HLRefresh set oldSize = $size\n" if $debug;
 
 ############ HLRewriteLogInternal ##########
 # Write the current %hash into a $newLogFile, then atomically rename 
-# it to be the current $logFile.
+# it to be the current $logFile.  Must be already locked.
 sub HLRewriteLogInternal
 {
 @_ == 1 || die;
@@ -627,16 +626,16 @@ unlink $nmc->{logFile};
 unlink $nmc->{newLogFile};
 unlink $nmc->{lockFile};
 # Should die if called without logFile:
-# &HLGet($nmc, []);
-# HLGetKeys($nmc, []);
-# HLInsert($nmc, {});
-# HLDelete($nmc, []);
+# &HLGet($nmc, 'x');
+# HLGetKeys($nmc, 'x');
+# HLInsert($nmc, 'a', 'aa');
+# HLDelete($nmc, 'x');
 # HLPrintAll($nmc);
 my $logFile = $nmc->{logFile};
 my $newLogFile = $nmc->{newLogFile};
 my $lockFile = $nmc->{lockFile};
 
-HLClear($nmc);
+HLClear($nmc);	# This will create the missing logFile
 is( -s $logFile,                   24,            'New initialized logFile size');
 is( $nmc->{hash},                  {},            'hash is empty');
 is( $nmc->{inverseHash},           {},            'inverseHash is empty');
@@ -644,7 +643,7 @@ is( $nmc->{nLines},                 0,            'No lines in logFile yet');
 is( $nmc->{lockFH},             undef,            'Not locked');
 is( $nmc->{oldSize},               24,            'oldSize');
 
-HLInsert($nmc, { qw(a aa) } );
+HLInsert($nmc, qw(a aa) );
 is( $nmc->{hash},                  {qw(a aa)},    'hash now has {a aa}');
 is( $nmc->{inverseHash},           {qw(aa a)},    'inverseHash now has {aa a}');
 is( $nmc->{nLines},                 1,            'Lines in logFile');
@@ -659,7 +658,7 @@ is( [ sort keys %{$nmc} ],
                                                  'hash has correct keys' );
 my $oldInode = $nmc->{oldInode} // "(undef)";
 
-HLInsert($nmc, { qw(a aa) } );
+HLInsert($nmc, qw(a aa) );
 is( $nmc, { 	
 		hash => {qw(a aa)},
 		inverseHash => {qw(aa a)},
@@ -675,7 +674,7 @@ is( $nmc, {
 		},
 						 'Added {a aa} again (no effect)' );
 
-HLInsert($nmc, { qw(a AA) } );
+HLInsert($nmc, qw(a AA) );
 is( $nmc, { 	
 		hash => {qw(a AA)},
 		inverseHash => {qw(AA a)},
@@ -691,7 +690,7 @@ is( $nmc, {
 		},
 						 'Added {a AA}' );
 
-HLInsert($nmc, { qw(a a2) } );
+HLInsert($nmc, qw(a a2) );
 is( $nmc, { 	
 		hash => {qw(a a2)},
 		inverseHash => {qw(a2 a)},
@@ -707,7 +706,7 @@ is( $nmc, {
 		},
 						 'Added {a a2}' );
 
-HLInsert($nmc, { qw(a a3) } );
+HLInsert($nmc, qw(a a3) );
 is( $nmc, { 	
 		hash => {qw(a a3)},
 		inverseHash => {qw(a3 a)},
@@ -723,7 +722,7 @@ is( $nmc, {
 		},
 						 'Added {a a3}' );
 
-HLInsert($nmc, { qw(a a4) } );
+HLInsert($nmc, qw(a a4) );
 is( $nmc, { 	
 		hash => {qw(a a4)},
 		inverseHash => {qw(a4 a)},
@@ -739,7 +738,7 @@ is( $nmc, {
 		},
 						 'Added {a a4}' );
 
-HLInsert($nmc, { qw(a a5) } );
+HLInsert($nmc, qw(a a5) );
 $oldInode = $nmc->{oldInode};
 is( $nmc, { 	
 		hash => {qw(a a5)},
@@ -756,7 +755,7 @@ is( $nmc, {
 		},
 						 'Added {a a5}, trigger rewrite' );
 
-HLInsert($nmc, { qw(b b1) } );
+HLInsert($nmc, qw(b b1) );
 is( $nmc, { 	
 		hash => {qw(a a5 b b1)},
 		inverseHash => {qw(a5 a b1 b)},
@@ -772,7 +771,7 @@ is( $nmc, {
 		},
 						 'Added {b b1}' );
 
-HLDelete($nmc, [ qw(cNonExist dNonExist) ] );
+HLDelete($nmc, qw(cNonExist dNonExist) );
 is( $nmc, { 	
 		hash => {qw(a a5 b b1)},
 		inverseHash => {qw(a5 a b1 b)},
@@ -788,7 +787,7 @@ is( $nmc, {
 		},
 						 'Delete non-existent' );
 
-HLDelete($nmc, [ qw(a b) ] );
+HLDelete($nmc, qw(a b) );
 is( $nmc, { 	
 		hash => {},
 		inverseHash => {},
@@ -804,7 +803,7 @@ is( $nmc, {
 		},
 						 'Delete both' );
 
-HLInsert($nmc, { qw(a a1 b b1) } );
+HLInsert($nmc, qw(a a1 b b1) );
 $oldInode = $nmc->{oldInode};
 is( $nmc, { 	
 		hash => {qw(a a1 b b1)},
@@ -855,7 +854,7 @@ is( $nmc, {
 		},
 						 'HLForceRewriteLog of empty hash' );
 
-HLInsert($nmc, { qw(a a1 b b1) } );
+HLInsert($nmc, qw(a a1 b b1) );
 is( $nmc, { 	
 		hash => {qw(a a1 b b1)},
 		inverseHash => {qw(a1 a b1 b)},
@@ -876,32 +875,32 @@ is( $nmc, {
 is( { undef => "aa" },    { "undef" => "aa" }, 	'undef == "undef" as hash key' );
 
 # Bad key should die:
-# HLInsert($nmc, { undef => "aa" } );
+# HLInsert($nmc, undef => "aa" );
 # Bad key should die:
-# HLInsert($nmc, { "undef" => "aa" } );
+# HLInsert($nmc, "undef" => "aa" );
 # Bad key should die:
-# HLInsert($nmc, { " a" => "aa" } );
+# HLInsert($nmc, " a" => "aa" );
 # Bad key should die:
-# HLInsert($nmc, { "a " => "aa" } );
+# HLInsert($nmc, "a " => "aa" );
 # Bad key should die:
-# HLInsert($nmc, { "a\t" => "aa" } );
+# HLInsert($nmc, "a\t" => "aa" );
 # Bad key should die:
-# HLInsert($nmc, { "a\n" => "aa" } );
+# HLInsert($nmc, "a\n" => "aa" );
 # Bad key should die:
-# HLInsert($nmc, { "" => "aa" } );
+# HLInsert($nmc, "" => "aa" );
 
 # Bad value should die:
-# HLInsert($nmc, { 'a' => "\n" } );
+# HLInsert($nmc, 'a' => "\n" );
 # Bad value should die:
-# HLInsert($nmc, { 'a' => "x\ny" } );
+# HLInsert($nmc, 'a' => "x\ny" );
 # Bad value should die:
-# HLInsert($nmc, { 'a' => " aa" } );
+# HLInsert($nmc, 'a' => " aa" );
 # Bad value should die:
-# HLInsert($nmc, { 'a' => "aa " } );
+# HLInsert($nmc, 'a' => "aa " );
 # Bad value should die:
-# HLInsert($nmc, { 'a' => "aa\t" } );
+# HLInsert($nmc, 'a' => "aa\t" );
 # Bad value should die:
-# HLInsert($nmc, { 'a' => "aa\r" } );
+# HLInsert($nmc, 'a' => "aa\r" );
 
 ##### HLGet, HLGetKeys
 # Bad calls should die:
@@ -926,10 +925,9 @@ is( [&HLGetKeys($nmc, qw(a1 xx a1))],	['a', undef, 'a'],	"GetK non-existent" );
 
 ##### No inverseHash
 delete $nmc->{inverseHash};
-HLInsert($nmc, { qw(a a1 b b1) } );
-&HLGet($nmc, 'a');
+HLInsert($nmc, qw(a a1 b b1) );
 is( [&HLGet($nmc, qw(a b))], 		[qw(a1 b1)],		"(No inv) GetK a1 b1" );
-HLDelete($nmc, [ qw(a) ] );
+HLDelete($nmc, qw(a) );
 is( $nmc->{inverseHash}, 		undef,			"(No inv) inverseHash is undef" );
 HLForceRewriteLog($nmc);
 is( $nmc->{inverseHash}, 		undef,			"(No inv) inverseHash still undef" );
@@ -985,8 +983,8 @@ is( ($nmc->{lockFH} && 1), 1,     	'lockFH is defined' );
 # These should die if called while already locked:
 # &HLLock($nmc, LOCK_SH);
 # &HLClear($nmc);
-# &HLInsert($nmc, {});
-# &HLDelete($nmc, []);
+# &HLInsert($nmc, 1);
+# &HLDelete($nmc, 'x');
 # &HLGet($nmc, 'aa');
 # &HLGetKeys($nmc, 'aa');
 # &HLForceRewriteLog($nmc);
@@ -1027,10 +1025,10 @@ my $nmc = {
 
 my @fCalls = (
 	'&HLClear($nmc)',
-	'&HLInsert($nmc, {})',
-	'&HLDelete($nmc, [])',
-	'&HLGet($nmc, [])',
-	'&HLGetKeys($nmc, [])',
+	'&HLInsert($nmc, 1, 11)',
+	'&HLDelete($nmc, 1)',
+	'&HLGet($nmc, 1)',
+	'&HLGetKeys($nmc, 11)',
 	'&HLForceRewriteLog($nmc)',
 	);
 
