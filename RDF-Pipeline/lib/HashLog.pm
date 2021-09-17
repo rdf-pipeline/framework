@@ -96,7 +96,7 @@ my @functionList = qw(
 # my ($v1, $v2, ...) = &HLGet($hlConfig, $k1, $k2, ...);
 sub HLGet
 {
-@_ >= 2 || die;
+@_ >= 2 || confess;
 my ($hlConfig, @keys) = @_;
 &HLLock($hlConfig, LOCK_SH);
 &HLRefresh($hlConfig);
@@ -110,7 +110,7 @@ return @values;
 # my ($k1, $k2, ...) = &HLGetKeys($hlConfig, $v1, $v2, ...);
 sub HLGetKeys
 {
-@_ >= 2 || die;
+@_ >= 2 || confess;
 my ($hlConfig, @values) = @_;
 my $inverseHash = $hlConfig->{inverseHash} // confess;
 &HLLock($hlConfig, LOCK_SH);
@@ -135,9 +135,9 @@ return @keys;
 # trailing whitespace or newline, though it may be an empty string.
 sub HLInsert
 {
-@_ >= 2 || die;
+@_ >= 2 || confess;
 my ($hlConfig, @pairs ) = @_;
-scalar(@pairs) % 2 == 0 || die;
+scalar(@pairs) % 2 == 0 || confess;
 # This needs to be an exclusive lock to prevent potential deadlock,
 # even though initially this will only be reading, to refresh.
 &HLLock($hlConfig, LOCK_EX);
@@ -166,7 +166,7 @@ for (my $i=0; $i<@pairs; $i += 2) {
 	# To catch potential errors, we therefore forbid "undef" as a key.
 	if (!defined($key) || $key =~ m/\s/ || $key eq "undef" || $key eq "") {
 		my $k = $key // "(undef)";
-		die "[INTERNAL ERROR] HLInsert attempt to insert a bad key: {$k}\n";
+		confess "[INTERNAL ERROR] HLInsert attempt to insert a bad key: {$k}\n";
 		}
 	my $value = $pairs[$i+1];
 	if (!defined($value) || $value =~ m/\A\s/ || $value =~ m/\s\Z/
@@ -186,7 +186,7 @@ for (my $i=0; $i<@pairs; $i += 2) {
 	$hash->{$key} = $value;
 	}
 $hlConfig->{nLines} += $nNewLines;
-(close($fh) || die) if !$isTimeToRewrite;
+(close($fh) || confess) if !$isTimeToRewrite;
 $hlConfig->{oldSize} = -s $logFile if !$isTimeToRewrite;
 &HLRewriteLogInternal($hlConfig) if $isTimeToRewrite;
 &HLUnlock($hlConfig);
@@ -200,7 +200,7 @@ $hlConfig->{oldSize} = -s $logFile if !$isTimeToRewrite;
 # Calling HLDelete for a name that was already deleted has no effect.
 sub HLDelete
 {
-@_ >= 2 || die;
+@_ >= 2 || confess;
 my ($hlConfig, @list) = @_;
 &HLLock($hlConfig, LOCK_EX);
 &HLRefresh($hlConfig);
@@ -214,7 +214,7 @@ print "HLDelete called, isTimeToRewrite: $isTimeToRewrite\n" if $debug;
 		if !$isTimeToRewrite;
 my $nNewLines = 0;
 foreach my $key ( @list ) {
-	die if !defined($key) || $key =~ m/\s/;
+	confess if !defined($key) || $key =~ m/\s/;
 	my $oldValue = $hlConfig->{hash}->{$key};
 	next if !defined($oldValue);	# $key was already deleted?
 	print $fh "d $key\n" if !$isTimeToRewrite;
@@ -223,7 +223,7 @@ foreach my $key ( @list ) {
 	delete $hlConfig->{inverseHash}->{$oldValue} if $hlConfig->{inverseHash};
 	}
 $hlConfig->{nLines} += $nNewLines;
-(close($fh) || die) if !$isTimeToRewrite;
+(close($fh) || confess) if !$isTimeToRewrite;
 $hlConfig->{oldSize} = -s $hlConfig->{logFile} if !$isTimeToRewrite;
 &HLRewriteLogInternal($hlConfig) if $isTimeToRewrite;
 &HLUnlock($hlConfig);
@@ -238,7 +238,7 @@ $hlConfig->{oldSize} = -s $hlConfig->{logFile} if !$isTimeToRewrite;
 # (For safety, other HashLog functions will NOT auto-create a missing logFile.)
 sub HLClear
 {
-@_ == 1 || die;
+@_ == 1 || confess;
 my ($hlConfig) = @_;
 &HLLock($hlConfig, LOCK_EX);
 my $logFile = $hlConfig->{logFile}; 
@@ -263,7 +263,7 @@ $hlConfig->{nLines}++;
 # Clear without changing the hashrefs:
 %{$hlConfig->{hash}} = ();
 %{$hlConfig->{inverseHash}} = () if $hlConfig->{inverseHash};
-(close($fh) || die) if !$isTimeToRewrite;
+(close($fh) || confess) if !$isTimeToRewrite;
 $hlConfig->{oldSize} = -s $logFile if !$isTimeToRewrite;
 &HLRewriteLogInternal($hlConfig) if $isTimeToRewrite;
 &HLUnlock($hlConfig);
@@ -274,7 +274,7 @@ $hlConfig->{oldSize} = -s $logFile if !$isTimeToRewrite;
 # $hlConfig->{hash} in memory, though the disk access to the logFile is safe.
 sub HLPrintAll
 {
-@_ == 1 || @_ == 2 || die;
+@_ == 1 || @_ == 2 || confess;
 my ($hlConfig, $refresh) = @_;
 return if !$debug;
 if ($refresh) {
@@ -331,7 +331,7 @@ foreach my $f (@_) {
         $MakeParentDirs::dirSeen{$fDir} = 1; 
         next if $fDir eq "";    # Hit the root?
         make_path($fDir);
-        -d $fDir || die "[ERROR] HashLog/MakeParentDirs: Failed to create directory: $fDir\n ";
+        -d $fDir || confess "[ERROR] HashLog/MakeParentDirs: Failed to create directory: $fDir\n ";
         }
 }
 
@@ -339,9 +339,9 @@ foreach my $f (@_) {
 # Time to rewrite the logFile?  
 sub HLIsTimeToRewrite
 {
-@_ == 1 || die;
+@_ == 1 || confess;
 my ($hlConfig) = @_;
-$hlConfig->{lockFH} // die;
+$hlConfig->{lockFH} // confess;
 #### For safety, don't auto rewrite if the file is missing:
 # return 1 if !-e $hlConfig->{logFile};
 # $oldSize should never be undefined here, because Refresh should always
@@ -368,22 +368,22 @@ return $isTimeToRewrite || 0;
 # $lockType should be LOCK_EX (exclusive/write) or LOCK_SH (shared/read).
 sub HLLock
 {
-@_ == 2 || die;
+@_ == 2 || confess;
 my ($hlConfig, $lockType) = @_;
 # If a previous lockFH exists then this is already locked:
-die if $hlConfig->{lockFH};
+confess if $hlConfig->{lockFH};
 print "HLLock called\n" if $debug;
 # Make sure the lockFile exists:
-my $lockFile = $hlConfig->{lockFile} // die;
+my $lockFile = $hlConfig->{lockFile} // confess;
 if (!-e $lockFile) {
 	&MakeParentDirs($lockFile);
-	open(my $fh, ">>", $lockFile) || die "[ERROR] Cannot open lockFile $lockFile for append: $!\n";
-	close($fh) || die "[ERROR] Cannot close lockFile $lockFile: $!\n";
+	open(my $fh, ">>", $lockFile) || confess "[ERROR] Cannot open lockFile $lockFile for append: $!\n";
+	close($fh) || confess "[ERROR] Cannot close lockFile $lockFile: $!\n";
 	}
 my $mode = "<";
 $mode = ">>" if $lockType == LOCK_EX;
-open(my $fh, $mode, $lockFile) || die "[ERROR] Cannot open lockFile '$mode' $lockFile: $!\n";
-$hlConfig->{lockFH} = $fh // die;
+open(my $fh, $mode, $lockFile) || confess "[ERROR] Cannot open lockFile '$mode' $lockFile: $!\n";
+$hlConfig->{lockFH} = $fh // confess;
 # Got this flock code pattern from
 # https://www.perlmonks.org/?node_id=7058
 # http://www.stonehenge.com/merlyn/UnixReview/col23.html
@@ -391,7 +391,7 @@ $hlConfig->{lockFH} = $fh // die;
 # Another good example: https://www.perlmonks.org/?node_id=869096
 # And some good info here:
 # https://stackoverflow.com/questions/34920/how-do-i-lock-a-file-in-perl
-flock($fh, $lockType) || die "[ERROR] Cannot lock ($lockType) $lockFile: $!\n";
+flock($fh, $lockType) || confess "[ERROR] Cannot lock ($lockType) $lockFile: $!\n";
 # During testing, force locked functions to be locked this long:
 our $functionLockSeconds;		
 sleep $functionLockSeconds if $functionLockSeconds
@@ -400,12 +400,12 @@ sleep $functionLockSeconds if $functionLockSeconds
 ############ HLUnlock ##########
 sub HLUnlock
 {
-@_ == 1 || die;
+@_ == 1 || confess;
 my ($hlConfig) = @_;
-my $fh = $hlConfig->{lockFH} // die;
-my $lockFile = $hlConfig->{lockFile} // die;
+my $fh = $hlConfig->{lockFH} // confess;
+my $lockFile = $hlConfig->{lockFile} // confess;
 print "HLUnlock called\n" if $debug;
-close($fh) || die "[ERROR] Cannot close lockFile $lockFile: $!\n";
+close($fh) || confess "[ERROR] Cannot close lockFile $lockFile: $!\n";
 $hlConfig->{lockFH} = undef;
 }
 
@@ -418,12 +418,12 @@ $hlConfig->{lockFH} = undef;
 # or LOCK_EX) before calling this.
 sub HLRefresh
 {
-@_ == 1 || die;
+@_ == 1 || confess;
 my ($hlConfig) = @_;
-$hlConfig->{lockFH} // die;
-my $logFile = $hlConfig->{logFile} // die;
+$hlConfig->{lockFH} // confess;
+my $logFile = $hlConfig->{logFile} // confess;
 my ($inode, $size) = &InodeAndSize($logFile);
-die "[ERROR] HLRefresh stat failed on $logFile: $!\n" if !defined($size);
+confess "[ERROR] HLRefresh stat failed on $logFile: $!\n" if !defined($size);
 my $oldSize = $hlConfig->{oldSize};
 my $oldInode = $hlConfig->{oldInode};
 if ($debug) {
@@ -445,14 +445,14 @@ if (!defined($oldInode) || $inode != $oldInode) {
 	%{$hlConfig->{inverseHash}} = () if $hlConfig->{inverseHash};
 	}
 # This should never happen, because the file should only grow:
-die "[ERROR] HLRefresh corrupt $logFile detected: size $size < oldSize $oldSize\n"
+confess "[ERROR] HLRefresh corrupt $logFile detected: size $size < oldSize $oldSize\n"
 	if $size < $oldSize;
 # Already fresh if it is the same size.
 if ($size != $oldSize) {
 	# Size changed.  Need to refresh.
-	open(my $fh, "<", $logFile) || die "[ERROR} HLRefresh could not open logFile for read: $logFile\n";
+	open(my $fh, "<", $logFile) || confess "[ERROR} HLRefresh could not open logFile for read: $logFile\n";
 	# Start reading where we previously left off:
-	seek($fh, $oldSize, SEEK_SET) or die "[ERROR] Cannot seek to $oldSize in $logFile: $! ";
+	seek($fh, $oldSize, SEEK_SET) or confess "[ERROR] Cannot seek to $oldSize in $logFile: $! ";
 	my $hash = $hlConfig->{hash};
 	my $inverseHash = $hlConfig->{inverseHash};
 	my $nNewLines = 0;
@@ -467,7 +467,7 @@ if ($size != $oldSize) {
 		$value //= "";
 		if ($action eq "i") {
 			# i key1 value1
-			die "[ERROR] HLRefresh bad insert line in $logFile: $line\n"
+			confess "[ERROR] HLRefresh bad insert line in $logFile: $line\n"
 				if $key eq "";
 			if ($inverseHash) {
 				my $oldValue = $hash->{$key};
@@ -478,7 +478,7 @@ if ($size != $oldSize) {
 			}
 		elsif ($action eq "d") {
 			# d key1
-			die "[ERROR] HLRefresh bad delete line in $logFile: $line\n"
+			confess "[ERROR] HLRefresh bad delete line in $logFile: $line\n"
 				if $key eq "";
 			my $oldValue = $hash->{$key};
 			next if !defined($oldValue);	# Already deleted?
@@ -488,18 +488,18 @@ if ($size != $oldSize) {
 		elsif ($action eq "clear") {
 			# clear
 			warn "HLRefresh CLEAR\n" if $debug;
-			die "[ERROR] HLRefresh bad clear line in $logFile: $line\n"
+			confess "[ERROR] HLRefresh bad clear line in $logFile: $line\n"
 				if $key ne "";
 			# Clear without changing the hashref:
 			%$hash = ();
 			%$inverseHash = () if $inverseHash;
 			}
 		else	{
-			die "[ERROR] HLRefresh unknown directive in $logFile: $line\n"
+			confess "[ERROR] HLRefresh unknown directive in $logFile: $line\n"
 			}
 		}
 	$hlConfig->{nLines} += $nNewLines;
-	close($fh) || die "[ERROR] HLRefresh close of $logFile failed: $!\n";
+	close($fh) || confess "[ERROR] HLRefresh close of $logFile failed: $!\n";
 	}
 $hlConfig->{oldSize} = $size;
 $hlConfig->{oldInode} = $inode;
@@ -511,11 +511,11 @@ print "  HLRefresh set oldSize = $size\n" if $debug;
 # it to be the current $logFile.  Must be already locked.
 sub HLRewriteLogInternal
 {
-@_ == 1 || die;
+@_ == 1 || confess;
 my ($hlConfig) = @_;
-$hlConfig->{lockFH} // die;
-my $logFile = $hlConfig->{logFile} // die;
-my $newLogFile = $hlConfig->{newLogFile} // die;
+$hlConfig->{lockFH} // confess;
+my $logFile = $hlConfig->{logFile} // confess;
+my $newLogFile = $hlConfig->{newLogFile} // confess;
 my $oldLines = $hlConfig->{nLines};
 my $newLines = scalar(%{$hlConfig->{hash}});
 (open(my $fh, ">", $newLogFile) 
@@ -532,7 +532,7 @@ foreach my $key ( @iKeys ) {
 	# print "HLRewriteLogInternal key: $key value: $value\n";
 	print $fh "i $key $value\n";
 	}
-(close($fh) || die);
+(close($fh) || confess);
 my ($inode, $size) = &InodeAndSize($newLogFile);
 $hlConfig->{oldInode} = $inode;
 $hlConfig->{oldSize} = $size;
@@ -540,11 +540,11 @@ $hlConfig->{nLines} = $nNewLines;
 print "  HLRewriteLogInternal set oldSize = $size\n" if $debug;
 if ($debug) {
 	my $s = -s $newLogFile;
-	die "HLRewriteLogInternal wrong s: $s != size $size\n"
+	confess "HLRewriteLogInternal wrong s: $s != size $size\n"
 		if $s != $size;
 	}
 rename($newLogFile, $logFile) 
-	|| die "[ERROR] HLRewriteLogInternal failed to rename $newLogFile to $logFile\n";
+	|| confess "[ERROR] HLRewriteLogInternal failed to rename $newLogFile to $logFile\n";
 }
 
 ############ HLForceRewriteLog ##########
@@ -552,7 +552,7 @@ rename($newLogFile, $logFile)
 # isn't "full"), then atomically rename it to be the current $logFile.
 sub HLForceRewriteLog
 {
-@_ == 1 || die;
+@_ == 1 || confess;
 my ($hlConfig) = @_;
 &HLLock($hlConfig, LOCK_EX);
 &HLRefresh($hlConfig);
@@ -564,7 +564,7 @@ my ($hlConfig) = @_;
 # Return the inode and size of a file.
 sub InodeAndSize
 {
-@_ == 1 || die;
+@_ == 1 || confess;
 my $f = shift;
 my ($dev,$inode,$mode,$nlink,$uid,$gid,$rdev,$size,
               $atime,$mtime,$ctime,$blksize,$blocks)
