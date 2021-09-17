@@ -423,7 +423,7 @@ my ($hlConfig) = @_;
 $hlConfig->{lockFH} // die;
 my $logFile = $hlConfig->{logFile} // die;
 my ($inode, $size) = &InodeAndSize($logFile);
-die "[ERROR} HLRefresh stat failed on $logFile: $!\n" if !defined($size);
+die "[ERROR] HLRefresh stat failed on $logFile: $!\n" if !defined($size);
 my $oldSize = $hlConfig->{oldSize};
 my $oldInode = $hlConfig->{oldInode};
 if ($debug) {
